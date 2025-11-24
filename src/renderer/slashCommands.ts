@@ -20,11 +20,16 @@ export const slashCommands: SlashCommand[] = [
     command: '/clear',
     description: 'Clear the output history',
     execute: (context: SlashCommandContext) => {
-      const { activeSessionId, setSessions, currentMode } = context;
+      const { activeSessionId, sessions, setSessions, currentMode } = context;
+
+      // Use fallback to first session if activeSessionId is empty
+      const actualActiveId = activeSessionId || (sessions.length > 0 ? sessions[0].id : '');
+      if (!actualActiveId) return;
+
       const targetLogKey = currentMode === 'ai' ? 'aiLogs' : 'shellLogs';
 
       setSessions(prev => prev.map(s => {
-        if (s.id !== activeSessionId) return s;
+        if (s.id !== actualActiveId) return s;
         return {
           ...s,
           [targetLogKey]: []
@@ -38,8 +43,11 @@ export const slashCommands: SlashCommand[] = [
     execute: (context: SlashCommandContext) => {
       const { activeSessionId, sessions, setSessions, setRightPanelOpen, setActiveRightTab } = context;
 
+      // Use fallback to first session if activeSessionId is empty
+      const actualActiveId = activeSessionId || (sessions.length > 0 ? sessions[0].id : '');
+
       // Find active session
-      const activeSession = sessions.find(s => s.id === activeSessionId);
+      const activeSession = sessions.find(s => s.id === actualActiveId);
       if (!activeSession) return;
 
       // Get the current working directory (use shellCwd for terminal mode, cwd otherwise)
@@ -51,7 +59,7 @@ export const slashCommands: SlashCommand[] = [
 
       // Expand all parent folders in the path
       setSessions(prev => prev.map(s => {
-        if (s.id !== activeSessionId) return s;
+        if (s.id !== actualActiveId) return s;
 
         // Build list of parent paths to expand
         const pathParts = targetDir.replace(s.cwd, '').split('/').filter(Boolean);

@@ -272,13 +272,17 @@ export function useSessionManager(): UseSessionManagerReturn {
   };
 
   const toggleInputMode = () => {
-    // Don't toggle if no active session
-    if (!activeSessionId) {
-      console.warn('toggleInputMode: No active session');
+    // Compute the actual active session ID (with fallback to first session)
+    const actualActiveId = activeSessionId || (sessions.length > 0 ? sessions[0].id : '');
+
+    // Don't toggle if no sessions exist
+    if (!actualActiveId || sessions.length === 0) {
+      console.warn('toggleInputMode: No sessions available');
       return;
     }
+
     setSessions(prev => prev.map(s => {
-      if (s.id !== activeSessionId) return s;
+      if (s.id !== actualActiveId) return s;
       return { ...s, inputMode: s.inputMode === 'ai' ? 'terminal' : 'ai' };
     }));
   };
