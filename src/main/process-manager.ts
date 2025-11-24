@@ -24,6 +24,7 @@ interface ManagedProcess {
   isTerminal: boolean;
   isBatchMode?: boolean; // True for agents that run in batch mode (exit after response)
   jsonBuffer?: string; // Buffer for accumulating JSON output in batch mode
+  lastCommand?: string; // Last command sent to terminal (for filtering command echoes)
 }
 
 export class ProcessManager extends EventEmitter {
@@ -97,8 +98,9 @@ export class ProcessManager extends EventEmitter {
 
         // Handle output
         ptyProcess.onData((data) => {
-          // Strip terminal control sequences before emitting
-          const cleanedData = stripControlSequences(data);
+          // Strip terminal control sequences and filter prompts/echoes
+          const managedProc = this.processes.get(sessionId);
+          const cleanedData = stripControlSequences(data, managedProc?.lastCommand, isTerminal);
           console.log(`[ProcessManager] PTY onData for session ${sessionId} (PID ${ptyProcess.pid}):`, cleanedData.substring(0, 100));
           // Only emit if there's actual content after filtering
           if (cleanedData.trim()) {
@@ -246,6 +248,11 @@ export class ProcessManager extends EventEmitter {
     try {
       if (process.isTerminal && process.ptyProcess) {
         console.log(`[ProcessManager] Writing to PTY process (PID ${process.pid})`);
+        // Track the command for filtering echoes (remove trailing newline for comparison)
+        const command = data.replace(/\r?\n$/, '');
+        if (command.trim()) {
+          process.lastCommand = command.trim();
+        }
         process.ptyProcess.write(data);
         return true;
       } else if (process.childProcess?.stdin) {

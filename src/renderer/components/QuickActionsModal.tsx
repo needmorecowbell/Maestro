@@ -257,7 +257,7 @@ export function QuickActionsModal(props: QuickActionsModalProps) {
             <input
               ref={inputRef}
               className="flex-1 bg-transparent outline-none text-lg placeholder-opacity-50"
-              placeholder={mode === 'move-to-group' ? 'Search groups...' : 'Type a command or jump to agent...'}
+              placeholder={mode === 'move-to-group' ? `Move ${activeSession?.name || 'session'} to...` : 'Type a command or jump to agent...'}
               style={{ color: theme.colors.textMain }}
               value={search}
               onChange={e => setSearch(e.target.value)}
