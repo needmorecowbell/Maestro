@@ -63,7 +63,11 @@ function createWindow() {
     mainWindow.loadURL('http://localhost:5173');
     mainWindow.webContents.openDevTools();
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+    mainWindow.loadFile(path.join(__dirname, 'renderer/index.html'));
+    // Open DevTools in production if DEBUG env var is set
+    if (process.env.DEBUG === 'true') {
+      mainWindow.webContents.openDevTools();
+    }
   }
 
   mainWindow.on('closed', () => {
