@@ -698,7 +698,7 @@ export default function MaestroConsole() {
   const theme = THEMES[activeThemeId];
   const anyTunnelActive = sessions.some(s => s.tunnelActive);
 
-  // Create sorted sessions array that matches visual display order
+  // Create sorted sessions array that matches visual display order (includes ALL sessions)
   const sortedSessions = useMemo(() => {
     const sorted: Session[] = [];
 
@@ -719,6 +719,15 @@ export default function MaestroConsole() {
 
     return sorted;
   }, [sessions, groups]);
+
+  // Create visible sessions array (only sessions in expanded groups or ungrouped)
+  const visibleSessions = useMemo(() => {
+    return sortedSessions.filter(session => {
+      if (!session.groupId) return true; // Ungrouped sessions always visible
+      const group = groups.find(g => g.id === session.groupId);
+      return group && !group.collapsed; // Only show if group is expanded
+    });
+  }, [sortedSessions, groups]);
 
   // Persist sessions and groups to electron-store (only after initial load)
   useEffect(() => {
@@ -841,32 +850,74 @@ export default function MaestroConsole() {
       }
 
       // Sidebar navigation with arrow keys (works when sidebar has focus)
-      if (activeFocus === 'sidebar' && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+      if (activeFocus === 'sidebar' && (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft')) {
         e.preventDefault();
-        const totalSessions = sortedSessions.length;
-        if (totalSessions === 0) return;
+        if (visibleSessions.length === 0) return;
 
-        // Calculate next index
-        const nextIndex = e.key === 'ArrowDown'
-          ? (selectedSidebarIndex + 1) % totalSessions
-          : (selectedSidebarIndex - 1 + totalSessions) % totalSessions;
+        // Get the currently selected session
+        const currentSession = sortedSessions[selectedSidebarIndex];
 
-        // Get the session we're about to navigate to
-        const nextSession = sortedSessions[nextIndex];
-
-        // If the session is in a group, check if that group is collapsed
-        if (nextSession?.groupId) {
-          const sessionGroup = groups.find(g => g.id === nextSession.groupId);
-          if (sessionGroup?.collapsed) {
-            // Expand the group before navigating
+        // ArrowLeft: Close the current group and jump to next visible session
+        if (e.key === 'ArrowLeft' && currentSession?.groupId) {
+          const currentGroup = groups.find(g => g.id === currentSession.groupId);
+          if (currentGroup && !currentGroup.collapsed) {
+            // Collapse the group
             setGroups(prev => prev.map(g =>
-              g.id === sessionGroup.id ? { ...g, collapsed: false } : g
+              g.id === currentGroup.id ? { ...g, collapsed: true } : g
             ));
+
+            // Find the next visible session after this group collapses
+            // Look for sessions that aren't in this group
+            const nextVisible = sortedSessions.find(s => {
+              if (s.groupId === currentGroup.id) return false; // Skip sessions in the collapsed group
+              if (!s.groupId) return true; // Ungrouped sessions are visible
+              const g = groups.find(grp => grp.id === s.groupId);
+              return g && !g.collapsed && g.id !== currentGroup.id;
+            });
+
+            if (nextVisible) {
+              const newIndex = sortedSessions.findIndex(s => s.id === nextVisible.id);
+              setSelectedSidebarIndex(newIndex);
+              setActiveSessionId(nextVisible.id);
+            }
+            return;
           }
         }
 
-        // Move to next session
-        setSelectedSidebarIndex(nextIndex);
+        // ArrowUp/ArrowDown: Navigate through visible sessions
+        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+          // Find current position in visible sessions
+          const currentVisibleIndex = visibleSessions.findIndex(s => s.id === currentSession?.id);
+
+          // Calculate next index in visible sessions
+          let nextVisibleIndex: number;
+          if (currentVisibleIndex === -1) {
+            // Current session not visible (shouldn't happen normally), go to first
+            nextVisibleIndex = 0;
+          } else if (e.key === 'ArrowDown') {
+            nextVisibleIndex = (currentVisibleIndex + 1) % visibleSessions.length;
+          } else {
+            nextVisibleIndex = (currentVisibleIndex - 1 + visibleSessions.length) % visibleSessions.length;
+          }
+
+          const nextSession = visibleSessions[nextVisibleIndex];
+          if (!nextSession) return;
+
+          // Check if we're entering a collapsed group (shouldn't happen with visibleSessions, but safety check)
+          if (nextSession.groupId) {
+            const sessionGroup = groups.find(g => g.id === nextSession.groupId);
+            if (sessionGroup?.collapsed) {
+              // Expand the group
+              setGroups(prev => prev.map(g =>
+                g.id === sessionGroup.id ? { ...g, collapsed: false } : g
+              ));
+            }
+          }
+
+          // Find the index in sortedSessions for the selectedSidebarIndex
+          const newIndex = sortedSessions.findIndex(s => s.id === nextSession.id);
+          setSelectedSidebarIndex(newIndex);
+        }
         return;
       }
 
@@ -991,7 +1042,7 @@ export default function MaestroConsole() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [shortcuts, activeFocus, activeRightTab, sessions, selectedSidebarIndex, activeSessionId, quickActionOpen, settingsModalOpen, shortcutsHelpOpen, newInstanceModalOpen, aboutModalOpen, processMonitorOpen, logViewerOpen, createGroupModalOpen, confirmModalOpen, renameInstanceModalOpen, renameGroupModalOpen, activeSession, previewFile, fileTreeFilter, fileTreeFilterOpen, gitDiffPreview, lightboxImage, hasOpenLayers, hasOpenModal]);
+  }, [shortcuts, activeFocus, activeRightTab, sessions, selectedSidebarIndex, activeSessionId, quickActionOpen, settingsModalOpen, shortcutsHelpOpen, newInstanceModalOpen, aboutModalOpen, processMonitorOpen, logViewerOpen, createGroupModalOpen, confirmModalOpen, renameInstanceModalOpen, renameGroupModalOpen, activeSession, previewFile, fileTreeFilter, fileTreeFilterOpen, gitDiffPreview, lightboxImage, hasOpenLayers, hasOpenModal, visibleSessions, sortedSessions, groups]);
 
   // Sync selectedSidebarIndex with activeSessionId
   useEffect(() => {

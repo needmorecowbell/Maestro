@@ -68,6 +68,7 @@ export function SettingsModal(props: SettingsModalProps) {
   // Layer stack integration
   const { registerLayer, unregisterLayer, updateLayerHandler } = useLayerStack();
   const layerIdRef = useRef<string>();
+  const shortcutsFilterRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -143,6 +144,14 @@ export function SettingsModal(props: SettingsModalProps) {
 
     window.addEventListener('keydown', handleTabNavigation);
     return () => window.removeEventListener('keydown', handleTabNavigation);
+  }, [isOpen, activeTab]);
+
+  // Auto-focus shortcuts filter when switching to shortcuts tab
+  useEffect(() => {
+    if (isOpen && activeTab === 'shortcuts') {
+      // Small delay to ensure DOM is ready
+      setTimeout(() => shortcutsFilterRef.current?.focus(), 50);
+    }
   }, [isOpen, activeTab]);
 
   const loadAgents = async () => {
@@ -1235,13 +1244,13 @@ export function SettingsModal(props: SettingsModalProps) {
           {activeTab === 'shortcuts' && (
             <div className="space-y-3">
               <input
+                ref={shortcutsFilterRef}
                 type="text"
                 value={shortcutsFilter}
                 onChange={(e) => setShortcutsFilter(e.target.value)}
                 placeholder="Filter shortcuts..."
                 className="w-full px-3 py-2 rounded border bg-transparent outline-none text-sm"
                 style={{ borderColor: theme.colors.border, color: theme.colors.textMain }}
-                autoFocus
               />
               <div className="space-y-2 max-h-[350px] overflow-y-auto pr-2">
                 {Object.values(props.shortcuts)
