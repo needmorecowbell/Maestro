@@ -1,7 +1,113 @@
-import React, { useState, useEffect, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useImperativeHandle, forwardRef, useMemo } from 'react';
 import { Bot, User, ExternalLink, Check, X } from 'lucide-react';
 import type { Session, Theme, HistoryEntry, HistoryEntryType } from '../types';
 import { HistoryDetailModal } from './HistoryDetailModal';
+
+// 24-hour activity bar graph component
+interface ActivityGraphProps {
+  entries: HistoryEntry[];
+  theme: Theme;
+}
+
+const ActivityGraph: React.FC<ActivityGraphProps> = ({ entries, theme }) => {
+  // Group entries by hour for past 24 hours
+  const hourlyData = useMemo(() => {
+    const now = Date.now();
+    const msPerHour = 60 * 60 * 1000;
+    const hours24Ago = now - (24 * msPerHour);
+
+    // Initialize 24 buckets (index 0 = 24 hours ago, index 23 = current hour)
+    const buckets: { auto: number; user: number }[] = Array.from({ length: 24 }, () => ({ auto: 0, user: 0 }));
+
+    // Filter to last 24 hours and bucket by hour
+    entries.forEach(entry => {
+      if (entry.timestamp >= hours24Ago && entry.timestamp <= now) {
+        const hoursAgo = Math.floor((now - entry.timestamp) / msPerHour);
+        const bucketIndex = 23 - hoursAgo; // Convert to 0-indexed from oldest to newest
+        if (bucketIndex >= 0 && bucketIndex < 24) {
+          if (entry.type === 'AUTO') {
+            buckets[bucketIndex].auto++;
+          } else if (entry.type === 'USER') {
+            buckets[bucketIndex].user++;
+          }
+        }
+      }
+    });
+
+    return buckets;
+  }, [entries]);
+
+  // Find max value for scaling
+  const maxValue = useMemo(() => {
+    return Math.max(1, ...hourlyData.map(h => h.auto + h.user));
+  }, [hourlyData]);
+
+  // Total counts for tooltip
+  const totalAuto = useMemo(() => hourlyData.reduce((sum, h) => sum + h.auto, 0), [hourlyData]);
+  const totalUser = useMemo(() => hourlyData.reduce((sum, h) => sum + h.user, 0), [hourlyData]);
+
+  return (
+    <div
+      className="flex items-end gap-px h-6 flex-1 min-w-0"
+      title={`Last 24h: ${totalAuto} auto, ${totalUser} user`}
+    >
+      {hourlyData.map((hour, index) => {
+        const total = hour.auto + hour.user;
+        const heightPercent = total > 0 ? (total / maxValue) * 100 : 0;
+        const autoPercent = total > 0 ? (hour.auto / total) * 100 : 0;
+
+        return (
+          <div
+            key={index}
+            className="flex-1 min-w-0 flex flex-col justify-end rounded-t-sm overflow-hidden"
+            style={{
+              height: '100%',
+              opacity: total > 0 ? 1 : 0.15
+            }}
+          >
+            <div
+              className="w-full rounded-t-sm overflow-hidden transition-all"
+              style={{
+                height: `${Math.max(heightPercent, total > 0 ? 15 : 8)}%`,
+                minHeight: total > 0 ? '3px' : '1px'
+              }}
+            >
+              {/* User portion (bottom) */}
+              {hour.user > 0 && (
+                <div
+                  style={{
+                    height: `${100 - autoPercent}%`,
+                    backgroundColor: theme.colors.accent,
+                    minHeight: '1px'
+                  }}
+                />
+              )}
+              {/* Auto portion (top) */}
+              {hour.auto > 0 && (
+                <div
+                  style={{
+                    height: `${autoPercent}%`,
+                    backgroundColor: theme.colors.warning,
+                    minHeight: '1px'
+                  }}
+                />
+              )}
+              {/* Empty bar placeholder */}
+              {total === 0 && (
+                <div
+                  style={{
+                    height: '100%',
+                    backgroundColor: theme.colors.border
+                  }}
+                />
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
 
 interface HistoryPanelProps {
   session: Session;
@@ -191,31 +297,37 @@ export const HistoryPanel = React.memo(forwardRef<HistoryPanelHandle, HistoryPan
 
   return (
     <div className="flex flex-col h-full">
-      {/* Filter Pills */}
-      <div className="flex gap-2 mb-4 pt-2 justify-center">
-        {(['AUTO', 'USER'] as HistoryEntryType[]).map(type => {
-          const isActive = activeFilters.has(type);
-          const colors = getPillColor(type);
-          const Icon = type === 'AUTO' ? Bot : User;
+      {/* Filter Pills + Activity Graph */}
+      <div className="flex items-center gap-3 mb-4 pt-2">
+        {/* Left-justified filter pills */}
+        <div className="flex gap-2 flex-shrink-0">
+          {(['AUTO', 'USER'] as HistoryEntryType[]).map(type => {
+            const isActive = activeFilters.has(type);
+            const colors = getPillColor(type);
+            const Icon = type === 'AUTO' ? Bot : User;
 
-          return (
-            <button
-              key={type}
-              onClick={() => toggleFilter(type)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold uppercase transition-all ${
-                isActive ? 'opacity-100' : 'opacity-40'
-              }`}
-              style={{
-                backgroundColor: isActive ? colors.bg : 'transparent',
-                color: isActive ? colors.text : theme.colors.textDim,
-                border: `1px solid ${isActive ? colors.border : theme.colors.border}`
-              }}
-            >
-              <Icon className="w-3 h-3" />
-              {type}
-            </button>
-          );
-        })}
+            return (
+              <button
+                key={type}
+                onClick={() => toggleFilter(type)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold uppercase transition-all ${
+                  isActive ? 'opacity-100' : 'opacity-40'
+                }`}
+                style={{
+                  backgroundColor: isActive ? colors.bg : 'transparent',
+                  color: isActive ? colors.text : theme.colors.textDim,
+                  border: `1px solid ${isActive ? colors.border : theme.colors.border}`
+                }}
+              >
+                <Icon className="w-3 h-3" />
+                {type}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* 24-hour activity bar graph */}
+        <ActivityGraph entries={historyEntries} theme={theme} />
       </div>
 
       {/* Search Filter */}
