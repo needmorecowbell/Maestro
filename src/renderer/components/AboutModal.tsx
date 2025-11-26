@@ -3,6 +3,7 @@ import { X, Wand2, ExternalLink, FileCode } from 'lucide-react';
 import type { Theme } from '../types';
 import { useLayerStack } from '../contexts/LayerStackContext';
 import { MODAL_PRIORITIES } from '../constants/modalPriorities';
+import pedramAvatar from '../assets/pedram-avatar.png';
 
 interface AboutModalProps {
   theme: Theme;
@@ -73,7 +74,7 @@ export function AboutModal({ theme, onClose }: AboutModalProps) {
           {/* Author Section */}
           <div className="flex items-center gap-4 p-4 rounded border" style={{ borderColor: theme.colors.border, backgroundColor: theme.colors.bgActivity }}>
             <img
-              src="https://avatars.githubusercontent.com/u/1253573?v=4"
+              src={pedramAvatar}
               alt="Pedram Amini"
               className="w-16 h-16 rounded-full border-2"
               style={{ borderColor: theme.colors.accent }}
