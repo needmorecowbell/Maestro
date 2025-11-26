@@ -167,6 +167,9 @@ export default function MaestroConsole() {
   const [commandHistoryFilter, setCommandHistoryFilter] = useState('');
   const [commandHistorySelectedIndex, setCommandHistorySelectedIndex] = useState(0);
 
+  // Flash notification state (for inline notifications like "Commands disabled while agent is working")
+  const [flashNotification, setFlashNotification] = useState<string | null>(null);
+
   // Images Staging (only for AI mode - terminal doesn't support images)
   const [aiStagedImages, setAiStagedImages] = useState<string[]>([]);
 
@@ -956,6 +959,12 @@ export default function MaestroConsole() {
       console.error('Error spawning background synopsis:', error);
       return { success: false };
     }
+  }, []);
+
+  // Helper to show flash notification (auto-dismisses after 2 seconds)
+  const showFlashNotification = useCallback((message: string) => {
+    setFlashNotification(message);
+    setTimeout(() => setFlashNotification(null), 2000);
   }, []);
 
   // Helper to add history entry
@@ -1840,6 +1849,12 @@ export default function MaestroConsole() {
 
   const processInput = () => {
     if (!activeSession || (!inputValue.trim() && stagedImages.length === 0)) return;
+
+    // Block slash commands when agent is busy (in AI mode)
+    if (inputValue.trim().startsWith('/') && activeSession.state === 'busy' && activeSession.inputMode === 'ai') {
+      showFlashNotification('Commands disabled while agent is working');
+      return;
+    }
 
     // Block slash commands when there are queued messages
     if (inputValue.trim().startsWith('/') && activeSession.messageQueue.length > 0) {
@@ -3225,6 +3240,20 @@ export default function MaestroConsole() {
         setCustomAICommands={setCustomAICommands}
         initialTab={settingsTab}
       />
+
+      {/* --- FLASH NOTIFICATION (centered, auto-dismiss) --- */}
+      {flashNotification && (
+        <div
+          className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 px-6 py-4 rounded-lg shadow-2xl text-base font-bold animate-in fade-in zoom-in-95 duration-200 z-[9999]"
+          style={{
+            backgroundColor: theme.colors.warning,
+            color: '#000000',
+            textShadow: '0 1px 2px rgba(255, 255, 255, 0.3)'
+          }}
+        >
+          {flashNotification}
+        </div>
+      )}
 
       {/* --- TOAST NOTIFICATIONS --- */}
       <ToastContainer theme={theme} />
