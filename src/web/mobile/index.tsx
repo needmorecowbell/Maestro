@@ -18,10 +18,14 @@
 
 import React from 'react';
 import MobileApp from './App';
+import { SessionPillBar, type SessionPillBarProps } from './SessionPillBar';
 
 // Re-export the main app component as both default and named
 export { MobileApp };
 export default MobileApp;
+
+// Re-export session pill bar component
+export { SessionPillBar, type SessionPillBarProps };
 
 /**
  * Mobile-specific configuration options

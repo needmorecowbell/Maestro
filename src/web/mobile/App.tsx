@@ -15,6 +15,8 @@ import { PullToRefreshIndicator } from '../components/PullToRefresh';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import { useOfflineStatus } from '../main';
 import { triggerHaptic, HAPTIC_PATTERNS } from './index';
+import { SessionPillBar } from './SessionPillBar';
+import type { Session } from '../hooks/useSessions';
 
 /**
  * Map WebSocket state to display properties
@@ -128,6 +130,8 @@ export default function MobileApp() {
   const colors = useThemeColors();
   const isOffline = useOfflineStatus();
   const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
 
   const { state: connectionState, connect, send, error, reconnectAttempts } = useWebSocket({
     autoReconnect: true,
@@ -139,6 +143,33 @@ export default function MobileApp() {
       },
       onError: (err) => {
         console.error('[Mobile] WebSocket error:', err);
+      },
+      onSessionsUpdate: (newSessions) => {
+        console.log('[Mobile] Sessions updated:', newSessions.length);
+        setSessions(newSessions as Session[]);
+        // Auto-select first session if none selected
+        if (!activeSessionId && newSessions.length > 0) {
+          setActiveSessionId(newSessions[0].id);
+        }
+      },
+      onSessionStateChange: (sessionId, state, additionalData) => {
+        setSessions(prev => prev.map(s =>
+          s.id === sessionId
+            ? { ...s, state, ...additionalData }
+            : s
+        ));
+      },
+      onSessionAdded: (session) => {
+        setSessions(prev => {
+          if (prev.some(s => s.id === session.id)) return prev;
+          return [...prev, session as Session];
+        });
+      },
+      onSessionRemoved: (sessionId) => {
+        setSessions(prev => prev.filter(s => s.id !== sessionId));
+        if (activeSessionId === sessionId) {
+          setActiveSessionId(null);
+        }
       },
     },
   });
@@ -186,6 +217,12 @@ export default function MobileApp() {
   const handleRetry = useCallback(() => {
     connect();
   }, [connect]);
+
+  // Handle session selection
+  const handleSelectSession = useCallback((sessionId: string) => {
+    setActiveSessionId(sessionId);
+    triggerHaptic(HAPTIC_PATTERNS.tap);
+  }, []);
 
   // Determine content based on connection state
   const renderContent = () => {
@@ -311,6 +348,11 @@ export default function MobileApp() {
     color: colors.textMain,
   };
 
+  // Determine if session pill bar should be shown
+  const showSessionPillBar = !isOffline &&
+    (connectionState === 'connected' || connectionState === 'authenticated') &&
+    sessions.length > 0;
+
   return (
     <div style={containerStyle}>
       {/* Header with connection status */}
@@ -319,6 +361,15 @@ export default function MobileApp() {
         isOffline={isOffline}
         onRetry={handleRetry}
       />
+
+      {/* Session pill bar - shown when connected and sessions available */}
+      {showSessionPillBar && (
+        <SessionPillBar
+          sessions={sessions}
+          activeSessionId={activeSessionId}
+          onSelectSession={handleSelectSession}
+        />
+      )}
 
       {/* Main content area with pull-to-refresh */}
       <main
@@ -347,7 +398,11 @@ export default function MobileApp() {
           isThresholdReached={isThresholdReached}
           style={{
             position: 'fixed',
-            top: 'max(56px, calc(56px + env(safe-area-inset-top)))',
+            // Adjust top position based on whether session pill bar is shown
+            // Header: ~56px, Session pill bar: ~52px when shown
+            top: showSessionPillBar
+              ? 'max(108px, calc(108px + env(safe-area-inset-top)))'
+              : 'max(56px, calc(56px + env(safe-area-inset-top)))',
             left: 0,
             right: 0,
             zIndex: 10,
