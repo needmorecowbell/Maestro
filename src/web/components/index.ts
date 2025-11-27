@@ -14,3 +14,6 @@ export type { ThemeProviderProps, ThemeContextValue } from './ThemeProvider';
 
 export { Button, IconButton } from './Button';
 export type { ButtonProps, ButtonVariant, ButtonSize, IconButtonProps } from './Button';
+
+export { Input, TextArea, InputGroup } from './Input';
+export type { InputProps, TextAreaProps, InputGroupProps, InputVariant, InputSize } from './Input';
