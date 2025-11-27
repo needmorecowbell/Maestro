@@ -27,6 +27,7 @@ import { RecentCommandChips } from './RecentCommandChips';
 import { SessionStatusBanner } from './SessionStatusBanner';
 import { ResponseViewer, type ResponseItem } from './ResponseViewer';
 import { OfflineQueueBanner } from './OfflineQueueBanner';
+import { ConnectionStatusIndicator } from './ConnectionStatusIndicator';
 import type { Session, LastResponsePreview } from '../hooks/useSessions';
 
 /**
@@ -782,6 +783,16 @@ export default function MobileApp() {
       <MobileHeader
         connectionState={connectionState}
         isOffline={isOffline}
+        onRetry={handleRetry}
+      />
+
+      {/* Connection status indicator with retry button - shows when disconnected or reconnecting */}
+      <ConnectionStatusIndicator
+        connectionState={connectionState}
+        isOffline={isOffline}
+        reconnectAttempts={reconnectAttempts}
+        maxReconnectAttempts={10}
+        error={error}
         onRetry={handleRetry}
       />
 
