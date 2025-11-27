@@ -1021,6 +1021,7 @@ export default function MaestroConsole() {
     if (!activeSession) return;
 
     await window.maestro.history.add({
+      id: generateId(),
       type: entry.type,
       timestamp: Date.now(),
       summary: entry.summary,
