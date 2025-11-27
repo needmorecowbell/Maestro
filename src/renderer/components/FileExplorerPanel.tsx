@@ -32,6 +32,7 @@ interface FileExplorerPanelProps {
   expandAllFolders: (activeSessionId: string, activeSession: Session, setSessions: React.Dispatch<React.SetStateAction<Session[]>>) => void;
   collapseAllFolders: (activeSessionId: string, setSessions: React.Dispatch<React.SetStateAction<Session[]>>) => void;
   updateSessionWorkingDirectory: (activeSessionId: string, setSessions: React.Dispatch<React.SetStateAction<Session[]>>) => Promise<void>;
+  refreshFileTree: (sessionId: string) => Promise<void>;
   setSessions: React.Dispatch<React.SetStateAction<Session[]>>;
 }
 
@@ -40,7 +41,7 @@ export function FileExplorerPanel(props: FileExplorerPanelProps) {
     session, theme, fileTreeFilter, setFileTreeFilter, fileTreeFilterOpen, setFileTreeFilterOpen,
     filteredFileTree, selectedFileIndex, setSelectedFileIndex, activeFocus, activeRightTab,
     previewFile, setActiveFocus, fileTreeContainerRef, fileTreeFilterInputRef, toggleFolder, handleFileClick, expandAllFolders,
-    collapseAllFolders, updateSessionWorkingDirectory, setSessions
+    collapseAllFolders, updateSessionWorkingDirectory, refreshFileTree, setSessions
   } = props;
 
   const { registerLayer, unregisterLayer, updateLayerHandler } = useLayerStack();
@@ -164,6 +165,14 @@ export function FileExplorerPanel(props: FileExplorerPanelProps) {
       >
         <span className="opacity-50">{session.cwd}</span>
         <div className="flex items-center gap-1">
+          <button
+            onClick={() => refreshFileTree(session.id)}
+            className="p-1 rounded hover:bg-white/10 transition-colors"
+            title="Refresh file tree"
+            style={{ color: theme.colors.textDim }}
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+          </button>
           <button
             onClick={() => expandAllFolders(session.id, session, setSessions)}
             className="p-1 rounded hover:bg-white/10 transition-colors"

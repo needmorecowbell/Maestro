@@ -49,6 +49,15 @@ export function ToastProvider({ children, defaultDuration: initialDuration = 20 
 
     setToasts(prev => [...prev, newToast]);
 
+    // Log toast to system logs
+    window.maestro.logger.toast(toast.title, {
+      type: toast.type,
+      message: toast.message,
+      group: toast.group,
+      project: toast.project,
+      taskDuration: toast.taskDuration
+    });
+
     // Auto-remove after duration (only if duration > 0)
     if (durationMs > 0) {
       setTimeout(() => {

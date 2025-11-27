@@ -3227,6 +3227,7 @@ export default function MaestroConsole() {
           expandAllFolders={expandAllFolders}
           collapseAllFolders={collapseAllFolders}
           updateSessionWorkingDirectory={updateSessionWorkingDirectory}
+          refreshFileTree={refreshFileTree}
           setSessions={setSessions}
           updateScratchPad={updateScratchPad}
           updateScratchPadState={updateScratchPadState}
