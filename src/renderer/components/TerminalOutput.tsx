@@ -5,7 +5,6 @@ import Convert from 'ansi-to-html';
 import DOMPurify from 'dompurify';
 import { useLayerStack } from '../contexts/LayerStackContext';
 import { MODAL_PRIORITIES } from '../constants/modalPriorities';
-import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
 
 // Separate component for elapsed time to prevent re-renders of the entire list
 const ElapsedTimeDisplay = memo(({ thinkingStartTime, textColor }: { thinkingStartTime: number; textColor: string }) => {
@@ -72,12 +71,22 @@ export const TerminalOutput = forwardRef<HTMLDivElement, TerminalOutputProps>((p
   // Use the forwarded ref if provided, otherwise create a local one
   const terminalOutputRef = (ref as React.RefObject<HTMLDivElement>) || useRef<HTMLDivElement>(null);
 
-  // Virtuoso ref for programmatic scrolling
-  const virtuosoRef = useRef<VirtuosoHandle>(null);
+  // Scroll container ref for native scrolling
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // Track if user is at the bottom of the scroll - only auto-scroll if true
   // Initialize to true so new sessions auto-scroll, but once user scrolls up, we respect that
   const isAtBottomRef = useRef(true);
+
+  // Track scroll position to detect if user scrolled away from bottom
+  const handleScroll = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    // Check if user is near the bottom (within 50px)
+    const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 50;
+    isAtBottomRef.current = isNearBottom;
+  }, []);
 
   // Track which log entries are expanded (by log ID)
   const [expandedLogs, setExpandedLogs] = useState<Set<string>>(new Set());
@@ -458,6 +467,17 @@ export const TerminalOutput = forwardRef<HTMLDivElement, TerminalOutputProps>((p
     );
   }, [collapsedLogs, outputSearchQuery]);
 
+  // Helper to scroll to bottom of container
+  const scrollToBottom = useCallback((instant = false) => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    container.scrollTo({
+      top: container.scrollHeight,
+      behavior: instant ? 'instant' : 'smooth'
+    });
+  }, []);
+
   // Auto-scroll to bottom when new logs are added (not when deleted)
   // Initialize to 0 so that on first load with existing logs, we scroll to bottom
   const prevLogCountRef = useRef(0);
@@ -470,16 +490,10 @@ export const TerminalOutput = forwardRef<HTMLDivElement, TerminalOutputProps>((p
     // Only scroll when new logs are added, not when deleted
     if (filteredLogs.length > prevLogCountRef.current && filteredLogs.length > 0) {
       // Use setTimeout to ensure scroll happens after render
-      setTimeout(() => {
-        virtuosoRef.current?.scrollToIndex({
-          index: filteredLogs.length - 1,
-          align: 'end',
-          behavior: 'auto'
-        });
-      }, 0);
+      setTimeout(() => scrollToBottom(true), 0);
     }
     prevLogCountRef.current = filteredLogs.length;
-  }, [filteredLogs.length, hasExpandedLogs]);
+  }, [filteredLogs.length, hasExpandedLogs, scrollToBottom]);
 
   // Auto-scroll to bottom when session becomes busy to show thinking indicator
   const prevBusyStateRef = useRef(session.state === 'busy');
@@ -493,16 +507,10 @@ export const TerminalOutput = forwardRef<HTMLDivElement, TerminalOutputProps>((p
     // Scroll when transitioning to busy state
     if (isBusy && !prevBusyStateRef.current) {
       // Use setTimeout to ensure scroll happens after the Footer renders
-      setTimeout(() => {
-        virtuosoRef.current?.scrollToIndex({
-          index: Math.max(0, filteredLogs.length - 1),
-          align: 'end',
-          behavior: 'auto'
-        });
-      }, 50);
+      setTimeout(() => scrollToBottom(true), 50);
     }
     prevBusyStateRef.current = isBusy;
-  }, [session.state, filteredLogs.length, hasExpandedLogs]);
+  }, [session.state, hasExpandedLogs, scrollToBottom]);
 
   // Auto-scroll to bottom when message queue changes
   const prevQueueLengthRef = useRef(session.messageQueue?.length || 0);
@@ -515,16 +523,10 @@ export const TerminalOutput = forwardRef<HTMLDivElement, TerminalOutputProps>((p
     const queueLength = session.messageQueue?.length || 0;
     // Scroll when new messages are added to the queue
     if (queueLength > prevQueueLengthRef.current) {
-      setTimeout(() => {
-        virtuosoRef.current?.scrollToIndex({
-          index: Math.max(0, filteredLogs.length - 1),
-          align: 'end',
-          behavior: 'auto'
-        });
-      }, 50);
+      setTimeout(() => scrollToBottom(true), 50);
     }
     prevQueueLengthRef.current = queueLength;
-  }, [session.messageQueue?.length, filteredLogs.length, hasExpandedLogs]);
+  }, [session.messageQueue?.length, hasExpandedLogs, scrollToBottom]);
 
   // Render a single log item - used by Virtuoso
   const LogItem = useCallback(({ index, log }: { index: number; log: LogEntry }) => {
@@ -619,7 +621,7 @@ export const TerminalOutput = forwardRef<HTMLDivElement, TerminalOutputProps>((p
     const isUserMessage = log.source === 'user';
 
     return (
-      <div className={`flex gap-4 group ${isUserMessage ? 'flex-row-reverse' : ''} px-6 py-2`}>
+      <div className={`flex gap-4 group ${isUserMessage ? 'flex-row-reverse' : ''} px-6 py-2`} data-log-index={index}>
         <div className={`w-12 shrink-0 text-[10px] pt-2 ${isUserMessage ? 'text-right' : 'text-left'}`}
              style={{ fontFamily, color: theme.colors.textDim, opacity: 0.6 }}>
           {new Date(log.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
@@ -940,11 +942,12 @@ export const TerminalOutput = forwardRef<HTMLDivElement, TerminalOutputProps>((p
                       // Scroll to the next user command after deletion
                       if (nextIndex !== null && nextIndex >= 0) {
                         setTimeout(() => {
-                          virtuosoRef.current?.scrollToIndex({
-                            index: nextIndex,
-                            align: 'start',
-                            behavior: 'auto'
-                          });
+                          const container = scrollContainerRef.current;
+                          const items = container?.querySelectorAll('[data-log-index]');
+                          const targetItem = items?.[nextIndex] as HTMLElement;
+                          if (targetItem && container) {
+                            container.scrollTop = targetItem.offsetTop;
+                          }
                         }, 50);
                       }
                     }}
@@ -1008,44 +1011,42 @@ export const TerminalOutput = forwardRef<HTMLDivElement, TerminalOutputProps>((p
           setActiveFocus('main');
           return;
         }
-        // Arrow key scrolling via Virtuoso (instant, no smooth behavior)
+        // Arrow key scrolling (instant, no smooth behavior)
         // Plain arrow keys: scroll by ~100px
         if (e.key === 'ArrowUp' && !e.metaKey && !e.ctrlKey && !e.altKey) {
           e.preventDefault();
-          virtuosoRef.current?.scrollBy({ top: -100 });
+          scrollContainerRef.current?.scrollBy({ top: -100 });
           return;
         }
         if (e.key === 'ArrowDown' && !e.metaKey && !e.ctrlKey && !e.altKey) {
           e.preventDefault();
-          virtuosoRef.current?.scrollBy({ top: 100 });
+          scrollContainerRef.current?.scrollBy({ top: 100 });
           return;
         }
         // Option/Alt+Up: page up
         if (e.key === 'ArrowUp' && e.altKey && !e.metaKey && !e.ctrlKey) {
           e.preventDefault();
           const height = terminalOutputRef.current?.clientHeight || 400;
-          virtuosoRef.current?.scrollBy({ top: -height });
+          scrollContainerRef.current?.scrollBy({ top: -height });
           return;
         }
         // Option/Alt+Down: page down
         if (e.key === 'ArrowDown' && e.altKey && !e.metaKey && !e.ctrlKey) {
           e.preventDefault();
           const height = terminalOutputRef.current?.clientHeight || 400;
-          virtuosoRef.current?.scrollBy({ top: height });
+          scrollContainerRef.current?.scrollBy({ top: height });
           return;
         }
         // Cmd+Up to jump to top
         if (e.key === 'ArrowUp' && (e.metaKey || e.ctrlKey) && !e.altKey) {
           e.preventDefault();
-          virtuosoRef.current?.scrollToIndex({ index: 0, align: 'start' });
+          scrollContainerRef.current?.scrollTo({ top: 0 });
           return;
         }
         // Cmd+Down to jump to bottom
         if (e.key === 'ArrowDown' && (e.metaKey || e.ctrlKey) && !e.altKey) {
           e.preventDefault();
-          if (filteredLogs.length > 0) {
-            virtuosoRef.current?.scrollToIndex({ index: filteredLogs.length - 1, align: 'end' });
-          }
+          scrollToBottom(true);
           return;
         }
       }}
@@ -1064,216 +1065,195 @@ export const TerminalOutput = forwardRef<HTMLDivElement, TerminalOutputProps>((p
           />
         </div>
       )}
-      {/* Virtualized log list */}
-      <Virtuoso
-        ref={virtuosoRef}
-        data={filteredLogs}
-        className="flex-1"
-        increaseViewportBy={{ top: 200, bottom: 200 }}
-        atBottomStateChange={(atBottom) => {
-          // Track when user scrolls away from bottom to prevent auto-scroll hijacking
-          isAtBottomRef.current = atBottom;
-        }}
-        followOutput={() => {
-          // Don't auto-scroll if user has expanded logs (viewing full content)
-          if (hasExpandedLogs) return false;
-          // Don't follow output - we handle scrolling manually
-          return false;
-        }}
-        computeItemKey={(index, log) => `${log.id}-${expandedLogs.has(log.id) ? 'expanded' : 'collapsed'}`}
-        itemContent={(index, log) => <LogItem index={index} log={log} />}
-        components={{
-          Scroller: React.forwardRef(({ style, ...props }, ref) => (
-            <div
-              ref={ref}
-              style={style}
-              className="scrollbar-thin"
-              {...props}
-            />
-          )),
-          Footer: () => (
-            <>
-              {/* Busy indicator */}
-              {session.state === 'busy' && (
+      {/* Native scroll log list */}
+      <div
+        ref={scrollContainerRef}
+        className="flex-1 overflow-y-auto scrollbar-thin"
+        onScroll={handleScroll}
+      >
+        {/* Log entries */}
+        {filteredLogs.map((log, index) => (
+          <LogItem key={log.id} index={index} log={log} />
+        ))}
+
+        {/* Busy indicator */}
+        {session.state === 'busy' && (
+          <div
+            className="flex flex-col items-center justify-center gap-2 py-6 mx-6 my-4 rounded-xl border"
+            style={{
+              backgroundColor: theme.colors.bgActivity,
+              borderColor: theme.colors.border
+            }}
+          >
+            <div className="flex items-center gap-3">
+              <div
+                className="w-2 h-2 rounded-full animate-pulse"
+                style={{ backgroundColor: theme.colors.warning }}
+              />
+              <span className="text-sm" style={{ color: theme.colors.textMain }}>
+                {session.statusMessage || (session.inputMode === 'ai' ? 'Claude is thinking...' : 'Executing command...')}
+              </span>
+              {session.thinkingStartTime && (
+                <ElapsedTimeDisplay
+                  thinkingStartTime={session.thinkingStartTime}
+                  textColor={theme.colors.textDim}
+                />
+              )}
+            </div>
+            {session.inputMode === 'ai' && session.usageStats && (
+              <div className="flex items-center gap-4 mt-1 text-xs" style={{ color: theme.colors.textDim }}>
+                <span>In: {session.usageStats.inputTokens.toLocaleString()}</span>
+                <span>Out: {session.usageStats.outputTokens.toLocaleString()}</span>
+                <span>Total: {(session.usageStats.inputTokens + session.usageStats.outputTokens).toLocaleString()}</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Queued messages section - only show in AI mode */}
+        {session.inputMode === 'ai' && session.messageQueue && session.messageQueue.length > 0 && (
+          <>
+            {/* QUEUED separator */}
+            <div className="mx-6 my-3 flex items-center gap-3">
+              <div className="flex-1 h-px" style={{ backgroundColor: theme.colors.border }} />
+              <span
+                className="text-xs font-bold tracking-wider"
+                style={{ color: theme.colors.warning }}
+              >
+                QUEUED
+              </span>
+              <div className="flex-1 h-px" style={{ backgroundColor: theme.colors.border }} />
+            </div>
+
+            {/* Queued messages */}
+            {session.messageQueue.map((msg) => {
+              const isLongMessage = msg.text.length > 200;
+              const isQueuedExpanded = expandedQueuedMessages.has(msg.id);
+
+              return (
                 <div
-                  className="flex flex-col items-center justify-center gap-2 py-6 mx-6 my-4 rounded-xl border"
+                  key={msg.id}
+                  className="mx-6 mb-2 p-3 rounded-lg opacity-60 relative group"
                   style={{
-                    backgroundColor: theme.colors.bgActivity,
-                    borderColor: theme.colors.border
+                    backgroundColor: theme.colors.accent + '20',
+                    borderLeft: `3px solid ${theme.colors.accent}`
                   }}
                 >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="w-2 h-2 rounded-full animate-pulse"
-                      style={{ backgroundColor: theme.colors.warning }}
-                    />
-                    <span className="text-sm" style={{ color: theme.colors.textMain }}>
-                      {session.statusMessage || (session.inputMode === 'ai' ? 'Claude is thinking...' : 'Executing command...')}
-                    </span>
-                    {session.thinkingStartTime && (
-                      <ElapsedTimeDisplay
-                        thinkingStartTime={session.thinkingStartTime}
-                        textColor={theme.colors.textDim}
-                      />
-                    )}
+                  {/* Remove button */}
+                  <button
+                    onClick={() => setQueueRemoveConfirmId(msg.id)}
+                    className="absolute top-2 right-2 p-1 rounded hover:bg-black/20 transition-colors"
+                    style={{ color: theme.colors.textDim }}
+                    title="Remove from queue"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+
+                  {/* Message content */}
+                  <div
+                    className="text-sm pr-8 whitespace-pre-wrap break-words"
+                    style={{ color: theme.colors.textMain }}
+                  >
+                    {isLongMessage && !isQueuedExpanded
+                      ? msg.text.substring(0, 200) + '...'
+                      : msg.text}
                   </div>
-                  {session.inputMode === 'ai' && session.usageStats && (
-                    <div className="flex items-center gap-4 mt-1 text-xs" style={{ color: theme.colors.textDim }}>
-                      <span>In: {session.usageStats.inputTokens.toLocaleString()}</span>
-                      <span>Out: {session.usageStats.outputTokens.toLocaleString()}</span>
-                      <span>Total: {(session.usageStats.inputTokens + session.usageStats.outputTokens).toLocaleString()}</span>
+
+                  {/* Show more/less toggle for long messages */}
+                  {isLongMessage && (
+                    <button
+                      onClick={() => {
+                        setExpandedQueuedMessages(prev => {
+                          const newSet = new Set(prev);
+                          if (newSet.has(msg.id)) {
+                            newSet.delete(msg.id);
+                          } else {
+                            newSet.add(msg.id);
+                          }
+                          return newSet;
+                        });
+                      }}
+                      className="flex items-center gap-1 mt-2 text-xs px-2 py-1 rounded hover:opacity-70 transition-opacity"
+                      style={{
+                        color: theme.colors.accent,
+                        backgroundColor: theme.colors.bgActivity
+                      }}
+                    >
+                      {isQueuedExpanded ? (
+                        <>
+                          <ChevronUp className="w-3 h-3" />
+                          Show less
+                        </>
+                      ) : (
+                        <>
+                          <ChevronDown className="w-3 h-3" />
+                          Show all ({msg.text.split('\n').length} lines)
+                        </>
+                      )}
+                    </button>
+                  )}
+
+                  {/* Images indicator */}
+                  {msg.images && msg.images.length > 0 && (
+                    <div
+                      className="mt-1 text-xs"
+                      style={{ color: theme.colors.textDim }}
+                    >
+                      {msg.images.length} image{msg.images.length > 1 ? 's' : ''} attached
                     </div>
                   )}
                 </div>
-              )}
+              );
+            })}
+          </>
+        )}
 
-              {/* Queued messages section - only show in AI mode */}
-              {session.inputMode === 'ai' && session.messageQueue && session.messageQueue.length > 0 && (
-                <>
-                  {/* QUEUED separator */}
-                  <div className="mx-6 my-3 flex items-center gap-3">
-                    <div className="flex-1 h-px" style={{ backgroundColor: theme.colors.border }} />
-                    <span
-                      className="text-xs font-bold tracking-wider"
-                      style={{ color: theme.colors.warning }}
-                    >
-                      QUEUED
-                    </span>
-                    <div className="flex-1 h-px" style={{ backgroundColor: theme.colors.border }} />
-                  </div>
+        {/* End ref for scrolling */}
+        {session.state !== 'busy' && <div ref={logsEndRef} />}
+      </div>
 
-                  {/* Queued messages */}
-                  {session.messageQueue.map((msg) => {
-                    const isLongMessage = msg.text.length > 200;
-                    const isExpanded = expandedQueuedMessages.has(msg.id);
-
-                    return (
-                      <div
-                        key={msg.id}
-                        className="mx-6 mb-2 p-3 rounded-lg opacity-60 relative group"
-                        style={{
-                          backgroundColor: theme.colors.accent + '20',
-                          borderLeft: `3px solid ${theme.colors.accent}`
-                        }}
-                      >
-                        {/* Remove button */}
-                        <button
-                          onClick={() => setQueueRemoveConfirmId(msg.id)}
-                          className="absolute top-2 right-2 p-1 rounded hover:bg-black/20 transition-colors"
-                          style={{ color: theme.colors.textDim }}
-                          title="Remove from queue"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-
-                        {/* Message content */}
-                        <div
-                          className="text-sm pr-8 whitespace-pre-wrap break-words"
-                          style={{ color: theme.colors.textMain }}
-                        >
-                          {isLongMessage && !isExpanded
-                            ? msg.text.substring(0, 200) + '...'
-                            : msg.text}
-                        </div>
-
-                        {/* Show more/less toggle for long messages */}
-                        {isLongMessage && (
-                          <button
-                            onClick={() => {
-                              setExpandedQueuedMessages(prev => {
-                                const newSet = new Set(prev);
-                                if (newSet.has(msg.id)) {
-                                  newSet.delete(msg.id);
-                                } else {
-                                  newSet.add(msg.id);
-                                }
-                                return newSet;
-                              });
-                            }}
-                            className="flex items-center gap-1 mt-2 text-xs px-2 py-1 rounded hover:opacity-70 transition-opacity"
-                            style={{
-                              color: theme.colors.accent,
-                              backgroundColor: theme.colors.bgActivity
-                            }}
-                          >
-                            {isExpanded ? (
-                              <>
-                                <ChevronUp className="w-3 h-3" />
-                                Show less
-                              </>
-                            ) : (
-                              <>
-                                <ChevronDown className="w-3 h-3" />
-                                Show all ({msg.text.split('\n').length} lines)
-                              </>
-                            )}
-                          </button>
-                        )}
-
-                        {/* Images indicator */}
-                        {msg.images && msg.images.length > 0 && (
-                          <div
-                            className="mt-1 text-xs"
-                            style={{ color: theme.colors.textDim }}
-                          >
-                            {msg.images.length} image{msg.images.length > 1 ? 's' : ''} attached
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-
-                  {/* Queue removal confirmation modal */}
-                  {queueRemoveConfirmId && (
-                    <div
-                      className="fixed inset-0 flex items-center justify-center z-50"
-                      style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
-                      onClick={() => setQueueRemoveConfirmId(null)}
-                    >
-                      <div
-                        className="p-4 rounded-lg shadow-xl max-w-md mx-4"
-                        style={{ backgroundColor: theme.colors.bgMain }}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <h3 className="text-lg font-semibold mb-2" style={{ color: theme.colors.textMain }}>
-                          Remove Queued Message?
-                        </h3>
-                        <p className="text-sm mb-4" style={{ color: theme.colors.textDim }}>
-                          This message will be removed from the queue and will not be sent.
-                        </p>
-                        <div className="flex gap-2 justify-end">
-                          <button
-                            onClick={() => setQueueRemoveConfirmId(null)}
-                            className="px-3 py-1.5 rounded text-sm"
-                            style={{ backgroundColor: theme.colors.bgActivity, color: theme.colors.textMain }}
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (onRemoveQueuedMessage) {
-                                onRemoveQueuedMessage(queueRemoveConfirmId);
-                              }
-                              setQueueRemoveConfirmId(null);
-                            }}
-                            className="px-3 py-1.5 rounded text-sm"
-                            style={{ backgroundColor: theme.colors.error, color: 'white' }}
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-
-              {/* End ref for scrolling */}
-              {session.state !== 'busy' && <div ref={logsEndRef} />}
-            </>
-          )
-        }}
-      />
+      {/* Queue removal confirmation modal - moved outside scroll container */}
+      {queueRemoveConfirmId && (
+        <div
+          className="fixed inset-0 flex items-center justify-center z-50"
+          style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+          onClick={() => setQueueRemoveConfirmId(null)}
+        >
+          <div
+            className="p-4 rounded-lg shadow-xl max-w-md mx-4"
+            style={{ backgroundColor: theme.colors.bgMain }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold mb-2" style={{ color: theme.colors.textMain }}>
+              Remove Queued Message?
+            </h3>
+            <p className="text-sm mb-4" style={{ color: theme.colors.textDim }}>
+              This message will be removed from the queue and will not be sent.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setQueueRemoveConfirmId(null)}
+                className="px-3 py-1.5 rounded text-sm"
+                style={{ backgroundColor: theme.colors.bgActivity, color: theme.colors.textMain }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (onRemoveQueuedMessage) {
+                    onRemoveQueuedMessage(queueRemoveConfirmId);
+                  }
+                  setQueueRemoveConfirmId(null);
+                }}
+                className="px-3 py-1.5 rounded text-sm"
+                style={{ backgroundColor: theme.colors.error, color: 'white' }}
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Copied to Clipboard Notification */}
       {showCopiedNotification && (

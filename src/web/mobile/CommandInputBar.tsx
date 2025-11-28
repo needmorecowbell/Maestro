@@ -275,14 +275,18 @@ export function CommandInputBar({
   const sendButtonRef = useRef<HTMLButtonElement>(null);
 
   // Determine if input should be disabled
-  // Disable when: externally disabled, offline, not connected, OR session is busy (no queuing on mobile)
-  const isDisabled = externalDisabled || isOffline || !isConnected || isSessionBusy;
+  // Disable when: externally disabled, offline, or not connected
+  // For AI mode: also disable when session is busy (AI is thinking)
+  // For terminal mode: do NOT disable when session is busy - terminal commands use a different pathway
+  const isDisabled = externalDisabled || isOffline || !isConnected || (inputMode === 'ai' && isSessionBusy);
 
   // Get placeholder text based on state
   const getPlaceholder = () => {
     if (isOffline) return 'Offline...';
     if (!isConnected) return 'Connecting...';
-    if (isSessionBusy) return 'Waiting...';
+    // Only show "Waiting..." in AI mode when session is busy
+    // Terminal mode is always available since it uses a different pathway
+    if (inputMode === 'ai' && isSessionBusy) return 'AI thinking...';
     return placeholder || 'Enter command...';
   };
 
