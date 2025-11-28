@@ -439,8 +439,7 @@ export function MainPanel(props: MainPanelProps) {
                         className="rounded shadow-xl pointer-events-auto"
                         style={{
                           backgroundColor: theme.colors.bgSidebar,
-                          borderColor: theme.colors.border,
-                          border: '1px solid'
+                          border: `1px solid ${theme.colors.border}`
                         }}
                       >
                       {/* Branch */}

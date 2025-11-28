@@ -151,8 +151,7 @@ export function GitStatusWidget({ cwd, isGitRepo, theme, onViewDiff }: GitStatus
         className="absolute top-full left-0 mt-2 w-max max-w-[400px] rounded shadow-xl z-[100] opacity-0 group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity pointer-events-none"
         style={{
           backgroundColor: theme.colors.bgSidebar,
-          borderColor: theme.colors.border,
-          border: '1px solid'
+          border: `1px solid ${theme.colors.border}`
         }}
       >
         <div
