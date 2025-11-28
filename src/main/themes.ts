@@ -250,11 +250,11 @@ export const THEMES: Record<ThemeId, Theme> = {
       border: '#4a2a6a',
       textMain: '#e8d5f5',
       textDim: '#b89fd0',
-      accent: '#d4af37',
-      accentDim: 'rgba(212, 175, 55, 0.25)',
-      accentText: '#ffd700',
+      accent: '#ff69b4',
+      accentDim: 'rgba(255, 105, 180, 0.25)',
+      accentText: '#ff8dc7',
       success: '#7cb342',
-      warning: '#ff69b4',
+      warning: '#d4af37',
       error: '#da70d6'
     }
   },
