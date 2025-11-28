@@ -22,7 +22,9 @@ export function LogViewer({ theme, onClose }: LogViewerProps) {
   const [filteredLogs, setFilteredLogs] = useState<SystemLogEntry[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedLevel, setSelectedLevel] = useState<'debug' | 'info' | 'warn' | 'error' | 'toast' | 'all'>('all');
+  const [selectedLevels, setSelectedLevels] = useState<Set<'debug' | 'info' | 'warn' | 'error' | 'toast'>>(
+    new Set(['debug', 'info', 'warn', 'error', 'toast'])
+  );
   const [expandedData, setExpandedData] = useState<Set<number>>(new Set());
   const logsEndRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -52,14 +54,12 @@ export function LogViewer({ theme, onClose }: LogViewerProps) {
     loadLogs();
   }, []);
 
-  // Filter logs whenever search query or selected level changes
+  // Filter logs whenever search query or selected levels changes
   useEffect(() => {
     let filtered = logs;
 
-    // Filter by level
-    if (selectedLevel !== 'all') {
-      filtered = filtered.filter(log => log.level === selectedLevel);
-    }
+    // Filter by levels (only show logs whose level is in the selectedLevels set)
+    filtered = filtered.filter(log => selectedLevels.has(log.level));
 
     // Filter by search query
     if (searchQuery.trim()) {
@@ -72,7 +72,7 @@ export function LogViewer({ theme, onClose }: LogViewerProps) {
     }
 
     setFilteredLogs(filtered);
-  }, [logs, searchQuery, selectedLevel]);
+  }, [logs, searchQuery, selectedLevels]);
 
   // Register layer on mount
   // Note: Using 'modal' type because LogViewer blocks all shortcuts (like the original modalOpen check)
@@ -281,20 +281,54 @@ export function LogViewer({ theme, onClose }: LogViewerProps) {
         <span className="text-xs font-bold opacity-70 uppercase mr-2" style={{ color: theme.colors.textDim }}>
           Filter:
         </span>
-        {(['all', 'debug', 'info', 'warn', 'error', 'toast'] as const).map(level => (
-          <button
-            key={level}
-            onClick={() => setSelectedLevel(level)}
-            className="px-3 py-1 rounded text-xs font-bold transition-all"
-            style={{
-              backgroundColor: selectedLevel === level ? getLevelColor(level) : 'transparent',
-              color: selectedLevel === level ? 'white' : theme.colors.textDim,
-              border: `1px solid ${selectedLevel === level ? getLevelColor(level) : theme.colors.border}`
-            }}
-          >
-            {level.toUpperCase()}
-          </button>
-        ))}
+        {/* All button - toggles all levels on/off */}
+        <button
+          onClick={() => {
+            const allLevels: Array<'debug' | 'info' | 'warn' | 'error' | 'toast'> = ['debug', 'info', 'warn', 'error', 'toast'];
+            // If all are selected, turn all off; otherwise turn all on
+            if (selectedLevels.size === allLevels.length) {
+              setSelectedLevels(new Set());
+            } else {
+              setSelectedLevels(new Set(allLevels));
+            }
+          }}
+          className="px-3 py-1 rounded text-xs font-bold transition-all"
+          style={{
+            backgroundColor: selectedLevels.size === 5 ? theme.colors.accent : 'transparent',
+            color: selectedLevels.size === 5 ? 'white' : theme.colors.textDim,
+            border: `1px solid ${selectedLevels.size === 5 ? theme.colors.accent : theme.colors.border}`
+          }}
+        >
+          ALL
+        </button>
+        {/* Individual level toggle buttons */}
+        {(['debug', 'info', 'warn', 'error', 'toast'] as const).map(level => {
+          const isSelected = selectedLevels.has(level);
+          return (
+            <button
+              key={level}
+              onClick={() => {
+                setSelectedLevels(prev => {
+                  const newSet = new Set(prev);
+                  if (newSet.has(level)) {
+                    newSet.delete(level);
+                  } else {
+                    newSet.add(level);
+                  }
+                  return newSet;
+                });
+              }}
+              className="px-3 py-1 rounded text-xs font-bold transition-all"
+              style={{
+                backgroundColor: isSelected ? getLevelColor(level) : 'transparent',
+                color: isSelected ? 'white' : theme.colors.textDim,
+                border: `1px solid ${isSelected ? getLevelColor(level) : theme.colors.border}`
+              }}
+            >
+              {level.toUpperCase()}
+            </button>
+          );
+        })}
       </div>
 
       {/* Visual Log History Timeline */}
