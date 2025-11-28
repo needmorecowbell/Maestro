@@ -135,6 +135,21 @@ export function AgentSessionsBrowser({
     }
   }, [viewingSession, updateLayerHandler]);
 
+  // Restore focus and scroll position when returning from detail view to list view
+  const prevViewingSessionRef = useRef<ClaudeSession | null>(null);
+  useEffect(() => {
+    // If we just transitioned from viewing a session to list view
+    if (prevViewingSessionRef.current && !viewingSession) {
+      // Focus the search input and scroll to selected item after a short delay to ensure UI is ready
+      const timer = setTimeout(() => {
+        inputRef.current?.focus();
+        selectedItemRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+    prevViewingSessionRef.current = viewingSession;
+  }, [viewingSession]);
+
   // Load messages when viewing a session (defined early for use in effects below)
   const loadMessages = useCallback(async (session: ClaudeSession, offset: number = 0) => {
     if (!activeSession?.cwd) return;
