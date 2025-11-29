@@ -360,7 +360,7 @@ export function QuickActionsModal(props: QuickActionsModalProps) {
                   className={`w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-opacity-10 ${i === selectedIndex ? 'bg-opacity-10' : ''}`}
                   style={{
                     backgroundColor: i === selectedIndex ? theme.colors.accent : 'transparent',
-                    color: theme.colors.textMain
+                    color: i === selectedIndex ? theme.colors.accentForeground : theme.colors.textMain
                   }}
                 >
                   {showNumber ? (

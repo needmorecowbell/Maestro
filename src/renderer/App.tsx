@@ -1349,8 +1349,6 @@ export default function MaestroConsole() {
     activeBatchSessionIds,
     startBatchRun,
     stopBatchRun,
-    customPrompts,
-    setCustomPrompt
   } = useBatchProcessor({
     sessions,
     onUpdateSession: (sessionId, updates) => {
@@ -2431,6 +2429,30 @@ export default function MaestroConsole() {
               matchingCustomCommand.prompt,
               { session: activeSession, gitBranch }
             );
+
+            // Queue the command if AI is busy (same as regular messages)
+            if (activeSession.state === 'busy') {
+              const queuedEntry: LogEntry = {
+                id: generateId(),
+                timestamp: Date.now(),
+                source: 'user',
+                text: substitutedPrompt,
+                aiCommand: {
+                  command: matchingCustomCommand.command,
+                  description: matchingCustomCommand.description
+                }
+              };
+
+              setSessions(prev => prev.map(s => {
+                if (s.id !== activeSessionId) return s;
+                return {
+                  ...s,
+                  messageQueue: [...s.messageQueue, queuedEntry],
+                  aiCommandHistory: Array.from(new Set([...(s.aiCommandHistory || []), commandText])).slice(-50),
+                };
+              }));
+              return;
+            }
 
             // Add user log showing the command with its interpolated prompt
             // Also track this command for automatic synopsis on completion
@@ -4193,12 +4215,16 @@ export default function MaestroConsole() {
           theme={theme}
           onClose={() => setBatchRunnerModalOpen(false)}
           onGo={(prompt) => {
-            // Save the custom prompt for this session
-            setCustomPrompt(activeSession.id, prompt);
             // Start the batch run
             handleStartBatchRun(prompt);
           }}
-          initialPrompt={customPrompts[activeSession.id] || ''}
+          onSave={(prompt) => {
+            // Save the custom prompt to the session (persisted across restarts)
+            setSessions(prev => prev.map(s =>
+              s.id === activeSession.id ? { ...s, batchRunnerPrompt: prompt } : s
+            ));
+          }}
+          initialPrompt={activeSession.batchRunnerPrompt || ''}
           showConfirmation={showConfirmation}
         />
       )}

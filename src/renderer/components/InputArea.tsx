@@ -435,8 +435,8 @@ export function InputArea(props: InputAreaProps) {
           ) : (
             <button
               onClick={processInput}
-              className="p-2 rounded-md text-white shadow-sm transition-all hover:opacity-90"
-              style={{ backgroundColor: theme.colors.accent }}
+              className="p-2 rounded-md shadow-sm transition-all hover:opacity-90"
+              style={{ backgroundColor: theme.colors.accent, color: theme.colors.accentForeground }}
             >
               <ArrowUp className="w-4 h-4" />
             </button>

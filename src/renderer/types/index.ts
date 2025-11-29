@@ -173,6 +173,8 @@ export interface Session {
   recentClaudeSessions?: RecentClaudeSession[];
   // Pending AI command that will trigger a synopsis on completion (e.g., '/commit')
   pendingAICommandForSynopsis?: string;
+  // Custom batch runner prompt (persisted per session)
+  batchRunnerPrompt?: string;
 }
 
 export interface Group {

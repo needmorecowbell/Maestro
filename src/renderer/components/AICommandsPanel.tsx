@@ -152,7 +152,7 @@ export function AICommandsPanel({ theme, customAICommands, setCustomAICommands }
             className="flex items-center gap-2 px-4 py-2 rounded text-sm font-medium transition-all"
             style={{
               backgroundColor: theme.colors.accent,
-              color: 'white'
+              color: theme.colors.accentForeground
             }}
           >
             <Plus className="w-4 h-4" />

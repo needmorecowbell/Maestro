@@ -716,7 +716,7 @@ export function SettingsModal(props: SettingsModalProps) {
                         <button
                           onClick={addCustomFont}
                           className="px-3 py-2 rounded text-xs font-bold"
-                          style={{ backgroundColor: theme.colors.accent, color: 'white' }}
+                          style={{ backgroundColor: theme.colors.accent, color: theme.colors.accentForeground }}
                         >
                           Add
                         </button>
@@ -1229,7 +1229,7 @@ export function SettingsModal(props: SettingsModalProps) {
                   className="w-full py-3 rounded-lg font-bold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   style={{
                     backgroundColor: theme.colors.accent,
-                    color: 'white',
+                    color: theme.colors.accentForeground,
                   }}
                 >
                   {testingLLM ? 'Testing Connection...' : 'Test Connection'}

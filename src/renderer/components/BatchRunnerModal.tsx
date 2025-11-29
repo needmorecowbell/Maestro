@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, RotateCcw, Play, Variable, ChevronDown, ChevronRight } from 'lucide-react';
+import { X, RotateCcw, Play, Variable, ChevronDown, ChevronRight, Save } from 'lucide-react';
 import type { Theme } from '../types';
 import { useLayerStack } from '../contexts/LayerStackContext';
 import { MODAL_PRIORITIES } from '../constants/modalPriorities';
@@ -48,15 +48,17 @@ interface BatchRunnerModalProps {
   theme: Theme;
   onClose: () => void;
   onGo: (prompt: string) => void;
+  onSave: (prompt: string) => void;
   initialPrompt?: string;
   showConfirmation: (message: string, onConfirm: () => void) => void;
 }
 
 export function BatchRunnerModal(props: BatchRunnerModalProps) {
-  const { theme, onClose, onGo, initialPrompt, showConfirmation } = props;
+  const { theme, onClose, onGo, onSave, initialPrompt, showConfirmation } = props;
 
   const [prompt, setPrompt] = useState(initialPrompt || DEFAULT_BATCH_PROMPT);
   const [variablesExpanded, setVariablesExpanded] = useState(false);
+  const [savedPrompt, setSavedPrompt] = useState(initialPrompt || '');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const { registerLayer, unregisterLayer, updateLayerHandler } = useLayerStack();
@@ -103,12 +105,20 @@ export function BatchRunnerModal(props: BatchRunnerModalProps) {
     );
   };
 
+  const handleSave = () => {
+    onSave(prompt);
+    setSavedPrompt(prompt);
+  };
+
   const handleGo = () => {
+    // Also save when running
+    onSave(prompt);
     onGo(prompt);
     onClose();
   };
 
   const isModified = prompt !== DEFAULT_BATCH_PROMPT;
+  const hasUnsavedChanges = prompt !== savedPrompt && prompt !== DEFAULT_BATCH_PROMPT;
 
   return (
     <div
@@ -231,6 +241,16 @@ export function BatchRunnerModal(props: BatchRunnerModalProps) {
             style={{ borderColor: theme.colors.border, color: theme.colors.textMain }}
           >
             Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={!hasUnsavedChanges}
+            className="flex items-center gap-2 px-4 py-2 rounded border hover:bg-white/5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            style={{ borderColor: theme.colors.border, color: theme.colors.success }}
+            title={hasUnsavedChanges ? 'Save prompt for this session' : 'No unsaved changes'}
+          >
+            <Save className="w-4 h-4" />
+            Save
           </button>
           <button
             onClick={handleGo}

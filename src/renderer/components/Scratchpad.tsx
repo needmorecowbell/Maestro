@@ -808,7 +808,7 @@ export function Scratchpad({
             className={`flex items-center gap-2 px-3 py-1.5 rounded text-xs transition-colors ${isAgentBusy ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'}`}
             style={{
               backgroundColor: theme.colors.accent,
-              color: 'white',
+              color: theme.colors.accentForeground,
               border: `1px solid ${theme.colors.accent}`
             }}
             title={isAgentBusy ? "Cannot run while agent is thinking" : "Run batch processing on scratchpad tasks"}
@@ -888,7 +888,7 @@ export function Scratchpad({
                 goToPrevMatch();
               }
             }}
-            placeholder={mode === 'edit' ? "Search... (Enter: next, Shift+Enter: prev)" : "Search... (press '/' to open, Enter: next)"}
+            placeholder={mode === 'edit' ? "Search... (⌘F to open, Enter: next, Shift+Enter: prev)" : "Search... (/ to open, Enter: next, Shift+Enter: prev)"}
             className="flex-1 bg-transparent outline-none text-sm"
             style={{ color: theme.colors.textMain }}
             autoFocus
@@ -961,14 +961,8 @@ export function Scratchpad({
                 e.stopPropagation();
                 toggleMode();
               }
-              // '/' to open search in preview mode
+              // '/' to open search in preview mode (mutually exclusive with Cmd+F in edit mode)
               if (e.key === '/' && !e.metaKey && !e.ctrlKey && !e.altKey) {
-                e.preventDefault();
-                e.stopPropagation();
-                openSearch();
-              }
-              // CMD+F to open search
-              if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
                 e.preventDefault();
                 e.stopPropagation();
                 openSearch();

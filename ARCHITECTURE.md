@@ -417,20 +417,21 @@ Themes defined in `src/renderer/constants/themes.ts`.
 interface Theme {
   id: ThemeId;
   name: string;
-  mode: 'light' | 'dark';
+  mode: 'light' | 'dark' | 'vibe';
   colors: {
-    bgMain: string;      // Main content background
-    bgSidebar: string;   // Sidebar background
-    bgActivity: string;  // Accent background
-    border: string;      // Border colors
-    textMain: string;    // Primary text
-    textDim: string;     // Secondary text
-    accent: string;      // Accent color
-    accentDim: string;   // Dimmed accent
-    accentText: string;  // Accent text color
-    success: string;     // Success state (green)
-    warning: string;     // Warning state (yellow)
-    error: string;       // Error state (red)
+    bgMain: string;           // Main content background
+    bgSidebar: string;        // Sidebar background
+    bgActivity: string;       // Accent background
+    border: string;           // Border colors
+    textMain: string;         // Primary text
+    textDim: string;          // Secondary text
+    accent: string;           // Accent color
+    accentDim: string;        // Dimmed accent
+    accentText: string;       // Accent text color
+    accentForeground: string; // Text ON accent backgrounds (contrast)
+    success: string;          // Success state (green)
+    warning: string;          // Warning state (yellow)
+    error: string;            // Error state (red)
   };
 }
 ```

@@ -355,7 +355,7 @@ export function HistoryDetailModal({
             className="px-4 py-2 rounded text-sm font-medium transition-colors hover:opacity-90"
             style={{
               backgroundColor: theme.colors.accent,
-              color: 'white'
+              color: theme.colors.accentForeground
             }}
           >
             Close

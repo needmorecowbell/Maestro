@@ -136,7 +136,7 @@ useEffect(() => {
 
 ### 5. Theme Colors
 
-Themes have 12 required colors. Use inline styles for theme colors:
+Themes have 13 required colors. Use inline styles for theme colors:
 ```typescript
 style={{ color: theme.colors.textMain }}  // Correct
 className="text-gray-500"                  // Wrong for themed text

@@ -179,7 +179,6 @@ export function AboutModal({ theme, sessions, onClose }: AboutModalProps) {
             <div className="flex items-center gap-2 mb-3">
               <BarChart3 className="w-4 h-4" style={{ color: theme.colors.accent }} />
               <span className="text-sm font-bold" style={{ color: theme.colors.textMain }}>Global Statistics</span>
-              <span className="text-[10px]" style={{ color: theme.colors.textDim }}>(all Claude projects)</span>
             </div>
             {loading ? (
               <div className="flex items-center justify-center py-4 gap-2">

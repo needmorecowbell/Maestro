@@ -265,15 +265,16 @@ export function SessionList(props: SessionListProps) {
             e.preventDefault();
             const startX = e.clientX;
             const startWidth = leftSidebarWidthState;
+            let currentWidth = startWidth;
 
             const handleMouseMove = (e: MouseEvent) => {
               const delta = e.clientX - startX;
-              const newWidth = Math.max(256, Math.min(600, startWidth + delta));
-              setLeftSidebarWidthState(newWidth);
+              currentWidth = Math.max(256, Math.min(600, startWidth + delta));
+              setLeftSidebarWidthState(currentWidth);
             };
 
             const handleMouseUp = () => {
-              window.maestro.settings.set('leftSidebarWidth', leftSidebarWidthState);
+              window.maestro.settings.set('leftSidebarWidth', currentWidth);
               document.removeEventListener('mousemove', handleMouseMove);
               document.removeEventListener('mouseup', handleMouseUp);
             };
@@ -354,7 +355,7 @@ export function SessionList(props: SessionListProps) {
                           className="w-full py-2 rounded text-xs font-medium transition-colors hover:opacity-90 flex items-center justify-center gap-2"
                           style={{
                             backgroundColor: theme.colors.accent,
-                            color: 'white'
+                            color: theme.colors.accentForeground
                           }}
                         >
                           <ExternalLink className="w-3 h-3" />
@@ -1272,7 +1273,7 @@ export function SessionList(props: SessionListProps) {
         </button>
 
         {leftSidebarOpen && (
-          <button onClick={addNewSession} className="flex-1 flex items-center justify-center gap-2 py-2 rounded text-xs font-bold transition-colors text-white" style={{ backgroundColor: theme.colors.accent }}>
+          <button onClick={addNewSession} className="flex-1 flex items-center justify-center gap-2 py-2 rounded text-xs font-bold transition-colors" style={{ backgroundColor: theme.colors.accent, color: theme.colors.accentForeground }}>
             <Plus className="w-3 h-3" /> New Agent
           </button>
         )}

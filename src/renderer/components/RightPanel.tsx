@@ -120,15 +120,16 @@ export const RightPanel = forwardRef<RightPanelHandle, RightPanelProps>(function
             e.preventDefault();
             const startX = e.clientX;
             const startWidth = rightPanelWidth;
+            let currentWidth = startWidth;
 
             const handleMouseMove = (e: MouseEvent) => {
               const delta = startX - e.clientX; // Reversed for right panel
-              const newWidth = Math.max(384, Math.min(800, startWidth + delta));
-              setRightPanelWidthState(newWidth);
+              currentWidth = Math.max(384, Math.min(800, startWidth + delta));
+              setRightPanelWidthState(currentWidth);
             };
 
             const handleMouseUp = () => {
-              window.maestro.settings.set('rightPanelWidth', rightPanelWidth);
+              window.maestro.settings.set('rightPanelWidth', currentWidth);
               document.removeEventListener('mousemove', handleMouseMove);
               document.removeEventListener('mouseup', handleMouseUp);
             };
