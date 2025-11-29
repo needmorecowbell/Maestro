@@ -370,3 +370,75 @@ export function getBusyTabs(session: Session): AITab[] {
 
   return session.aiTabs.filter(tab => tab.state === 'busy');
 }
+
+/**
+ * Navigate to the next tab in the session's tab list.
+ * Wraps around to the first tab if currently on the last tab.
+ *
+ * @param session - The Maestro session
+ * @returns Object containing the new active tab and updated session, or null if less than 2 tabs
+ *
+ * @example
+ * const result = navigateToNextTab(session);
+ * if (result) {
+ *   setSessions(prev => prev.map(s => s.id === session.id ? result.session : s));
+ * }
+ */
+export function navigateToNextTab(session: Session): SetActiveTabResult | null {
+  if (!session.aiTabs || session.aiTabs.length < 2) {
+    return null;
+  }
+
+  const currentIndex = session.aiTabs.findIndex(tab => tab.id === session.activeTabId);
+  if (currentIndex === -1) {
+    return null;
+  }
+
+  // Wrap around to first tab if at the end
+  const nextIndex = (currentIndex + 1) % session.aiTabs.length;
+  const nextTab = session.aiTabs[nextIndex];
+
+  return {
+    tab: nextTab,
+    session: {
+      ...session,
+      activeTabId: nextTab.id
+    }
+  };
+}
+
+/**
+ * Navigate to the previous tab in the session's tab list.
+ * Wraps around to the last tab if currently on the first tab.
+ *
+ * @param session - The Maestro session
+ * @returns Object containing the new active tab and updated session, or null if less than 2 tabs
+ *
+ * @example
+ * const result = navigateToPrevTab(session);
+ * if (result) {
+ *   setSessions(prev => prev.map(s => s.id === session.id ? result.session : s));
+ * }
+ */
+export function navigateToPrevTab(session: Session): SetActiveTabResult | null {
+  if (!session.aiTabs || session.aiTabs.length < 2) {
+    return null;
+  }
+
+  const currentIndex = session.aiTabs.findIndex(tab => tab.id === session.activeTabId);
+  if (currentIndex === -1) {
+    return null;
+  }
+
+  // Wrap around to last tab if at the beginning
+  const prevIndex = (currentIndex - 1 + session.aiTabs.length) % session.aiTabs.length;
+  const prevTab = session.aiTabs[prevIndex];
+
+  return {
+    tab: prevTab,
+    session: {
+      ...session,
+      activeTabId: prevTab.id
+    }
+  };
+}

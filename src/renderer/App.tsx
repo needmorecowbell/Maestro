@@ -41,7 +41,7 @@ import { THEMES } from './constants/themes';
 import { generateId } from './utils/ids';
 import { getContextColor } from './utils/theme';
 import { fuzzyMatch } from './utils/search';
-import { setActiveTab, createTab, closeTab, reopenClosedTab, getActiveTab } from './utils/tabHelpers';
+import { setActiveTab, createTab, closeTab, reopenClosedTab, getActiveTab, navigateToNextTab, navigateToPrevTab } from './utils/tabHelpers';
 import { TAB_SHORTCUTS } from './constants/shortcuts';
 import { shouldOpenExternally, loadFileTree, getAllFolderPaths, flattenTree } from './utils/fileExplorer';
 import { substituteTemplateVariables } from './utils/templateVariables';
@@ -2130,6 +2130,24 @@ export default function MaestroConsole() {
           e.preventDefault();
           // Reopen the most recently closed tab, or switch to existing if duplicate
           const result = reopenClosedTab(activeSession);
+          if (result) {
+            setSessions(prev => prev.map(s =>
+              s.id === activeSession.id ? result.session : s
+            ));
+          }
+        }
+        if (isTabShortcut(e, 'nextTab')) {
+          e.preventDefault();
+          const result = navigateToNextTab(activeSession);
+          if (result) {
+            setSessions(prev => prev.map(s =>
+              s.id === activeSession.id ? result.session : s
+            ));
+          }
+        }
+        if (isTabShortcut(e, 'prevTab')) {
+          e.preventDefault();
+          const result = navigateToPrevTab(activeSession);
           if (result) {
             setSessions(prev => prev.map(s =>
               s.id === activeSession.id ? result.session : s
