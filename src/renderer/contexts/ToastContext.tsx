@@ -21,6 +21,8 @@ interface ToastContextType {
   clearToasts: () => void;
   defaultDuration: number;
   setDefaultDuration: (duration: number) => void;
+  // Audio feedback configuration
+  setAudioFeedback: (enabled: boolean, command: string) => void;
 }
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
@@ -34,6 +36,13 @@ export function ToastProvider({ children, defaultDuration: initialDuration = 20 
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [defaultDuration, setDefaultDuration] = useState(initialDuration);
   const toastIdCounter = useRef(0);
+
+  // Audio feedback state (configured from App.tsx via setAudioFeedback)
+  const audioFeedbackRef = useRef({ enabled: false, command: '' });
+
+  const setAudioFeedback = useCallback((enabled: boolean, command: string) => {
+    audioFeedbackRef.current = { enabled, command };
+  }, []);
 
   const addToast = useCallback((toast: Omit<Toast, 'id' | 'timestamp'>) => {
     const id = `toast-${Date.now()}-${toastIdCounter.current++}`;
@@ -62,6 +71,14 @@ export function ToastProvider({ children, defaultDuration: initialDuration = 20 
       tabName: toast.tabName
     });
 
+    // Speak toast via TTS if audio feedback is enabled and command is configured
+    const { enabled, command } = audioFeedbackRef.current;
+    if (enabled && command) {
+      window.maestro.notification.speak(toast.message, command).catch(err => {
+        console.error('[ToastContext] Failed to speak toast:', err);
+      });
+    }
+
     // Auto-remove after duration (only if duration > 0)
     if (durationMs > 0) {
       setTimeout(() => {
@@ -79,7 +96,7 @@ export function ToastProvider({ children, defaultDuration: initialDuration = 20 
   }, []);
 
   return (
-    <ToastContext.Provider value={{ toasts, addToast, removeToast, clearToasts, defaultDuration, setDefaultDuration }}>
+    <ToastContext.Provider value={{ toasts, addToast, removeToast, clearToasts, defaultDuration, setDefaultDuration, setAudioFeedback }}>
       {children}
     </ToastContext.Provider>
   );

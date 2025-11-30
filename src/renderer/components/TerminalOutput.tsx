@@ -671,11 +671,12 @@ const LogItemComponent = memo(({
           )}
           {/* Delivery checkmark for user messages in AI mode - positioned at the end */}
           {isUserMessage && isAIMode && log.delivered && (
-            <Check
-              className="w-3.5 h-3.5"
-              style={{ color: theme.colors.success, opacity: 0.6 }}
-              title="Message delivered"
-            />
+            <span title="Message delivered" className="flex items-center">
+              <Check
+                className="w-3.5 h-3.5"
+                style={{ color: theme.colors.success, opacity: 0.6 }}
+              />
+            </span>
           )}
         </div>
       </div>
