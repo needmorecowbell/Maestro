@@ -192,6 +192,15 @@ export const InputArea = React.memo(function InputArea(props: InputAreaProps) {
     }
   }, [selectedAtMentionIndex, atMentionOpen]);
 
+  // Auto-resize textarea when inputValue changes externally (e.g., tab switch)
+  // This ensures the textarea height matches the content when switching between tabs
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto';
+      inputRef.current.style.height = `${Math.min(inputRef.current.scrollHeight, 112)}px`;
+    }
+  }, [inputValue, inputRef]);
+
   return (
     <div className="relative p-4 border-t" style={{ borderColor: theme.colors.border, backgroundColor: theme.colors.bgSidebar }}>
       {/* ThinkingStatusPill - only show in AI mode */}

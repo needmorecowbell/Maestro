@@ -12,34 +12,6 @@ export interface UseTabCompletionReturn {
   getSuggestions: (input: string) => TabCompletionSuggestion[];
 }
 
-// Git commands that should trigger branch/tag completion
-const GIT_BRANCH_COMMANDS = [
-  'git checkout',
-  'git switch',
-  'git branch -d',
-  'git branch -D',
-  'git branch --delete',
-  'git merge',
-  'git rebase',
-  'git cherry-pick',
-  'git diff',
-  'git log',
-  'git reset',
-  'git revert',
-  'git push origin',
-  'git pull origin',
-  'git fetch origin'
-];
-
-const GIT_TAG_COMMANDS = [
-  'git checkout',
-  'git tag -d',
-  'git tag --delete',
-  'git show',
-  'git diff',
-  'git push origin'
-];
-
 /**
  * Hook for providing tab completion suggestions from:
  * 1. Shell command history
@@ -109,43 +81,36 @@ export function useTabCompletion(session: Session | null): UseTabCompletionRetur
       }
     }
 
-    // 2. Check git branches and tags for git commands in git repos
-    if (session.isGitRepo) {
-      const shouldShowBranches = GIT_BRANCH_COMMANDS.some(cmd => inputLower.startsWith(cmd.toLowerCase()));
-      const shouldShowTags = GIT_TAG_COMMANDS.some(cmd => inputLower.startsWith(cmd.toLowerCase()));
+    // 2. Check git branches and tags when "git" appears anywhere in the input (case insensitive)
+    if (session.isGitRepo && inputLower.includes('git')) {
+      const gitBranches = session.gitBranches || [];
+      const gitTags = session.gitTags || [];
 
-      if (shouldShowBranches || shouldShowTags) {
-        const gitBranches = session.gitBranches || [];
-        const gitTags = session.gitTags || [];
-
-        // Add matching branches
-        if (shouldShowBranches) {
-          for (const branch of gitBranches) {
-            const fullValue = `${prefix} ${branch}`.trim();
-            if (branch.toLowerCase().startsWith(lastPartLower) && !seenValues.has(fullValue)) {
-              seenValues.add(fullValue);
-              suggestions.push({
-                value: fullValue,
-                type: 'branch',
-                displayText: branch
-              });
-            }
-          }
+      // Add matching branches
+      for (const branch of gitBranches) {
+        const fullValue = `${prefix} ${branch}`.trim();
+        // Show all branches if no filter, or filter by last part
+        if ((!lastPartLower || branch.toLowerCase().startsWith(lastPartLower)) && !seenValues.has(fullValue)) {
+          seenValues.add(fullValue);
+          suggestions.push({
+            value: fullValue,
+            type: 'branch',
+            displayText: branch
+          });
         }
+      }
 
-        // Add matching tags
-        if (shouldShowTags) {
-          for (const tag of gitTags) {
-            const fullValue = `${prefix} ${tag}`.trim();
-            if (tag.toLowerCase().startsWith(lastPartLower) && !seenValues.has(fullValue)) {
-              seenValues.add(fullValue);
-              suggestions.push({
-                value: fullValue,
-                type: 'tag',
-                displayText: tag
-              });
-            }
-          }
+      // Add matching tags
+      for (const tag of gitTags) {
+        const fullValue = `${prefix} ${tag}`.trim();
+        // Show all tags if no filter, or filter by last part
+        if ((!lastPartLower || tag.toLowerCase().startsWith(lastPartLower)) && !seenValues.has(fullValue)) {
+          seenValues.add(fullValue);
+          suggestions.push({
+            value: fullValue,
+            type: 'tag',
+            displayText: tag
+          });
         }
       }
     }

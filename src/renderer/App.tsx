@@ -5124,11 +5124,11 @@ export default function MaestroConsole() {
         setCommandHistorySelectedIndex(0);
       }
     } else if (e.key === 'Tab') {
-      // Tab completion in terminal mode when not showing slash commands
-      // Always prevent default Tab behavior in terminal mode to avoid focus change
-      if (activeSession?.inputMode === 'terminal' && !slashCommandOpen) {
-        e.preventDefault();
+      // Always prevent default Tab behavior to avoid focus change
+      e.preventDefault();
 
+      // Tab completion in terminal mode when not showing slash commands
+      if (activeSession?.inputMode === 'terminal' && !slashCommandOpen) {
         // Only show suggestions if there's input
         if (inputValue.trim()) {
           const suggestions = getTabCompletionSuggestions(inputValue);
@@ -5144,6 +5144,8 @@ export default function MaestroConsole() {
           }
         }
       }
+      // In AI mode, Tab is already handled by @ mention completion above
+      // We just need to prevent default here
     }
   };
 
