@@ -27,7 +27,7 @@ import { CONDUCTOR_BADGES } from './constants/conductorBadges';
 // Import custom hooks
 import { useBatchProcessor } from './hooks/useBatchProcessor';
 import { useSettings, useActivityTracker, useMobileLandscape, useNavigationHistory } from './hooks';
-import { useTabCompletion, TabCompletionSuggestion } from './hooks/useTabCompletion';
+import { useTabCompletion, TabCompletionSuggestion, TabCompletionFilter } from './hooks/useTabCompletion';
 import { useAtMentionCompletion } from './hooks/useAtMentionCompletion';
 
 // Import contexts
@@ -245,6 +245,7 @@ export default function MaestroConsole() {
   // Tab Completion State (terminal mode only)
   const [tabCompletionOpen, setTabCompletionOpen] = useState(false);
   const [selectedTabCompletionIndex, setSelectedTabCompletionIndex] = useState(0);
+  const [tabCompletionFilter, setTabCompletionFilter] = useState<TabCompletionFilter>('all');
 
   // Flash notification state (for inline notifications like "Commands disabled while agent is working")
   const [flashNotification, setFlashNotification] = useState<string | null>(null);
@@ -696,89 +697,96 @@ export default function MaestroConsole() {
       if (isFromAi) {
         const currentSession = sessionsRef.current.find(s => s.id === actualSessionId);
         if (currentSession) {
-          // Check if there are queued items in the execution queue
+          // Check if there are queued items to process next
+          // We still want to show a toast for this tab's completion even if other tabs have work queued
           if (currentSession.executionQueue.length > 0) {
             queuedItemToProcess = {
               sessionId: actualSessionId,
               item: currentSession.executionQueue[0]
             };
-          } else {
-            // Task complete - gather toast notification data
-            // Use the SPECIFIC tab that just completed (from tabIdFromSession), NOT the active tab
-            // This is critical for parallel tab execution where multiple tabs complete independently
-            const completedTab = tabIdFromSession
-              ? currentSession.aiTabs?.find(tab => tab.id === tabIdFromSession)
-              : getActiveTab(currentSession);
-            const logs = completedTab?.logs || [];
-            const lastUserLog = logs.filter(log => log.source === 'user').pop();
-            const lastAiLog = logs.filter(log => log.source === 'stdout' || log.source === 'ai').pop();
-            const duration = currentSession.thinkingStartTime ? Date.now() - currentSession.thinkingStartTime : 0;
+          }
 
-            // Calculate session size in bytes for debugging context issues
-            const sessionSizeBytes = logs.reduce((sum, log) => sum + (log.text?.length || 0), 0);
-            const sessionSizeKB = (sessionSizeBytes / 1024).toFixed(1);
+          // Gather toast notification data for the completed tab
+          // Show toast regardless of queue state - each tab completion deserves notification
+          // Use the SPECIFIC tab that just completed (from tabIdFromSession), NOT the active tab
+          // This is critical for parallel tab execution where multiple tabs complete independently
+          const completedTab = tabIdFromSession
+            ? currentSession.aiTabs?.find(tab => tab.id === tabIdFromSession)
+            : getActiveTab(currentSession);
+          const logs = completedTab?.logs || [];
+          const lastUserLog = logs.filter(log => log.source === 'user').pop();
+          const lastAiLog = logs.filter(log => log.source === 'stdout' || log.source === 'ai').pop();
+          // Use the completed tab's thinkingStartTime for accurate per-tab duration
+          const completedTabData = currentSession.aiTabs?.find(tab => tab.id === tabIdFromSession);
+          const duration = completedTabData?.thinkingStartTime
+            ? Date.now() - completedTabData.thinkingStartTime
+            : (currentSession.thinkingStartTime ? Date.now() - currentSession.thinkingStartTime : 0);
 
-            // Get group name for this session (sessions have groupId, groups have id)
-            const sessionGroup = currentSession.groupId
-              ? groupsRef.current.find((g: any) => g.id === currentSession.groupId)
-              : null;
-            const groupName = sessionGroup?.name || 'Ungrouped';
-            const projectName = currentSession.name || currentSession.cwd.split('/').pop() || 'Unknown';
+          // Calculate session size in bytes for debugging context issues
+          const sessionSizeBytes = logs.reduce((sum, log) => sum + (log.text?.length || 0), 0);
+          const sessionSizeKB = (sessionSizeBytes / 1024).toFixed(1);
 
-            // Create title from user's request (truncated)
-            let title = 'Task Complete';
-            if (lastUserLog?.text) {
-              const userText = lastUserLog.text.trim();
-              title = userText.length > 50 ? userText.substring(0, 47) + '...' : userText;
+          // Get group name for this session (sessions have groupId, groups have id)
+          const sessionGroup = currentSession.groupId
+            ? groupsRef.current.find((g: any) => g.id === currentSession.groupId)
+            : null;
+          const groupName = sessionGroup?.name || 'Ungrouped';
+          const projectName = currentSession.name || currentSession.cwd.split('/').pop() || 'Unknown';
+
+          // Create title from user's request (truncated)
+          let title = 'Task Complete';
+          if (lastUserLog?.text) {
+            const userText = lastUserLog.text.trim();
+            title = userText.length > 50 ? userText.substring(0, 47) + '...' : userText;
+          }
+
+          // Create a short summary from the last AI response
+          let summary = '';
+          if (lastAiLog?.text) {
+            const text = lastAiLog.text.trim();
+            if (text.length > 10) {
+              const firstSentence = text.match(/^[^.!?\n]*[.!?]/)?.[0] || text.substring(0, 120);
+              summary = firstSentence.length < text.length ? firstSentence : text.substring(0, 120) + (text.length > 120 ? '...' : '');
             }
+          }
+          if (!summary) {
+            summary = 'Completed successfully';
+          }
 
-            // Create a short summary from the last AI response
-            let summary = '';
-            if (lastAiLog?.text) {
-              const text = lastAiLog.text.trim();
-              if (text.length > 10) {
-                const firstSentence = text.match(/^[^.!?\n]*[.!?]/)?.[0] || text.substring(0, 120);
-                summary = firstSentence.length < text.length ? firstSentence : text.substring(0, 120) + (text.length > 120 ? '...' : '');
-              }
-            }
-            if (!summary) {
-              summary = 'Completed successfully';
-            }
+          // Get the completed tab's claudeSessionId for traceability
+          const claudeSessionId = completedTab?.claudeSessionId || currentSession.claudeSessionId;
+          // Get tab name: prefer tab's name, fallback to short UUID from claudeSessionId
+          const tabName = completedTab?.name || (claudeSessionId ? claudeSessionId.substring(0, 8).toUpperCase() : undefined);
 
-            // Get the completed tab's claudeSessionId for traceability
-            const claudeSessionId = completedTab?.claudeSessionId || currentSession.claudeSessionId;
-            // Get tab name: prefer tab's name, fallback to short UUID from claudeSessionId
-            const tabName = completedTab?.name || (claudeSessionId ? claudeSessionId.substring(0, 8).toUpperCase() : undefined);
+          toastData = {
+            title,
+            summary,
+            groupName,
+            projectName,
+            duration,
+            claudeSessionId: claudeSessionId || undefined,
+            tabName,
+            usageStats: currentSession.usageStats,
+            prompt: lastUserLog?.text,
+            response: lastAiLog?.text,
+            sessionSizeKB,
+            sessionId: actualSessionId, // For toast navigation
+            tabId: completedTab?.id // For toast navigation to specific tab
+          };
 
-            toastData = {
-              title,
-              summary,
+          // Check if this was a custom AI command that should trigger synopsis
+          // Only trigger synopsis when queue is empty (final task complete)
+          if (currentSession.executionQueue.length === 0 && currentSession.pendingAICommandForSynopsis && currentSession.claudeSessionId) {
+            synopsisData = {
+              sessionId: actualSessionId,
+              cwd: currentSession.cwd,
+              claudeSessionId: currentSession.claudeSessionId,
+              command: currentSession.pendingAICommandForSynopsis,
               groupName,
               projectName,
-              duration,
-              claudeSessionId: claudeSessionId || undefined,
               tabName,
-              usageStats: currentSession.usageStats,
-              prompt: lastUserLog?.text,
-              response: lastAiLog?.text,
-              sessionSizeKB,
-              sessionId: actualSessionId, // For toast navigation
-              tabId: completedTab?.id // For toast navigation to specific tab
+              tabId: completedTab?.id
             };
-
-            // Check if this was a custom AI command that should trigger synopsis
-            if (currentSession.pendingAICommandForSynopsis && currentSession.claudeSessionId) {
-              synopsisData = {
-                sessionId: actualSessionId,
-                cwd: currentSession.cwd,
-                claudeSessionId: currentSession.claudeSessionId,
-                command: currentSession.pendingAICommandForSynopsis,
-                groupName,
-                projectName,
-                tabName,
-                tabId: completedTab?.id
-              };
-            }
           }
         }
       }
@@ -865,26 +873,17 @@ export default function MaestroConsole() {
             tabStates: s.aiTabs?.map(t => ({ id: t.id.substring(0, 8), state: t.state }))
           });
 
-          // Check if the specified tab exists - if not, fall back to clearing all busy tabs
-          // This prevents orphaned busy state when tab IDs don't match (e.g., tab closed/renamed)
-          const tabExists = tabIdFromSession && s.aiTabs?.some(tab => tab.id === tabIdFromSession);
-          const shouldFallbackToClearAll = tabIdFromSession && !tabExists;
-
-          if (shouldFallbackToClearAll) {
-            console.warn('[onExit] Tab ID not found, falling back to clearing all busy tabs:', tabIdFromSession);
-          }
-
           const updatedAiTabs = s.aiTabs?.length > 0
             ? s.aiTabs.map(tab => {
-                if (tabIdFromSession && tabExists) {
-                  // New format: only update the specific tab (when it exists)
+                if (tabIdFromSession) {
+                  // New format: only update the specific tab
                   const shouldUpdate = tab.id === tabIdFromSession;
                   if (shouldUpdate) {
                     console.log('[onExit] Setting tab to idle:', tab.id.substring(0, 8));
                   }
                   return shouldUpdate ? { ...tab, state: 'idle' as const, thinkingStartTime: undefined } : tab;
                 } else {
-                  // Legacy format OR fallback: update all busy tabs
+                  // Legacy format: update all busy tabs
                   return tab.state === 'busy' ? { ...tab, state: 'idle' as const, thinkingStartTime: undefined } : tab;
                 }
               })
@@ -896,14 +895,11 @@ export default function MaestroConsole() {
           console.log('[onExit] Any tab still busy?', anyTabStillBusy, 'tabs:', updatedAiTabs.map(t => ({ id: t.id.substring(0, 8), state: t.state })));
 
           // Task complete - also clear pending AI command flag
-          // IMPORTANT: If we had to fall back to clearing all tabs, always set session to idle
-          // This prevents orphaned busy state at the session level
-          const forceIdle = shouldFallbackToClearAll;
           return {
             ...s,
-            state: (anyTabStillBusy && !forceIdle) ? 'busy' as SessionState : 'idle' as SessionState,
-            busySource: (anyTabStillBusy && !forceIdle) ? s.busySource : undefined,
-            thinkingStartTime: (anyTabStillBusy && !forceIdle) ? s.thinkingStartTime : undefined,
+            state: anyTabStillBusy ? 'busy' as SessionState : 'idle' as SessionState,
+            busySource: anyTabStillBusy ? s.busySource : undefined,
+            thinkingStartTime: anyTabStillBusy ? s.thinkingStartTime : undefined,
             pendingAICommandForSynopsis: undefined,
             aiTabs: updatedAiTabs
           };
@@ -1847,8 +1843,8 @@ export default function MaestroConsole() {
     if (!tabCompletionOpen || !activeSession || activeSession.inputMode !== 'terminal') {
       return [];
     }
-    return getTabCompletionSuggestions(inputValue);
-  }, [tabCompletionOpen, activeSession, inputValue, getTabCompletionSuggestions]);
+    return getTabCompletionSuggestions(inputValue, tabCompletionFilter);
+  }, [tabCompletionOpen, activeSession, inputValue, tabCompletionFilter, getTabCompletionSuggestions]);
 
   // @ mention suggestions for AI mode
   const atMentionSuggestions = useMemo(() => {
@@ -5139,6 +5135,7 @@ export default function MaestroConsole() {
             } else {
               // Show dropdown for multiple suggestions
               setSelectedTabCompletionIndex(0);
+              setTabCompletionFilter('all'); // Reset filter when opening
               setTabCompletionOpen(true);
             }
           }
@@ -5934,6 +5931,8 @@ export default function MaestroConsole() {
         tabCompletionSuggestions={tabCompletionSuggestions}
         selectedTabCompletionIndex={selectedTabCompletionIndex}
         setSelectedTabCompletionIndex={setSelectedTabCompletionIndex}
+        tabCompletionFilter={tabCompletionFilter}
+        setTabCompletionFilter={setTabCompletionFilter}
         atMentionOpen={atMentionOpen}
         setAtMentionOpen={setAtMentionOpen}
         atMentionFilter={atMentionFilter}

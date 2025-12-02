@@ -489,31 +489,18 @@ export function TabBar({
 
   const tabBarRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-  const initialScrollDone = useRef(false);
 
-  // Scroll active tab into view when it changes
+  // Scroll active tab into view when it changes or when tabs are added/removed
+  // Use a small delay to ensure the DOM element is rendered and ref is registered
   useEffect(() => {
-    const activeTabElement = tabRefs.current.get(activeTabId);
-    if (activeTabElement) {
-      activeTabElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
-    }
-  }, [activeTabId]);
-
-  // Scroll active tab into view on initial mount (after tabs are rendered)
-  useEffect(() => {
-    if (initialScrollDone.current || tabs.length === 0) return;
-
-    // Small delay to ensure refs are populated after render
     const timeoutId = setTimeout(() => {
       const activeTabElement = tabRefs.current.get(activeTabId);
       if (activeTabElement) {
-        activeTabElement.scrollIntoView({ behavior: 'instant', block: 'nearest', inline: 'nearest' });
-        initialScrollDone.current = true;
+        activeTabElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
       }
     }, 0);
-
     return () => clearTimeout(timeoutId);
-  }, [tabs.length, activeTabId]);
+  }, [activeTabId, tabs.length]);
 
   // Can always close tabs - closing the last one creates a fresh new tab
   const canClose = true;
@@ -573,7 +560,7 @@ export function TabBar({
   return (
     <div
       ref={tabBarRef}
-      className="flex items-end gap-0.5 px-2 pt-2 border-b overflow-x-auto overflow-y-hidden scrollbar-none"
+      className="flex items-end gap-0.5 px-2 pt-2 border-b overflow-x-auto overflow-y-hidden no-scrollbar"
       style={{
         backgroundColor: theme.colors.bgSidebar,
         borderColor: theme.colors.border

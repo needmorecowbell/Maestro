@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useMemo } from 'react';
 import { Terminal, Cpu, Keyboard, ImageIcon, X, ArrowUp, StopCircle, Eye, History, File, Folder, GitBranch, Tag } from 'lucide-react';
 import type { Session, Theme, BatchRunState } from '../types';
-import type { TabCompletionSuggestion } from '../hooks/useTabCompletion';
+import type { TabCompletionSuggestion, TabCompletionFilter } from '../hooks/useTabCompletion';
 import { ThinkingStatusPill } from './ThinkingStatusPill';
 import { ExecutionQueueIndicator } from './ExecutionQueueIndicator';
 
@@ -50,6 +50,8 @@ interface InputAreaProps {
   tabCompletionSuggestions?: TabCompletionSuggestion[];
   selectedTabCompletionIndex?: number;
   setSelectedTabCompletionIndex?: (index: number) => void;
+  tabCompletionFilter?: TabCompletionFilter;
+  setTabCompletionFilter?: (filter: TabCompletionFilter) => void;
   // @ mention completion props (AI mode only)
   atMentionOpen?: boolean;
   setAtMentionOpen?: (open: boolean) => void;
@@ -87,6 +89,7 @@ export const InputArea = React.memo(function InputArea(props: InputAreaProps) {
     tabCompletionOpen = false, setTabCompletionOpen,
     tabCompletionSuggestions = [], selectedTabCompletionIndex = 0,
     setSelectedTabCompletionIndex,
+    tabCompletionFilter = 'all', setTabCompletionFilter,
     atMentionOpen = false, setAtMentionOpen,
     atMentionFilter = '', setAtMentionFilter,
     atMentionStartIndex = -1, setAtMentionStartIndex,
@@ -371,8 +374,47 @@ export const InputArea = React.memo(function InputArea(props: InputAreaProps) {
           className="absolute bottom-full left-0 right-0 mb-2 border rounded-lg shadow-2xl max-h-64 overflow-hidden"
           style={{ backgroundColor: theme.colors.bgSidebar, borderColor: theme.colors.border }}
         >
-          <div className="px-3 py-2 border-b text-xs opacity-60" style={{ borderColor: theme.colors.border, color: theme.colors.textDim }}>
-            Tab Completion
+          <div className="px-3 py-2 border-b flex items-center justify-between" style={{ borderColor: theme.colors.border }}>
+            <span className="text-xs opacity-60" style={{ color: theme.colors.textDim }}>
+              Tab Completion
+            </span>
+            {/* Filter buttons - only show in git repos */}
+            {session.isGitRepo && setTabCompletionFilter && (
+              <div className="flex gap-1">
+                {(['all', 'history', 'branch', 'tag', 'file'] as const).map((filterType) => {
+                  const isActive = tabCompletionFilter === filterType;
+                  const Icon = filterType === 'history' ? History :
+                               filterType === 'branch' ? GitBranch :
+                               filterType === 'tag' ? Tag :
+                               filterType === 'file' ? File : null;
+                  const label = filterType === 'all' ? 'All' :
+                               filterType === 'history' ? 'History' :
+                               filterType === 'branch' ? 'Branches' :
+                               filterType === 'tag' ? 'Tags' : 'Files';
+                  return (
+                    <button
+                      key={filterType}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setTabCompletionFilter(filterType);
+                        setSelectedTabCompletionIndex?.(0);
+                      }}
+                      className={`px-2 py-0.5 text-[10px] rounded flex items-center gap-1 transition-colors ${
+                        isActive ? 'font-medium' : 'opacity-60 hover:opacity-100'
+                      }`}
+                      style={{
+                        backgroundColor: isActive ? theme.colors.accent + '30' : 'transparent',
+                        color: isActive ? theme.colors.accent : theme.colors.textDim,
+                        border: isActive ? `1px solid ${theme.colors.accent}50` : '1px solid transparent'
+                      }}
+                    >
+                      {Icon && <Icon className="w-3 h-3" />}
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
           <div className="overflow-y-auto max-h-56 scrollbar-thin">
             {tabCompletionSuggestions.map((suggestion, idx) => {

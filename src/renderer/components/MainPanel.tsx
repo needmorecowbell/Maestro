@@ -44,6 +44,7 @@ interface MainPanelProps {
   tabCompletionOpen?: boolean;
   tabCompletionSuggestions?: import('../hooks/useTabCompletion').TabCompletionSuggestion[];
   selectedTabCompletionIndex?: number;
+  tabCompletionFilter?: import('../hooks/useTabCompletion').TabCompletionFilter;
   // @ mention completion props (AI mode)
   atMentionOpen?: boolean;
   atMentionFilter?: string;
@@ -84,6 +85,7 @@ interface MainPanelProps {
   // Tab completion setters
   setTabCompletionOpen?: (open: boolean) => void;
   setSelectedTabCompletionIndex?: (index: number) => void;
+  setTabCompletionFilter?: (filter: import('../hooks/useTabCompletion').TabCompletionFilter) => void;
   // @ mention completion setters
   setAtMentionOpen?: (open: boolean) => void;
   setAtMentionFilter?: (filter: string) => void;
@@ -145,8 +147,8 @@ export function MainPanel(props: MainPanelProps) {
     logViewerOpen, agentSessionsOpen, activeClaudeSessionId, activeSession, sessions, theme, activeFocus, outputSearchOpen, outputSearchQuery,
     inputValue, enterToSendAI, enterToSendTerminal, stagedImages, commandHistoryOpen, commandHistoryFilter,
     commandHistorySelectedIndex, slashCommandOpen, slashCommands, selectedSlashCommandIndex,
-    tabCompletionOpen, tabCompletionSuggestions, selectedTabCompletionIndex,
-    setTabCompletionOpen, setSelectedTabCompletionIndex,
+    tabCompletionOpen, tabCompletionSuggestions, selectedTabCompletionIndex, tabCompletionFilter,
+    setTabCompletionOpen, setSelectedTabCompletionIndex, setTabCompletionFilter,
     atMentionOpen, atMentionFilter, atMentionStartIndex, atMentionSuggestions, selectedAtMentionIndex,
     setAtMentionOpen, setAtMentionFilter, setAtMentionStartIndex, setSelectedAtMentionIndex,
     previewFile, markdownRawMode, shortcuts, rightPanelOpen, maxOutputLines, gitDiffPreview,
@@ -848,6 +850,8 @@ export function MainPanel(props: MainPanelProps) {
                 tabCompletionSuggestions={tabCompletionSuggestions}
                 selectedTabCompletionIndex={selectedTabCompletionIndex}
                 setSelectedTabCompletionIndex={setSelectedTabCompletionIndex}
+                tabCompletionFilter={tabCompletionFilter}
+                setTabCompletionFilter={setTabCompletionFilter}
                 atMentionOpen={atMentionOpen}
                 setAtMentionOpen={setAtMentionOpen}
                 atMentionFilter={atMentionFilter}
