@@ -385,8 +385,10 @@ export function getBusyTabs(session: Session): AITab[] {
 /**
  * Navigate to the next tab in the session's tab list.
  * Wraps around to the first tab if currently on the last tab.
+ * When showUnreadOnly is true, only cycles through unread tabs.
  *
  * @param session - The Maestro session
+ * @param showUnreadOnly - If true, only navigate through unread tabs
  * @returns Object containing the new active tab and updated session, or null if less than 2 tabs
  *
  * @example
@@ -395,19 +397,43 @@ export function getBusyTabs(session: Session): AITab[] {
  *   setSessions(prev => prev.map(s => s.id === session.id ? result.session : s));
  * }
  */
-export function navigateToNextTab(session: Session): SetActiveTabResult | null {
+export function navigateToNextTab(session: Session, showUnreadOnly = false): SetActiveTabResult | null {
   if (!session.aiTabs || session.aiTabs.length < 2) {
     return null;
   }
 
-  const currentIndex = session.aiTabs.findIndex(tab => tab.id === session.activeTabId);
+  // Get the list of tabs to navigate through
+  const navigableTabs = showUnreadOnly
+    ? session.aiTabs.filter(tab => tab.hasUnread)
+    : session.aiTabs;
+
+  if (navigableTabs.length === 0) {
+    return null;
+  }
+
+  // Find current position in navigable tabs
+  const currentIndex = navigableTabs.findIndex(tab => tab.id === session.activeTabId);
+
+  // If current tab is not in navigable list, go to first navigable tab
   if (currentIndex === -1) {
+    const firstTab = navigableTabs[0];
+    return {
+      tab: firstTab,
+      session: {
+        ...session,
+        activeTabId: firstTab.id
+      }
+    };
+  }
+
+  // If only one navigable tab, stay on it
+  if (navigableTabs.length < 2) {
     return null;
   }
 
   // Wrap around to first tab if at the end
-  const nextIndex = (currentIndex + 1) % session.aiTabs.length;
-  const nextTab = session.aiTabs[nextIndex];
+  const nextIndex = (currentIndex + 1) % navigableTabs.length;
+  const nextTab = navigableTabs[nextIndex];
 
   return {
     tab: nextTab,
@@ -421,8 +447,10 @@ export function navigateToNextTab(session: Session): SetActiveTabResult | null {
 /**
  * Navigate to the previous tab in the session's tab list.
  * Wraps around to the last tab if currently on the first tab.
+ * When showUnreadOnly is true, only cycles through unread tabs.
  *
  * @param session - The Maestro session
+ * @param showUnreadOnly - If true, only navigate through unread tabs
  * @returns Object containing the new active tab and updated session, or null if less than 2 tabs
  *
  * @example
@@ -431,19 +459,43 @@ export function navigateToNextTab(session: Session): SetActiveTabResult | null {
  *   setSessions(prev => prev.map(s => s.id === session.id ? result.session : s));
  * }
  */
-export function navigateToPrevTab(session: Session): SetActiveTabResult | null {
+export function navigateToPrevTab(session: Session, showUnreadOnly = false): SetActiveTabResult | null {
   if (!session.aiTabs || session.aiTabs.length < 2) {
     return null;
   }
 
-  const currentIndex = session.aiTabs.findIndex(tab => tab.id === session.activeTabId);
+  // Get the list of tabs to navigate through
+  const navigableTabs = showUnreadOnly
+    ? session.aiTabs.filter(tab => tab.hasUnread)
+    : session.aiTabs;
+
+  if (navigableTabs.length === 0) {
+    return null;
+  }
+
+  // Find current position in navigable tabs
+  const currentIndex = navigableTabs.findIndex(tab => tab.id === session.activeTabId);
+
+  // If current tab is not in navigable list, go to last navigable tab
   if (currentIndex === -1) {
+    const lastTab = navigableTabs[navigableTabs.length - 1];
+    return {
+      tab: lastTab,
+      session: {
+        ...session,
+        activeTabId: lastTab.id
+      }
+    };
+  }
+
+  // If only one navigable tab, stay on it
+  if (navigableTabs.length < 2) {
     return null;
   }
 
   // Wrap around to last tab if at the beginning
-  const prevIndex = (currentIndex - 1 + session.aiTabs.length) % session.aiTabs.length;
-  const prevTab = session.aiTabs[prevIndex];
+  const prevIndex = (currentIndex - 1 + navigableTabs.length) % navigableTabs.length;
+  const prevTab = navigableTabs[prevIndex];
 
   return {
     tab: prevTab,
@@ -457,9 +509,11 @@ export function navigateToPrevTab(session: Session): SetActiveTabResult | null {
 /**
  * Navigate to a specific tab by its index (0-based).
  * Used for Cmd+1 through Cmd+8 shortcuts.
+ * When showUnreadOnly is true, navigates within the filtered unread tabs list.
  *
  * @param session - The Maestro session
  * @param index - The 0-based index of the tab to navigate to
+ * @param showUnreadOnly - If true, navigate within unread tabs only
  * @returns Object containing the new active tab and updated session, or null if index out of bounds
  *
  * @example
@@ -469,17 +523,22 @@ export function navigateToPrevTab(session: Session): SetActiveTabResult | null {
  *   setSessions(prev => prev.map(s => s.id === session.id ? result.session : s));
  * }
  */
-export function navigateToTabByIndex(session: Session, index: number): SetActiveTabResult | null {
+export function navigateToTabByIndex(session: Session, index: number, showUnreadOnly = false): SetActiveTabResult | null {
   if (!session.aiTabs || session.aiTabs.length === 0) {
     return null;
   }
 
+  // Get the list of tabs to navigate through
+  const navigableTabs = showUnreadOnly
+    ? session.aiTabs.filter(tab => tab.hasUnread)
+    : session.aiTabs;
+
   // Check if index is within bounds
-  if (index < 0 || index >= session.aiTabs.length) {
+  if (index < 0 || index >= navigableTabs.length) {
     return null;
   }
 
-  const targetTab = session.aiTabs[index];
+  const targetTab = navigableTabs[index];
 
   // If already on this tab, return current state (no change needed)
   if (session.activeTabId === targetTab.id) {
@@ -501,8 +560,10 @@ export function navigateToTabByIndex(session: Session, index: number): SetActive
 /**
  * Navigate to the last tab in the session's tab list.
  * Used for Cmd+9 shortcut.
+ * When showUnreadOnly is true, navigates to the last unread tab.
  *
  * @param session - The Maestro session
+ * @param showUnreadOnly - If true, navigate to last unread tab
  * @returns Object containing the new active tab and updated session, or null if no tabs
  *
  * @example
@@ -511,11 +572,19 @@ export function navigateToTabByIndex(session: Session, index: number): SetActive
  *   setSessions(prev => prev.map(s => s.id === session.id ? result.session : s));
  * }
  */
-export function navigateToLastTab(session: Session): SetActiveTabResult | null {
+export function navigateToLastTab(session: Session, showUnreadOnly = false): SetActiveTabResult | null {
   if (!session.aiTabs || session.aiTabs.length === 0) {
     return null;
   }
 
-  const lastIndex = session.aiTabs.length - 1;
-  return navigateToTabByIndex(session, lastIndex);
+  const navigableTabs = showUnreadOnly
+    ? session.aiTabs.filter(tab => tab.hasUnread)
+    : session.aiTabs;
+
+  if (navigableTabs.length === 0) {
+    return null;
+  }
+
+  const lastIndex = navigableTabs.length - 1;
+  return navigateToTabByIndex(session, lastIndex, showUnreadOnly);
 }

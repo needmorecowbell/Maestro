@@ -473,6 +473,8 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
   const mountIdRef = useRef<number>(0);
   // Track seen message IDs to dedupe duplicate broadcasts
   const seenMsgIdsRef = useRef<Set<string>>(new Set());
+  // Ref for handleMessage to avoid stale closure issues
+  const handleMessageRef = useRef<((event: MessageEvent) => void) | null>(null);
 
   // Keep handlers ref up to date
   useEffect(() => {
@@ -513,10 +515,8 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     try {
       const message = JSON.parse(event.data) as TypedServerMessage;
 
-      // Debug: Log all incoming messages
-      if (message.type === 'session_output') {
-        console.log(`[WebSocket] RAW message received:`, message);
-      }
+      // Debug: Log all incoming messages (not just session_output)
+      console.log(`[WebSocket] Message received: type=${message.type}`, message.type === 'session_output' ? message : '');
 
       // Call the generic message handler
       handlersRef.current?.onMessage?.(message);
@@ -677,6 +677,12 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     }
   }, [startPingInterval]);
 
+  // Keep handleMessageRef up to date to avoid stale closure issues
+  // The WebSocket uses a wrapper that always calls the latest handleMessage
+  useEffect(() => {
+    handleMessageRef.current = handleMessage;
+  }, [handleMessage]);
+
   /**
    * Attempt to reconnect to the server
    */
@@ -730,7 +736,10 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
         handlersRef.current?.onConnectionChange?.('authenticating');
       };
 
-      ws.onmessage = handleMessage;
+      // Use a wrapper to always call the latest handleMessage (avoids stale closure)
+      ws.onmessage = (event: MessageEvent) => {
+        handleMessageRef.current?.(event);
+      };
 
       ws.onerror = (event) => {
         // Only process if this is still the current connection (handles StrictMode)
@@ -760,7 +769,9 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
       setState('disconnected');
       handlersRef.current?.onConnectionChange?.('disconnected');
     }
-  }, [baseUrl, clearTimers, handleMessage, attemptReconnect]);
+  // Note: handleMessage is not a dependency because we use handleMessageRef pattern
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [baseUrl, clearTimers, attemptReconnect]);
 
   /**
    * Connect to the WebSocket server

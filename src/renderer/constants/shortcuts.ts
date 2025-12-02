@@ -1,7 +1,7 @@
 import type { Shortcut } from '../types';
 
 export const DEFAULT_SHORTCUTS: Record<string, Shortcut> = {
-  toggleSidebar: { id: 'toggleSidebar', label: 'Toggle Sidebar', keys: ['Alt', 'Meta', 'ArrowLeft'] },
+  toggleSidebar: { id: 'toggleSidebar', label: 'Toggle Left Panel', keys: ['Alt', 'Meta', 'ArrowLeft'] },
   toggleRightPanel: { id: 'toggleRightPanel', label: 'Toggle Right Panel', keys: ['Alt', 'Meta', 'ArrowRight'] },
   cyclePrev: { id: 'cyclePrev', label: 'Previous Agent', keys: ['Meta', '['] },
   cycleNext: { id: 'cycleNext', label: 'Next Agent', keys: ['Meta', ']'] },
@@ -20,7 +20,7 @@ export const DEFAULT_SHORTCUTS: Record<string, Shortcut> = {
   copyFilePath: { id: 'copyFilePath', label: 'Copy File Path (in Preview)', keys: ['Meta', 'p'] },
   toggleMarkdownMode: { id: 'toggleMarkdownMode', label: 'Toggle Markdown Raw/Preview', keys: ['Meta', 'e'] },
   focusInput: { id: 'focusInput', label: 'Focus Input Field', keys: ['Meta', '.'] },
-  focusSidebar: { id: 'focusSidebar', label: 'Focus Left Sidebar', keys: ['Meta', 'Shift', 'a'] },
+  focusSidebar: { id: 'focusSidebar', label: 'Focus Left Panel', keys: ['Meta', 'Shift', 'a'] },
   viewGitDiff: { id: 'viewGitDiff', label: 'View Git Diff', keys: ['Meta', 'Shift', 'd'] },
   viewGitLog: { id: 'viewGitLog', label: 'View Git Log', keys: ['Meta', 'Shift', 'g'] },
   agentSessions: { id: 'agentSessions', label: 'View Agent Sessions', keys: ['Meta', 'Shift', 'l'] },
@@ -33,7 +33,7 @@ export const DEFAULT_SHORTCUTS: Record<string, Shortcut> = {
 export const FIXED_SHORTCUTS: Record<string, Shortcut> = {
   jumpToSession: { id: 'jumpToSession', label: 'Jump to Session (1-9, 0=10th)', keys: ['Alt', 'Meta', '1-0'] },
   filterFiles: { id: 'filterFiles', label: 'Filter Files (in Files tab)', keys: ['/'] },
-  filterSessions: { id: 'filterSessions', label: 'Filter Sessions (in Sidebar)', keys: ['/'] },
+  filterSessions: { id: 'filterSessions', label: 'Filter Sessions (in Left Panel)', keys: ['/'] },
 };
 
 // Tab navigation shortcuts (AI mode only)
@@ -45,9 +45,9 @@ export const TAB_SHORTCUTS: Record<string, Shortcut> = {
   renameTab: { id: 'renameTab', label: 'Rename Tab', keys: ['Meta', 'Shift', 'r'] },
   toggleReadOnlyMode: { id: 'toggleReadOnlyMode', label: 'Toggle Read-Only Mode', keys: ['Meta', 'r'] },
   toggleSaveToHistory: { id: 'toggleSaveToHistory', label: 'Toggle Save to History', keys: ['Meta', 's'] },
-  filterUnreadTabs: { id: 'filterUnreadTabs', label: 'Filter Unread Tabs', keys: ['Meta', 'Shift', 'u'] },
-  prevTab: { id: 'prevTab', label: 'Previous Tab', keys: ['Meta', 'Shift', '['] },
-  nextTab: { id: 'nextTab', label: 'Next Tab', keys: ['Meta', 'Shift', ']'] },
+  filterUnreadTabs: { id: 'filterUnreadTabs', label: 'Filter Unread Tabs', keys: ['Meta', 'u'] },
+  prevTab: { id: 'prevTab', label: 'Previous Tab', keys: ['Meta', '['] },
+  nextTab: { id: 'nextTab', label: 'Next Tab', keys: ['Meta', ']'] },
   goToTab1: { id: 'goToTab1', label: 'Go to Tab 1', keys: ['Meta', '1'] },
   goToTab2: { id: 'goToTab2', label: 'Go to Tab 2', keys: ['Meta', '2'] },
   goToTab3: { id: 'goToTab3', label: 'Go to Tab 3', keys: ['Meta', '3'] },

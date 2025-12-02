@@ -2671,6 +2671,13 @@ export default function MaestroConsole() {
     if (mainKey === '[' && key === '[') return true;
     if (mainKey === ']' && key === ']') return true;
 
+    // For Alt+Meta shortcuts on macOS, e.key produces special characters (e.g., Alt+t = †)
+    // Use e.code to get the physical key pressed instead
+    if (altPressed && e.code) {
+      const codeKey = e.code.replace('Key', '').toLowerCase();
+      return codeKey === mainKey;
+    }
+
     return key === mainKey;
   };
 
@@ -3161,7 +3168,7 @@ export default function MaestroConsole() {
         }
         if (ctx.isTabShortcut(e, 'nextTab')) {
           e.preventDefault();
-          const result = ctx.navigateToNextTab(ctx.activeSession);
+          const result = ctx.navigateToNextTab(ctx.activeSession, ctx.showUnreadOnly);
           if (result) {
             ctx.setSessions(prev => prev.map(s =>
               s.id === ctx.activeSession!.id ? result.session : s
@@ -3170,7 +3177,7 @@ export default function MaestroConsole() {
         }
         if (ctx.isTabShortcut(e, 'prevTab')) {
           e.preventDefault();
-          const result = ctx.navigateToPrevTab(ctx.activeSession);
+          const result = ctx.navigateToPrevTab(ctx.activeSession, ctx.showUnreadOnly);
           if (result) {
             ctx.setSessions(prev => prev.map(s =>
               s.id === ctx.activeSession!.id ? result.session : s
@@ -3181,7 +3188,7 @@ export default function MaestroConsole() {
         for (let i = 1; i <= 8; i++) {
           if (ctx.isTabShortcut(e, `goToTab${i}`)) {
             e.preventDefault();
-            const result = ctx.navigateToTabByIndex(ctx.activeSession, i - 1);
+            const result = ctx.navigateToTabByIndex(ctx.activeSession, i - 1, ctx.showUnreadOnly);
             if (result) {
               ctx.setSessions(prev => prev.map(s =>
                 s.id === ctx.activeSession!.id ? result.session : s
@@ -3193,7 +3200,7 @@ export default function MaestroConsole() {
         // Cmd+9: Jump to last tab
         if (ctx.isTabShortcut(e, 'goToLastTab')) {
           e.preventDefault();
-          const result = ctx.navigateToLastTab(ctx.activeSession);
+          const result = ctx.navigateToLastTab(ctx.activeSession, ctx.showUnreadOnly);
           if (result) {
             ctx.setSessions(prev => prev.map(s =>
               s.id === ctx.activeSession!.id ? result.session : s
@@ -3644,7 +3651,7 @@ export default function MaestroConsole() {
     setSessions, createTab, closeTab, reopenClosedTab, getActiveTab, setRenameTabId, setRenameTabInitialName,
     setRenameTabModalOpen, navigateToNextTab, navigateToPrevTab, navigateToTabByIndex, navigateToLastTab,
     setFileTreeFilterOpen, isShortcut, isTabShortcut, handleNavBack, handleNavForward, toggleUnreadFilter,
-    setTabSwitcherOpen
+    setTabSwitcherOpen, showUnreadOnly
   };
 
   const toggleGroup = (groupId: string) => {
@@ -5632,6 +5639,11 @@ export default function MaestroConsole() {
                   )
                 };
               }));
+            }
+          }}
+          onOpenTabSwitcher={() => {
+            if (activeSession?.inputMode === 'ai' && activeSession.aiTabs) {
+              setTabSwitcherOpen(true);
             }
           }}
           setPlaygroundOpen={setPlaygroundOpen}

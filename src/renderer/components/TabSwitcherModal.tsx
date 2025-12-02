@@ -4,6 +4,7 @@ import type { AITab, Theme, Shortcut } from '../types';
 import { fuzzyMatchWithScore } from '../utils/search';
 import { useLayerStack } from '../contexts/LayerStackContext';
 import { MODAL_PRIORITIES } from '../constants/modalPriorities';
+import { getContextColor } from '../utils/theme';
 
 interface TabSwitcherModalProps {
   theme: Theme;
@@ -12,17 +13,6 @@ interface TabSwitcherModalProps {
   shortcut?: Shortcut;
   onTabSelect: (tabId: string) => void;
   onClose: () => void;
-}
-
-/**
- * Format bytes as human-readable size
- */
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
 /**
@@ -46,13 +36,14 @@ function formatCost(cost: number): string {
 
 /**
  * Get context usage percentage from usage stats
+ * Uses inputTokens + outputTokens (not cache tokens) to match MainPanel calculation
  */
-function getContextPercentage(tab: AITab): number | null {
-  if (!tab.usageStats) return null;
-  const { inputTokens, outputTokens, cacheReadInputTokens, cacheCreationInputTokens, contextWindow } = tab.usageStats;
-  if (!contextWindow || contextWindow === 0) return null;
-  const totalTokens = inputTokens + outputTokens + cacheReadInputTokens + cacheCreationInputTokens;
-  return Math.min(100, Math.round((totalTokens / contextWindow) * 100));
+function getContextPercentage(tab: AITab): number {
+  if (!tab.usageStats) return 0;
+  const { inputTokens, outputTokens, contextWindow } = tab.usageStats;
+  if (!contextWindow || contextWindow === 0) return 0;
+  const contextTokens = inputTokens + outputTokens;
+  return Math.min(100, Math.round((contextTokens / contextWindow) * 100));
 }
 
 /**
@@ -78,6 +69,53 @@ function getUuidPill(tab: AITab): string | null {
 }
 
 /**
+ * Circular progress gauge component
+ */
+function ContextGauge({ percentage, theme, size = 36 }: { percentage: number; theme: Theme; size?: number }) {
+  const strokeWidth = 3;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - (percentage / 100) * circumference;
+  const color = getContextColor(percentage, theme);
+
+  return (
+    <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="transform -rotate-90">
+        {/* Background circle */}
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke={theme.colors.border}
+          strokeWidth={strokeWidth}
+        />
+        {/* Progress circle */}
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke={color}
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={strokeDashoffset}
+          style={{ transition: 'stroke-dashoffset 0.3s ease' }}
+        />
+      </svg>
+      {/* Percentage text in center */}
+      <span
+        className="absolute text-[9px] font-bold"
+        style={{ color }}
+      >
+        {percentage}%
+      </span>
+    </div>
+  );
+}
+
+/**
  * Tab Switcher Modal - Quick navigation between AI tabs with fuzzy search.
  * Shows context window consumption, cost, custom name, and UUID pill for each tab.
  */
@@ -91,8 +129,10 @@ export function TabSwitcherModal({
 }: TabSwitcherModalProps) {
   const [search, setSearch] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [firstVisibleIndex, setFirstVisibleIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const selectedItemRef = useRef<HTMLButtonElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const layerIdRef = useRef<string>();
 
   const { registerLayer, unregisterLayer, updateLayerHandler } = useLayerStack();
@@ -136,16 +176,25 @@ export function TabSwitcherModal({
     selectedItemRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }, [selectedIndex]);
 
+  // Track scroll position to determine which items are visible
+  const handleScroll = () => {
+    if (scrollContainerRef.current) {
+      const scrollTop = scrollContainerRef.current.scrollTop;
+      const itemHeight = 52; // Approximate height of each item (py-3 = 12px top + 12px bottom + content)
+      const visibleIndex = Math.floor(scrollTop / itemHeight);
+      setFirstVisibleIndex(visibleIndex);
+    }
+  };
+
   // Filter and sort tabs based on search query
   const filteredTabs = useMemo(() => {
     if (!search.trim()) {
-      // When no search, show all tabs with active tab first
-      const sorted = [...tabs].sort((a, b) => {
-        if (a.id === activeTabId) return -1;
-        if (b.id === activeTabId) return 1;
-        return b.createdAt - a.createdAt; // Most recent first
+      // When no search, sort alphabetically by display name
+      return [...tabs].sort((a, b) => {
+        const nameA = getTabDisplayName(a).toLowerCase();
+        const nameB = getTabDisplayName(b).toLowerCase();
+        return nameA.localeCompare(nameB);
       });
-      return sorted;
     }
 
     // Fuzzy search on tab name and UUID
@@ -167,11 +216,12 @@ export function TabSwitcherModal({
       .filter(r => r.matches)
       .sort((a, b) => b.score - a.score)
       .map(r => r.tab);
-  }, [tabs, search, activeTabId]);
+  }, [tabs, search]);
 
-  // Reset selection when search changes
+  // Reset selection and scroll tracking when search changes
   useEffect(() => {
     setSelectedIndex(0);
+    setFirstVisibleIndex(0);
   }, [search]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -190,8 +240,12 @@ export function TabSwitcherModal({
       }
     } else if (e.metaKey && ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].includes(e.key)) {
       e.preventDefault();
+      // 1-9 map to positions 1-9, 0 maps to position 10
       const number = e.key === '0' ? 10 : parseInt(e.key);
-      const targetIndex = number - 1;
+      // Cap firstVisibleIndex so hotkeys always work for the last 10 items
+      const maxFirstIndex = Math.max(0, filteredTabs.length - 10);
+      const effectiveFirstIndex = Math.min(firstVisibleIndex, maxFirstIndex);
+      const targetIndex = effectiveFirstIndex + number - 1;
       if (filteredTabs[targetIndex]) {
         onTabSelect(filteredTabs[targetIndex].id);
         onClose();
@@ -237,7 +291,11 @@ export function TabSwitcherModal({
         </div>
 
         {/* Tab List */}
-        <div className="overflow-y-auto py-2 scrollbar-thin">
+        <div
+          ref={scrollContainerRef}
+          onScroll={handleScroll}
+          className="overflow-y-auto py-2 scrollbar-thin"
+        >
           {filteredTabs.map((tab, i) => {
             const isActive = tab.id === activeTabId;
             const isSelected = i === selectedIndex;
@@ -246,9 +304,14 @@ export function TabSwitcherModal({
             const contextPct = getContextPercentage(tab);
             const cost = tab.usageStats?.totalCostUsd || 0;
 
-            // Number badge for quick access (Cmd+1-9, Cmd+0 for 10th)
-            const showNumber = i < 10;
-            const numberBadge = i === 9 ? 0 : i + 1;
+            // Calculate dynamic number badge (1-9, 0) based on first visible item
+            // Cap firstVisibleIndex so we always show 10 numbered items when near the end
+            const maxFirstIndex = Math.max(0, filteredTabs.length - 10);
+            const effectiveFirstIndex = Math.min(firstVisibleIndex, maxFirstIndex);
+            const distanceFromFirstVisible = i - effectiveFirstIndex;
+            const showNumber = distanceFromFirstVisible >= 0 && distanceFromFirstVisible < 10;
+            // 1-9 for positions 1-9, 0 for position 10
+            const numberBadge = distanceFromFirstVisible === 9 ? 0 : distanceFromFirstVisible + 1;
 
             return (
               <button
@@ -258,7 +321,7 @@ export function TabSwitcherModal({
                   onTabSelect(tab.id);
                   onClose();
                 }}
-                className={`w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-opacity-10`}
+                className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-opacity-10"
                 style={{
                   backgroundColor: isSelected ? theme.colors.accent : 'transparent',
                   color: isSelected ? theme.colors.accentForeground : theme.colors.textMain
@@ -318,26 +381,18 @@ export function TabSwitcherModal({
 
                   {/* Stats Row */}
                   <div className="flex items-center gap-3 text-[10px] opacity-60">
-                    {contextPct !== null && (
-                      <span>Context: {contextPct}%</span>
-                    )}
                     {tab.usageStats && (
                       <>
                         <span>{formatTokens(tab.usageStats.inputTokens + tab.usageStats.outputTokens)} tokens</span>
+                        <span>{formatCost(cost)}</span>
                       </>
                     )}
                   </div>
                 </div>
 
-                {/* Cost Badge */}
-                <div
-                  className="flex-shrink-0 text-xs font-mono px-2 py-0.5 rounded"
-                  style={{
-                    backgroundColor: isSelected ? 'rgba(255,255,255,0.2)' : theme.colors.bgMain,
-                    color: isSelected ? theme.colors.accentForeground : theme.colors.textDim
-                  }}
-                >
-                  {formatCost(cost)}
+                {/* Context Gauge */}
+                <div className="flex-shrink-0">
+                  <ContextGauge percentage={contextPct} theme={theme} />
                 </div>
               </button>
             );

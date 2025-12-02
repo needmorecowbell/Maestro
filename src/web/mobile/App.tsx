@@ -346,8 +346,16 @@ export default function MobileApp() {
   // Track previous session states for detecting busy -> idle transitions
   const previousSessionStatesRef = useRef<Map<string, string>>(new Map());
 
+  // Ref to track activeSessionId for use in callbacks (avoids stale closure issues)
+  const activeSessionIdRef = useRef<string | null>(null);
+
   // Reference to send function for offline queue (will be set after useWebSocket)
   const sendRef = useRef<((sessionId: string, command: string) => boolean) | null>(null);
+
+  // Keep activeSessionIdRef in sync with state
+  useEffect(() => {
+    activeSessionIdRef.current = activeSessionId;
+  }, [activeSessionId]);
 
   /**
    * Get the first line of a response for notification display
@@ -510,44 +518,46 @@ export default function MobileApp() {
     },
     onSessionOutput: (sessionId: string, data: string, source: 'ai' | 'terminal') => {
       // Real-time output from AI or terminal - append to session logs
-      console.log(`[MobileApp] onSessionOutput called: session=${sessionId}, source=${source}, dataLen=${data?.length || 0}`);
+      const currentActiveId = activeSessionIdRef.current;
+      console.log(`[MobileApp] onSessionOutput: session=${sessionId}, activeSession=${currentActiveId}, source=${source}, dataLen=${data?.length || 0}, match=${currentActiveId === sessionId}`);
       webLogger.debug(`Session output: ${sessionId} (${source}) ${data.length} chars`, 'Mobile');
 
       // Only update if this is the active session
-      setActiveSessionId(currentActiveId => {
-        console.log(`[MobileApp] Checking activeSession: currentActiveId=${currentActiveId}, incomingSession=${sessionId}, match=${currentActiveId === sessionId}`);
-        if (currentActiveId === sessionId) {
-          setSessionLogs(prev => {
-            const logKey = source === 'ai' ? 'aiLogs' : 'shellLogs';
-            const existingLogs = prev[logKey] || [];
+      if (currentActiveId !== sessionId) {
+        console.log(`[MobileApp] Skipping output - not active session`);
+        return;
+      }
 
-            // Check if the last entry is a streaming entry we should append to
-            const lastLog = existingLogs[existingLogs.length - 1];
-            const isStreamingAppend = lastLog &&
-              lastLog.source === 'stdout' &&
-              Date.now() - lastLog.timestamp < 5000; // Within 5 seconds
+      setSessionLogs(prev => {
+        const logKey = source === 'ai' ? 'aiLogs' : 'shellLogs';
+        const existingLogs = prev[logKey] || [];
 
-            if (isStreamingAppend) {
-              // Append to existing entry
-              const updatedLogs = [...existingLogs];
-              updatedLogs[updatedLogs.length - 1] = {
-                ...lastLog,
-                text: lastLog.text + data,
-              };
-              return { ...prev, [logKey]: updatedLogs };
-            } else {
-              // Create new entry
-              const newEntry = {
-                id: `stream-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                timestamp: Date.now(),
-                source: 'stdout' as const,
-                text: data,
-              };
-              return { ...prev, [logKey]: [...existingLogs, newEntry] };
-            }
-          });
+        // Check if the last entry is a streaming entry we should append to
+        const lastLog = existingLogs[existingLogs.length - 1];
+        const isStreamingAppend = lastLog &&
+          lastLog.source === 'stdout' &&
+          Date.now() - lastLog.timestamp < 5000; // Within 5 seconds
+
+        if (isStreamingAppend) {
+          // Append to existing entry
+          const updatedLogs = [...existingLogs];
+          updatedLogs[updatedLogs.length - 1] = {
+            ...lastLog,
+            text: lastLog.text + data,
+          };
+          console.log(`[MobileApp] Appended to existing log entry, new length: ${updatedLogs[updatedLogs.length - 1].text.length}`);
+          return { ...prev, [logKey]: updatedLogs };
+        } else {
+          // Create new entry
+          const newEntry = {
+            id: `stream-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            timestamp: Date.now(),
+            source: 'stdout' as const,
+            text: data,
+          };
+          console.log(`[MobileApp] Created new log entry, text length: ${data.length}`);
+          return { ...prev, [logKey]: [...existingLogs, newEntry] };
         }
-        return currentActiveId;
       });
     },
     onSessionExit: (sessionId: string, exitCode: number) => {
@@ -559,23 +569,26 @@ export default function MobileApp() {
     },
     onUserInput: (sessionId: string, command: string, inputMode: 'ai' | 'terminal') => {
       // User input from desktop app - add to session logs so web interface stays in sync
+      const currentActiveId = activeSessionIdRef.current;
+      console.log(`[MobileApp] onUserInput: session=${sessionId}, activeSession=${currentActiveId}, mode=${inputMode}, cmdLen=${command.length}, match=${currentActiveId === sessionId}`);
       webLogger.debug(`User input from desktop: ${sessionId} (${inputMode}) ${command.substring(0, 50)}`, 'Mobile');
 
       // Only add if this is the active session
-      setActiveSessionId(currentActiveId => {
-        if (currentActiveId === sessionId) {
-          const userLogEntry: LogEntry = {
-            id: `user-desktop-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            timestamp: Date.now(),
-            text: command,
-            source: 'user',
-          };
-          setSessionLogs(prev => {
-            const logKey = inputMode === 'ai' ? 'aiLogs' : 'shellLogs';
-            return { ...prev, [logKey]: [...prev[logKey], userLogEntry] };
-          });
-        }
-        return currentActiveId;
+      if (currentActiveId !== sessionId) {
+        console.log(`[MobileApp] Skipping user input - not active session`);
+        return;
+      }
+
+      const userLogEntry: LogEntry = {
+        id: `user-desktop-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        timestamp: Date.now(),
+        text: command,
+        source: 'user',
+      };
+      setSessionLogs(prev => {
+        const logKey = inputMode === 'ai' ? 'aiLogs' : 'shellLogs';
+        console.log(`[MobileApp] Added user input to ${logKey}`);
+        return { ...prev, [logKey]: [...prev[logKey], userLogEntry] };
       });
     },
     onThemeUpdate: (theme: Theme) => {
@@ -606,12 +619,10 @@ export default function MobileApp() {
           : s
       ));
       // Also update activeTabId state if this is the current session
-      setActiveSessionId(currentSessionId => {
-        if (currentSessionId === sessionId) {
-          setActiveTabId(newActiveTabId);
-        }
-        return currentSessionId;
-      });
+      const currentSessionId = activeSessionIdRef.current;
+      if (currentSessionId === sessionId) {
+        setActiveTabId(newActiveTabId);
+      }
     },
   }), [showResponseNotification, setDesktopTheme]);
 

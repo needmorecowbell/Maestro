@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -8,6 +8,7 @@ import { visit } from 'unist-util-visit';
 import { useLayerStack } from '../contexts/LayerStackContext';
 import { MODAL_PRIORITIES } from '../constants/modalPriorities';
 import { MermaidRenderer } from './MermaidRenderer';
+import { getEncoding } from 'js-tiktoken';
 
 interface FileStats {
   size: number;
@@ -82,6 +83,26 @@ const formatDateTime = (isoString: string): string => {
     hour: '2-digit',
     minute: '2-digit'
   });
+};
+
+// Format token count with K/M suffix
+const formatTokenCount = (count: number): string => {
+  if (count >= 1_000_000) {
+    return `${(count / 1_000_000).toFixed(1)}M`;
+  }
+  if (count >= 1_000) {
+    return `${(count / 1_000).toFixed(1)}K`;
+  }
+  return count.toLocaleString();
+};
+
+// Lazy-loaded tokenizer encoder (cl100k_base is used by Claude/GPT-4)
+let encoderPromise: Promise<ReturnType<typeof getEncoding>> | null = null;
+const getEncoder = () => {
+  if (!encoderPromise) {
+    encoderPromise = Promise.resolve(getEncoding('cl100k_base'));
+  }
+  return encoderPromise;
 };
 
 // Helper to resolve image path relative to markdown file directory
@@ -263,6 +284,7 @@ export function FilePreview({ file, onClose, theme, markdownRawMode, setMarkdown
   const [totalMatches, setTotalMatches] = useState(0);
   const [fileStats, setFileStats] = useState<FileStats | null>(null);
   const [showStatsBar, setShowStatsBar] = useState(true);
+  const [tokenCount, setTokenCount] = useState<number | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const codeContainerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -296,6 +318,24 @@ export function FilePreview({ file, onClose, theme, markdownRawMode, setMarkdown
         });
     }
   }, [file?.path]);
+
+  // Count tokens when file content changes (skip for images)
+  useEffect(() => {
+    if (!file?.content || isImage) {
+      setTokenCount(null);
+      return;
+    }
+
+    getEncoder()
+      .then(encoder => {
+        const tokens = encoder.encode(file.content);
+        setTokenCount(tokens.length);
+      })
+      .catch(err => {
+        console.error('Failed to count tokens:', err);
+        setTokenCount(null);
+      });
+  }, [file?.content, isImage]);
 
   // Track scroll position to show/hide stats bar
   useEffect(() => {
@@ -733,23 +773,35 @@ export function FilePreview({ file, onClose, theme, markdownRawMode, setMarkdown
           </div>
         </div>
         {/* File Stats subbar - hidden on scroll */}
-        {fileStats && showStatsBar && (
+        {(fileStats || tokenCount !== null) && showStatsBar && (
           <div
             className="flex items-center gap-4 px-6 py-1.5 border-b transition-all duration-200"
             style={{ borderColor: theme.colors.border, backgroundColor: theme.colors.bgActivity }}
           >
-            <div className="text-[10px]" style={{ color: theme.colors.textDim }}>
-              <span className="opacity-60">Size:</span>{' '}
-              <span style={{ color: theme.colors.textMain }}>{formatFileSize(fileStats.size)}</span>
-            </div>
-            <div className="text-[10px]" style={{ color: theme.colors.textDim }}>
-              <span className="opacity-60">Modified:</span>{' '}
-              <span style={{ color: theme.colors.textMain }}>{formatDateTime(fileStats.modifiedAt)}</span>
-            </div>
-            <div className="text-[10px]" style={{ color: theme.colors.textDim }}>
-              <span className="opacity-60">Created:</span>{' '}
-              <span style={{ color: theme.colors.textMain }}>{formatDateTime(fileStats.createdAt)}</span>
-            </div>
+            {fileStats && (
+              <div className="text-[10px]" style={{ color: theme.colors.textDim }}>
+                <span className="opacity-60">Size:</span>{' '}
+                <span style={{ color: theme.colors.textMain }}>{formatFileSize(fileStats.size)}</span>
+              </div>
+            )}
+            {tokenCount !== null && (
+              <div className="text-[10px]" style={{ color: theme.colors.textDim }}>
+                <span className="opacity-60">Tokens:</span>{' '}
+                <span style={{ color: theme.colors.accent }}>{formatTokenCount(tokenCount)}</span>
+              </div>
+            )}
+            {fileStats && (
+              <>
+                <div className="text-[10px]" style={{ color: theme.colors.textDim }}>
+                  <span className="opacity-60">Modified:</span>{' '}
+                  <span style={{ color: theme.colors.textMain }}>{formatDateTime(fileStats.modifiedAt)}</span>
+                </div>
+                <div className="text-[10px]" style={{ color: theme.colors.textDim }}>
+                  <span className="opacity-60">Created:</span>{' '}
+                  <span style={{ color: theme.colors.textMain }}>{formatDateTime(fileStats.createdAt)}</span>
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>

@@ -52,6 +52,7 @@ interface QuickActionsModalProps {
   startFreshSession: () => void;
   onRenameTab?: () => void;
   onToggleReadOnlyMode?: () => void;
+  onOpenTabSwitcher?: () => void;
   tabShortcuts?: Record<string, Shortcut>;
   isAiMode?: boolean;
   setPlaygroundOpen?: (open: boolean) => void;
@@ -69,7 +70,7 @@ export function QuickActionsModal(props: QuickActionsModalProps) {
     deleteSession, addNewSession, setSettingsModalOpen, setSettingsTab,
     setShortcutsHelpOpen, setAboutModalOpen, setLogViewerOpen, setProcessMonitorOpen,
     setAgentSessionsOpen, setActiveClaudeSessionId, setGitDiffPreview, setGitLogOpen, startFreshSession,
-    onRenameTab, onToggleReadOnlyMode, tabShortcuts, isAiMode, setPlaygroundOpen, onRefreshGitFileState
+    onRenameTab, onToggleReadOnlyMode, onOpenTabSwitcher, tabShortcuts, isAiMode, setPlaygroundOpen, onRefreshGitFileState
   } = props;
 
   const [search, setSearch] = useState('');
@@ -211,6 +212,7 @@ export function QuickActionsModal(props: QuickActionsModalProps) {
     { id: 'toggleSidebar', label: 'Toggle Sidebar', shortcut: shortcuts.toggleSidebar, action: () => setLeftSidebarOpen(p => !p) },
     { id: 'toggleRight', label: 'Toggle Right Panel', shortcut: shortcuts.toggleRightPanel, action: () => setRightPanelOpen(p => !p) },
     ...(activeSession ? [{ id: 'switchMode', label: 'Switch AI/Shell Mode', shortcut: shortcuts.toggleMode, action: toggleInputMode }] : []),
+    ...(isAiMode && onOpenTabSwitcher ? [{ id: 'tabSwitcher', label: 'Tab Switcher', shortcut: tabShortcuts?.tabSwitcher, action: () => { onOpenTabSwitcher(); setQuickActionOpen(false); } }] : []),
     ...(isAiMode && onRenameTab ? [{ id: 'renameTab', label: 'Rename Tab', shortcut: tabShortcuts?.renameTab, action: () => { onRenameTab(); setQuickActionOpen(false); } }] : []),
     ...(isAiMode && onToggleReadOnlyMode ? [{ id: 'toggleReadOnly', label: 'Toggle Read-Only Mode', shortcut: tabShortcuts?.toggleReadOnlyMode, action: () => { onToggleReadOnlyMode(); setQuickActionOpen(false); } }] : []),
     ...(activeSession ? [{ id: 'kill', label: `Remove Agent: ${activeSession.name}`, shortcut: shortcuts.killInstance, action: () => deleteSession(activeSessionId) }] : []),

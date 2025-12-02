@@ -106,6 +106,7 @@
     "dompurify": "^3.3.0",
     "electron-store": "^8.1.0",
     "fastify": "^4.25.2",
+    "js-tiktoken": "^1.0.21",
     "mermaid": "^11.12.1",
     "node-pty": "^1.0.0",
     "qrcode": "^1.5.4",
