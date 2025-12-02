@@ -122,6 +122,40 @@ Each session shows a color-coded status indicator:
 | Page Up/Down | `Alt+Up/Down Arrow` while in output |
 | Jump to Top/Bottom | `Cmd+Up/Down Arrow` while in output |
 
+### Tab Completion (Command Terminal)
+
+The Command Terminal provides intelligent tab completion for faster command entry:
+
+| Action | Key |
+|--------|-----|
+| Open Tab Completion | `Tab` (when there's input text) |
+| Navigate Suggestions | `Up/Down Arrow` |
+| Select Suggestion | `Enter` |
+| Cycle Filter Types | `Tab` (while dropdown is open, git repos only) |
+| Cycle Filter Backwards | `Shift+Tab` (while dropdown is open) |
+| Close Dropdown | `Esc` |
+
+**Completion Sources:**
+- **History** - Previous shell commands from your session
+- **Files/Folders** - Files and directories in your current working directory
+- **Git Branches** - Local and remote branches (git repos only)
+- **Git Tags** - Available tags (git repos only)
+
+In git repositories, filter buttons appear in the dropdown header allowing you to filter by type (All, History, Branches, Tags, Files). Use `Tab`/`Shift+Tab` to cycle through filters or click directly.
+
+### @ File Mentions (AI Terminal)
+
+In AI mode, use `@` to reference files in your prompts:
+
+| Action | Key |
+|--------|-----|
+| Open File Picker | Type `@` followed by a search term |
+| Navigate Suggestions | `Up/Down Arrow` |
+| Select File | `Tab` or `Enter` |
+| Close Dropdown | `Esc` |
+
+**Example**: Type `@readme` to see matching files, then select to insert the file reference into your prompt. The AI will have context about the referenced file.
+
 ### Navigation & Search
 
 | Action | Key |

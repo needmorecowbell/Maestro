@@ -90,9 +90,19 @@ export function ToastProvider({ children, defaultDuration: initialDuration = 20 
       });
     }
 
-    // Show OS notification if enabled
+    // Show OS notification if enabled (compact format for small notification area)
     if (osNotificationsRef.current.enabled) {
-      window.maestro.notification.show(toast.title, toast.message).catch(err => {
+      // Build concise title: "Group > Session" or just "Session" or fallback to toast title
+      const sessionLabel = toast.tabName || (toast.claudeSessionId ? toast.claudeSessionId.slice(0, 8) : null);
+      const notifTitle = toast.group && sessionLabel
+        ? `${toast.group} > ${sessionLabel}`
+        : sessionLabel || toast.group || toast.title;
+      // Body is just a one-word status derived from toast type
+      const notifBody = toast.type === 'success' ? 'Done'
+        : toast.type === 'error' ? 'Error'
+        : toast.type === 'warning' ? 'Attention'
+        : 'Ready';
+      window.maestro.notification.show(notifTitle, notifBody).catch(err => {
         console.error('[ToastContext] Failed to show OS notification:', err);
       });
     }

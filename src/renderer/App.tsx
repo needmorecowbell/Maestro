@@ -249,6 +249,8 @@ export default function MaestroConsole() {
 
   // Flash notification state (for inline notifications like "Commands disabled while agent is working")
   const [flashNotification, setFlashNotification] = useState<string | null>(null);
+  // Success flash notification state (for success messages like "Refresh complete")
+  const [successFlashNotification, setSuccessFlashNotification] = useState<string | null>(null);
 
   // @ mention file completion state (AI mode only, desktop only)
   const [atMentionOpen, setAtMentionOpen] = useState(false);
@@ -816,19 +818,20 @@ export default function MaestroConsole() {
               };
             }
 
-            // IMPORTANT: First set the ORIGINAL tab (that just finished) to idle
-            // Then set up the TARGET tab (next in queue) for processing
+            // IMPORTANT: Set the ORIGINAL tab (that just finished) to idle,
+            // UNLESS it's also the target tab for the next queued item.
             // Also set target tab to 'busy' so thinking pill can find it via getWriteModeTab()
             let updatedAiTabs = s.aiTabs.map(tab => {
-              // Set the original tab (that just finished) to idle
-              if (tabIdFromSession && tab.id === tabIdFromSession) {
-                console.log('[onExit] Setting original tab to idle before processing queue:', tab.id.substring(0, 8));
-                return { ...tab, state: 'idle' as const };
-              }
-              // Set the target tab (next in queue) to busy with thinkingStartTime
+              // If this tab is the target for the next queued item, set it to busy
+              // (takes priority over setting to idle, even if it's the same tab that just finished)
               if (tab.id === targetTab.id) {
                 console.log('[onExit] Setting target tab to busy for queue processing:', tab.id.substring(0, 8), 'name:', tab.name);
                 return { ...tab, state: 'busy' as const, thinkingStartTime: Date.now() };
+              }
+              // Set the original tab (that just finished) to idle, but only if it's different from target
+              if (tabIdFromSession && tab.id === tabIdFromSession) {
+                console.log('[onExit] Setting original tab to idle before processing queue:', tab.id.substring(0, 8));
+                return { ...tab, state: 'idle' as const };
               }
               return tab;
             });
@@ -892,13 +895,24 @@ export default function MaestroConsole() {
           // Check if ANY other tabs are still busy (for parallel read-only execution)
           // Only set session to idle if no tabs are busy
           const anyTabStillBusy = updatedAiTabs.some(tab => tab.state === 'busy');
-          console.log('[onExit] Any tab still busy?', anyTabStillBusy, 'tabs:', updatedAiTabs.map(t => ({ id: t.id.substring(0, 8), state: t.state })));
+          const newState = anyTabStillBusy ? 'busy' as SessionState : 'idle' as SessionState;
+          const newBusySource = anyTabStillBusy ? s.busySource : undefined;
+          console.log('[onExit] AI exit state update:', {
+            sessionId: s.id.substring(0, 8),
+            tabIdFromSession: tabIdFromSession?.substring(0, 8),
+            anyTabStillBusy,
+            oldState: s.state,
+            oldBusySource: s.busySource,
+            newState,
+            newBusySource,
+            tabs: updatedAiTabs.map(t => ({ id: t.id.substring(0, 8), state: t.state }))
+          });
 
           // Task complete - also clear pending AI command flag
           return {
             ...s,
-            state: anyTabStillBusy ? 'busy' as SessionState : 'idle' as SessionState,
-            busySource: anyTabStillBusy ? s.busySource : undefined,
+            state: newState,
+            busySource: newBusySource,
             thinkingStartTime: anyTabStillBusy ? s.thinkingStartTime : undefined,
             pendingAICommandForSynopsis: undefined,
             aiTabs: updatedAiTabs
@@ -1311,6 +1325,7 @@ export default function MaestroConsole() {
   const terminalOutputRef = useRef<HTMLDivElement>(null);
   const fileTreeContainerRef = useRef<HTMLDivElement>(null);
   const fileTreeFilterInputRef = useRef<HTMLInputElement>(null);
+  const fileTreeKeyboardNavRef = useRef(false); // Track if selection change came from keyboard
   const rightPanelRef = useRef<RightPanelHandle>(null);
 
   // Refs for toast notifications (to access latest values in event handlers)
@@ -1881,6 +1896,7 @@ export default function MaestroConsole() {
     const matchIndex = flatFileList.findIndex(item => item.fullPath === pathOnly);
 
     if (matchIndex >= 0) {
+      fileTreeKeyboardNavRef.current = true; // Scroll to matched file
       setSelectedFileIndex(matchIndex);
       // Ensure Files tab is visible to show the highlight
       if (activeRightTab !== 'files') {
@@ -4863,7 +4879,10 @@ export default function MaestroConsole() {
         if (activeSession?.isGitRepo) {
           const filters: TabCompletionFilter[] = ['all', 'history', 'branch', 'tag', 'file'];
           const currentIndex = filters.indexOf(tabCompletionFilter);
-          const nextIndex = (currentIndex + 1) % filters.length;
+          // Shift+Tab goes backwards, Tab goes forwards
+          const nextIndex = e.shiftKey
+            ? (currentIndex - 1 + filters.length) % filters.length
+            : (currentIndex + 1) % filters.length;
           setTabCompletionFilter(filters[nextIndex]);
           setSelectedTabCompletionIndex(0);
         } else {
@@ -4887,6 +4906,7 @@ export default function MaestroConsole() {
       } else if (e.key === 'Escape') {
         e.preventDefault();
         setTabCompletionOpen(false);
+        inputRef.current?.focus();
         return;
       }
     }
@@ -4919,6 +4939,7 @@ export default function MaestroConsole() {
         setAtMentionOpen(false);
         setAtMentionFilter('');
         setAtMentionStartIndex(-1);
+        inputRef.current?.focus();
         return;
       }
     }
@@ -5318,6 +5339,56 @@ export default function MaestroConsole() {
     }
   }, [sessions]);
 
+  // Refresh both file tree and git state for a session
+  const refreshGitFileState = useCallback(async (sessionId: string) => {
+    const session = sessions.find(s => s.id === sessionId);
+    if (!session) return;
+
+    const cwd = session.inputMode === 'terminal' ? (session.shellCwd || session.cwd) : session.cwd;
+
+    try {
+      // Refresh file tree, git repo status, branches, and tags in parallel
+      const [tree, isGitRepo] = await Promise.all([
+        loadFileTree(cwd),
+        gitService.isRepo(cwd)
+      ]);
+
+      let gitBranches: string[] | undefined;
+      let gitTags: string[] | undefined;
+      let gitRefsCacheTime: number | undefined;
+
+      if (isGitRepo) {
+        [gitBranches, gitTags] = await Promise.all([
+          gitService.getBranches(cwd),
+          gitService.getTags(cwd)
+        ]);
+        gitRefsCacheTime = Date.now();
+      }
+
+      setSessions(prev => prev.map(s =>
+        s.id === sessionId ? {
+          ...s,
+          fileTree: tree,
+          fileTreeError: undefined,
+          isGitRepo,
+          gitBranches,
+          gitTags,
+          gitRefsCacheTime
+        } : s
+      ));
+    } catch (error) {
+      console.error('Git/file state refresh error:', error);
+      const errorMsg = (error as Error)?.message || 'Unknown error';
+      setSessions(prev => prev.map(s =>
+        s.id === sessionId ? {
+          ...s,
+          fileTree: [],
+          fileTreeError: `Cannot access directory: ${cwd}\n${errorMsg}`
+        } : s
+      ));
+    }
+  }, [sessions]);
+
   // Load file tree when active session changes
   useEffect(() => {
     const session = sessions.find(s => s.id === activeSessionId);
@@ -5407,6 +5478,7 @@ export default function MaestroConsole() {
       // If folder not found, stay at 0
     }
 
+    fileTreeKeyboardNavRef.current = true; // Scroll to jumped file
     setSelectedFileIndex(targetIndex);
 
     // Clear the pending jump path
@@ -5415,8 +5487,12 @@ export default function MaestroConsole() {
     ));
   }, [activeSession?.pendingJumpPath, flatFileList, activeSession?.id]);
 
-  // Scroll to selected file item when selection changes
+  // Scroll to selected file item when selection changes via keyboard
   useEffect(() => {
+    // Only scroll when selection changed via keyboard navigation, not mouse click
+    if (!fileTreeKeyboardNavRef.current) return;
+    fileTreeKeyboardNavRef.current = false; // Reset flag after handling
+
     // Allow scroll when:
     // 1. Right panel is focused on files tab (normal keyboard navigation)
     // 2. Tab completion is open and files tab is visible (sync from tab completion)
@@ -5453,9 +5529,11 @@ export default function MaestroConsole() {
 
       if (e.key === 'ArrowUp') {
         e.preventDefault();
+        fileTreeKeyboardNavRef.current = true;
         setSelectedFileIndex(prev => Math.max(0, prev - 1));
       } else if (e.key === 'ArrowDown') {
         e.preventDefault();
+        fileTreeKeyboardNavRef.current = true;
         setSelectedFileIndex(prev => Math.min(flatFileList.length - 1, prev + 1));
       } else if (e.key === 'ArrowLeft') {
         e.preventDefault();
@@ -5471,6 +5549,7 @@ export default function MaestroConsole() {
             // Move selection to parent folder
             const parentIndex = flatFileList.findIndex(item => item.fullPath === parentPath);
             if (parentIndex >= 0) {
+              fileTreeKeyboardNavRef.current = true;
               setSelectedFileIndex(parentIndex);
             }
           }
@@ -5636,6 +5715,13 @@ export default function MaestroConsole() {
             }
           }}
           setPlaygroundOpen={setPlaygroundOpen}
+          onRefreshGitFileState={async () => {
+            if (activeSessionId) {
+              await refreshGitFileState(activeSessionId);
+              setSuccessFlashNotification('File/Git State Refreshed');
+              setTimeout(() => setSuccessFlashNotification(null), 2000);
+            }
+          }}
         />
       )}
       {lightboxImage && (
@@ -6441,6 +6527,20 @@ export default function MaestroConsole() {
           }}
         >
           {flashNotification}
+        </div>
+      )}
+
+      {/* --- SUCCESS FLASH NOTIFICATION (centered, auto-dismiss) --- */}
+      {successFlashNotification && (
+        <div
+          className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 px-6 py-4 rounded-lg shadow-2xl text-base font-bold animate-in fade-in zoom-in-95 duration-200 z-[9999]"
+          style={{
+            backgroundColor: theme.colors.accent,
+            color: theme.colors.accentForeground,
+            textShadow: '0 1px 2px rgba(0, 0, 0, 0.3)'
+          }}
+        >
+          {successFlashNotification}
         </div>
       )}
 

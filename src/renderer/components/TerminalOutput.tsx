@@ -81,6 +81,43 @@ const filterTextByLinesHelper = (text: string, query: string, mode: 'include' | 
   }
 };
 
+// Strip markdown formatting to show plain text
+const stripMarkdown = (text: string): string => {
+  return text
+    // Remove code blocks (```...```)
+    .replace(/```[\s\S]*?```/g, (match) => {
+      // Extract just the code content without the fence
+      const lines = match.split('\n');
+      // Remove first line (```lang) and last line (```)
+      return lines.slice(1, -1).join('\n');
+    })
+    // Remove inline code backticks
+    .replace(/`([^`]+)`/g, '$1')
+    // Remove bold/italic (***text***, **text**, *text*, ___text___, __text__, _text_)
+    .replace(/\*\*\*(.+?)\*\*\*/g, '$1')
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/\*(.+?)\*/g, '$1')
+    .replace(/___(.+?)___/g, '$1')
+    .replace(/__(.+?)__/g, '$1')
+    .replace(/_(.+?)_/g, '$1')
+    // Remove headers (# text)
+    .replace(/^#{1,6}\s+/gm, '')
+    // Remove blockquotes (> text)
+    .replace(/^>\s*/gm, '')
+    // Remove horizontal rules
+    .replace(/^[-*_]{3,}\s*$/gm, '---')
+    // Remove link formatting [text](url) -> text
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    // Remove image formatting ![alt](url) -> alt
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')
+    // Remove strikethrough
+    .replace(/~~(.+?)~~/g, '$1')
+    // Clean up bullet points - convert to simple dashes
+    .replace(/^[\s]*[-*+]\s+/gm, '- ')
+    // Clean up numbered lists - keep the numbers
+    .replace(/^[\s]*(\d+)\.\s+/gm, '$1. ');
+};
+
 // ============================================================================
 // LogItem - Memoized component for individual log entries
 // ============================================================================
@@ -498,18 +535,19 @@ const LogItemComponent = memo(({
                     .prose { line-height: 1.4; }
                     .prose > *:first-child { margin-top: 0; }
                     .prose > *:last-child { margin-bottom: 0; }
-                    .prose h1 { color: ${theme.colors.accent}; font-size: 1.5em; font-weight: bold; margin: 0; line-height: 1.4; }
-                    .prose h2 { color: ${theme.colors.success}; font-size: 1.25em; font-weight: bold; margin: 0; line-height: 1.4; }
-                    .prose h3 { color: ${theme.colors.warning}; font-size: 1.1em; font-weight: bold; margin: 0; line-height: 1.4; }
-                    .prose h4 { color: ${theme.colors.textMain}; font-size: 1em; font-weight: bold; margin: 0; opacity: 0.9; line-height: 1.4; }
-                    .prose h5 { color: ${theme.colors.textMain}; font-size: 0.9em; font-weight: bold; margin: 0; opacity: 0.8; line-height: 1.4; }
-                    .prose h6 { color: ${theme.colors.textDim}; font-size: 0.85em; font-weight: bold; margin: 0; line-height: 1.4; }
+                    .prose h1 { color: ${theme.colors.accent}; font-size: 2em; font-weight: bold; margin: 0; line-height: 1.4; }
+                    .prose h2 { color: ${theme.colors.success}; font-size: 1.75em; font-weight: bold; margin: 0; line-height: 1.4; }
+                    .prose h3 { color: ${theme.colors.warning}; font-size: 1.5em; font-weight: bold; margin: 0; line-height: 1.4; }
+                    .prose h4 { color: ${theme.colors.textMain}; font-size: 1.35em; font-weight: bold; margin: 0; line-height: 1.4; }
+                    .prose h5 { color: ${theme.colors.textMain}; font-size: 1.2em; font-weight: bold; margin: 0; line-height: 1.4; }
+                    .prose h6 { color: ${theme.colors.textDim}; font-size: 1.1em; font-weight: bold; margin: 0; line-height: 1.4; }
                     .prose p { color: ${theme.colors.textMain}; margin: 0; line-height: 1.4; }
                     .prose > ul, .prose > ol { color: ${theme.colors.textMain}; margin: 0.5em 0; padding-left: 2em; }
-                    .prose ul ul, .prose ul ol, .prose ol ul, .prose ol ol { margin: 0; padding-left: 1.5em; }
-                    .prose li { margin: 0; padding: 0; line-height: 1.4; }
-                    .prose li > p { margin: 0; }
-                    .prose li > p + ul, .prose li > p + ol { margin-top: 0; }
+                    .prose li ul, .prose li ol { margin: 0 !important; padding-left: 1.5em; }
+                    .prose li { margin: 0 !important; padding: 0; line-height: 1.4; display: list-item; }
+                    .prose li > p:first-child { margin: 0 !important; display: inline !important; }
+                    .prose li > p:first-child + ul, .prose li > p:first-child + ol { display: block; margin-top: 0 !important; }
+                    .prose li > p + ul, .prose li > p + ol { margin-top: 0 !important; }
                     .prose li:has(> input[type="checkbox"]) { list-style: none; margin-left: -1.5em; }
                     .prose code { background-color: ${theme.colors.bgSidebar}; color: ${theme.colors.textMain}; padding: 0.15em 0.3em; border-radius: 3px; font-size: 0.9em; }
                     .prose pre { background-color: ${theme.colors.bgSidebar}; color: ${theme.colors.textMain}; padding: 0.5em; border-radius: 6px; overflow-x: auto; margin: 0; }
@@ -647,18 +685,19 @@ const LogItemComponent = memo(({
                     .prose { line-height: 1.4; }
                     .prose > *:first-child { margin-top: 0; }
                     .prose > *:last-child { margin-bottom: 0; }
-                    .prose h1 { color: ${theme.colors.accent}; font-size: 1.5em; font-weight: bold; margin: 0; line-height: 1.4; }
-                    .prose h2 { color: ${theme.colors.success}; font-size: 1.25em; font-weight: bold; margin: 0; line-height: 1.4; }
-                    .prose h3 { color: ${theme.colors.warning}; font-size: 1.1em; font-weight: bold; margin: 0; line-height: 1.4; }
-                    .prose h4 { color: ${theme.colors.textMain}; font-size: 1em; font-weight: bold; margin: 0; opacity: 0.9; line-height: 1.4; }
-                    .prose h5 { color: ${theme.colors.textMain}; font-size: 0.9em; font-weight: bold; margin: 0; opacity: 0.8; line-height: 1.4; }
-                    .prose h6 { color: ${theme.colors.textDim}; font-size: 0.85em; font-weight: bold; margin: 0; line-height: 1.4; }
+                    .prose h1 { color: ${theme.colors.accent}; font-size: 2em; font-weight: bold; margin: 0; line-height: 1.4; }
+                    .prose h2 { color: ${theme.colors.success}; font-size: 1.75em; font-weight: bold; margin: 0; line-height: 1.4; }
+                    .prose h3 { color: ${theme.colors.warning}; font-size: 1.5em; font-weight: bold; margin: 0; line-height: 1.4; }
+                    .prose h4 { color: ${theme.colors.textMain}; font-size: 1.35em; font-weight: bold; margin: 0; line-height: 1.4; }
+                    .prose h5 { color: ${theme.colors.textMain}; font-size: 1.2em; font-weight: bold; margin: 0; line-height: 1.4; }
+                    .prose h6 { color: ${theme.colors.textDim}; font-size: 1.1em; font-weight: bold; margin: 0; line-height: 1.4; }
                     .prose p { color: ${theme.colors.textMain}; margin: 0; line-height: 1.4; }
                     .prose > ul, .prose > ol { color: ${theme.colors.textMain}; margin: 0.5em 0; padding-left: 2em; }
-                    .prose ul ul, .prose ul ol, .prose ol ul, .prose ol ol { margin: 0; padding-left: 1.5em; }
-                    .prose li { margin: 0; padding: 0; line-height: 1.4; }
-                    .prose li > p { margin: 0; }
-                    .prose li > p + ul, .prose li > p + ol { margin-top: 0; }
+                    .prose li ul, .prose li ol { margin: 0 !important; padding-left: 1.5em; }
+                    .prose li { margin: 0 !important; padding: 0; line-height: 1.4; display: list-item; }
+                    .prose li > p:first-child { margin: 0 !important; display: inline !important; }
+                    .prose li > p:first-child + ul, .prose li > p:first-child + ol { display: block; margin-top: 0 !important; }
+                    .prose li > p + ul, .prose li > p + ol { margin-top: 0 !important; }
                     .prose li:has(> input[type="checkbox"]) { list-style: none; margin-left: -1.5em; }
                     .prose code { background-color: ${theme.colors.bgSidebar}; color: ${theme.colors.textMain}; padding: 0.15em 0.3em; border-radius: 3px; font-size: 0.9em; }
                     .prose pre { background-color: ${theme.colors.bgSidebar}; color: ${theme.colors.textMain}; padding: 0.5em; border-radius: 6px; overflow-x: auto; margin: 0; }
@@ -779,18 +818,19 @@ const LogItemComponent = memo(({
                   .prose { line-height: 1.4; }
                   .prose > *:first-child { margin-top: 0; }
                   .prose > *:last-child { margin-bottom: 0; }
-                  .prose h1 { color: ${theme.colors.accent}; font-size: 1.5em; font-weight: bold; margin: 0; line-height: 1.4; }
-                  .prose h2 { color: ${theme.colors.success}; font-size: 1.25em; font-weight: bold; margin: 0; line-height: 1.4; }
-                  .prose h3 { color: ${theme.colors.warning}; font-size: 1.1em; font-weight: bold; margin: 0; line-height: 1.4; }
-                  .prose h4 { color: ${theme.colors.textMain}; font-size: 1em; font-weight: bold; margin: 0; opacity: 0.9; line-height: 1.4; }
-                  .prose h5 { color: ${theme.colors.textMain}; font-size: 0.9em; font-weight: bold; margin: 0; opacity: 0.8; line-height: 1.4; }
-                  .prose h6 { color: ${theme.colors.textDim}; font-size: 0.85em; font-weight: bold; margin: 0; line-height: 1.4; }
+                  .prose h1 { color: ${theme.colors.accent}; font-size: 2em; font-weight: bold; margin: 0; line-height: 1.4; }
+                  .prose h2 { color: ${theme.colors.success}; font-size: 1.75em; font-weight: bold; margin: 0; line-height: 1.4; }
+                  .prose h3 { color: ${theme.colors.warning}; font-size: 1.5em; font-weight: bold; margin: 0; line-height: 1.4; }
+                  .prose h4 { color: ${theme.colors.textMain}; font-size: 1.35em; font-weight: bold; margin: 0; line-height: 1.4; }
+                  .prose h5 { color: ${theme.colors.textMain}; font-size: 1.2em; font-weight: bold; margin: 0; line-height: 1.4; }
+                  .prose h6 { color: ${theme.colors.textDim}; font-size: 1.1em; font-weight: bold; margin: 0; line-height: 1.4; }
                   .prose p { color: ${theme.colors.textMain}; margin: 0; line-height: 1.4; }
                   .prose > ul, .prose > ol { color: ${theme.colors.textMain}; margin: 0.5em 0; padding-left: 2em; }
-                  .prose ul ul, .prose ul ol, .prose ol ul, .prose ol ol { margin: 0; padding-left: 1.5em; }
-                  .prose li { margin: 0; padding: 0; line-height: 1.4; }
-                  .prose li > p { margin: 0; }
-                  .prose li > p + ul, .prose li > p + ol { margin-top: 0; }
+                  .prose li ul, .prose li ol { margin: 0 !important; padding-left: 1.5em; }
+                  .prose li { margin: 0 !important; padding: 0; line-height: 1.4; display: list-item; }
+                  .prose li > p:first-child { margin: 0 !important; display: inline !important; }
+                  .prose li > p:first-child + ul, .prose li > p:first-child + ol { display: block; margin-top: 0 !important; }
+                  .prose li > p + ul, .prose li > p + ol { margin-top: 0 !important; }
                   .prose li:has(> input[type="checkbox"]) { list-style: none; margin-left: -1.5em; }
                   .prose code { background-color: ${theme.colors.bgSidebar}; color: ${theme.colors.textMain}; padding: 0.15em 0.3em; border-radius: 3px; font-size: 0.9em; }
                   .prose pre { background-color: ${theme.colors.bgSidebar}; color: ${theme.colors.textMain}; padding: 0.5em; border-radius: 6px; overflow-x: auto; margin: 0; }
@@ -854,9 +894,9 @@ const LogItemComponent = memo(({
                 </ReactMarkdown>
               </div>
             ) : (
-              // Raw text mode (for terminal and raw markdown mode)
+              // Plain text mode (strip markdown formatting for readability)
               <div className="whitespace-pre-wrap text-sm break-all" style={{ color: theme.colors.textMain }}>
-                {highlightMatches(filteredText, outputSearchQuery)}
+                {highlightMatches(isAIMode ? stripMarkdown(filteredText) : filteredText, outputSearchQuery)}
               </div>
             )}
           </>
@@ -872,7 +912,7 @@ const LogItemComponent = memo(({
               onClick={onToggleMarkdownRawMode}
               className="p-1.5 rounded opacity-0 group-hover:opacity-50 hover:!opacity-100"
               style={{ color: markdownRawMode ? theme.colors.accent : theme.colors.textDim }}
-              title={markdownRawMode ? "Show rendered markdown (⌘E)" : "Show raw markdown (⌘E)"}
+              title={markdownRawMode ? "Show formatted (⌘E)" : "Show plain text (⌘E)"}
             >
               {markdownRawMode ? <Eye className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
             </button>

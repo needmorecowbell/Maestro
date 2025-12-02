@@ -1574,33 +1574,46 @@ function setupIpcHandlers() {
             const assistantMessageCount = (content.match(/"type"\s*:\s*"assistant"/g) || []).length;
             const messageCount = userMessageCount + assistantMessageCount;
 
-            // Extract first user message content - parse only first few lines
-            // Skip image-only messages and extract text from mixed content
+            // Helper to extract semantic text from message content
+            // Skips images, tool_use, and tool_result - only returns actual text content
+            const extractTextFromContent = (content: unknown): string => {
+              if (typeof content === 'string') {
+                return content;
+              }
+              if (Array.isArray(content)) {
+                // Only extract parts with type === 'text', which gives us pure semantic content
+                const textParts = content
+                  .filter((part: { type?: string }) => part.type === 'text')
+                  .map((part: { type?: string; text?: string }) => part.text || '')
+                  .filter((text: string) => text.trim());
+                return textParts.join(' ');
+              }
+              return '';
+            };
+
+            // Extract first meaningful message content - parse only first few lines
+            // Skip image-only messages, tool_use, and tool_result content
+            // Try user messages first, then fall back to assistant messages
             for (let i = 0; i < Math.min(lines.length, CLAUDE_SESSION_PARSE_LIMITS.FIRST_MESSAGE_SCAN_LINES); i++) {
               try {
                 const entry = JSON.parse(lines[i]);
+                // Try user messages first
                 if (entry.type === 'user' && entry.message?.content) {
-                  const content = entry.message.content;
-                  let textContent = '';
-
-                  if (typeof content === 'string') {
-                    textContent = content;
-                  } else if (Array.isArray(content)) {
-                    // Extract text from content array, skipping images
-                    const textParts = content
-                      .filter((part: { type?: string }) => part.type === 'text')
-                      .map((part: { type?: string; text?: string }) => part.text || '')
-                      .filter((text: string) => text.trim());
-                    textContent = textParts.join(' ');
-                  }
-
-                  // Only use this message if it has actual text content
+                  const textContent = extractTextFromContent(entry.message.content);
                   if (textContent.trim()) {
                     firstUserMessage = textContent;
                     timestamp = entry.timestamp || timestamp;
-                    break; // Found first user message with text, stop parsing
+                    break;
                   }
-                  // Otherwise continue to next message (skip image-only messages)
+                }
+                // Fall back to assistant messages if no user text found yet
+                if (!firstUserMessage && entry.type === 'assistant' && entry.message?.content) {
+                  const textContent = extractTextFromContent(entry.message.content);
+                  if (textContent.trim()) {
+                    firstUserMessage = textContent;
+                    timestamp = entry.timestamp || timestamp;
+                    // Don't break - keep looking for a user message
+                  }
                 }
               } catch {
                 // Skip malformed lines
@@ -1795,16 +1808,46 @@ function setupIpcHandlers() {
             const assistantMessageCount = (content.match(/"type"\s*:\s*"assistant"/g) || []).length;
             const messageCount = userMessageCount + assistantMessageCount;
 
-            // Extract first user message content - parse only first few lines
+            // Helper to extract semantic text from message content
+            // Skips images, tool_use, and tool_result - only returns actual text content
+            const extractTextFromContent = (msgContent: unknown): string => {
+              if (typeof msgContent === 'string') {
+                return msgContent;
+              }
+              if (Array.isArray(msgContent)) {
+                // Only extract parts with type === 'text', which gives us pure semantic content
+                const textParts = msgContent
+                  .filter((part: { type?: string }) => part.type === 'text')
+                  .map((part: { type?: string; text?: string }) => part.text || '')
+                  .filter((text: string) => text.trim());
+                return textParts.join(' ');
+              }
+              return '';
+            };
+
+            // Extract first meaningful message content - parse only first few lines
+            // Skip image-only messages, tool_use, and tool_result content
+            // Try user messages first, then fall back to assistant messages
             for (let i = 0; i < Math.min(lines.length, CLAUDE_SESSION_PARSE_LIMITS.FIRST_MESSAGE_SCAN_LINES); i++) {
               try {
                 const entry = JSON.parse(lines[i]);
+                // Try user messages first
                 if (entry.type === 'user' && entry.message?.content) {
-                  firstUserMessage = typeof entry.message.content === 'string'
-                    ? entry.message.content
-                    : JSON.stringify(entry.message.content);
-                  timestamp = entry.timestamp || timestamp;
-                  break;
+                  const textContent = extractTextFromContent(entry.message.content);
+                  if (textContent.trim()) {
+                    firstUserMessage = textContent;
+                    timestamp = entry.timestamp || timestamp;
+                    break;
+                  }
+                }
+                // Fall back to assistant messages if no user text found yet
+                if (!firstUserMessage && entry.type === 'assistant' && entry.message?.content) {
+                  const textContent = extractTextFromContent(entry.message.content);
+                  if (textContent.trim()) {
+                    firstUserMessage = textContent;
+                    timestamp = entry.timestamp || timestamp;
+                    // Don't break - keep looking for a user message
+                  }
                 }
               } catch {
                 // Skip malformed lines

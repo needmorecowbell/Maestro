@@ -55,6 +55,7 @@ interface QuickActionsModalProps {
   tabShortcuts?: Record<string, Shortcut>;
   isAiMode?: boolean;
   setPlaygroundOpen?: (open: boolean) => void;
+  onRefreshGitFileState?: () => Promise<void>;
 }
 
 export function QuickActionsModal(props: QuickActionsModalProps) {
@@ -68,7 +69,7 @@ export function QuickActionsModal(props: QuickActionsModalProps) {
     deleteSession, addNewSession, setSettingsModalOpen, setSettingsTab,
     setShortcutsHelpOpen, setAboutModalOpen, setLogViewerOpen, setProcessMonitorOpen,
     setAgentSessionsOpen, setActiveClaudeSessionId, setGitDiffPreview, setGitLogOpen, startFreshSession,
-    onRenameTab, onToggleReadOnlyMode, tabShortcuts, isAiMode, setPlaygroundOpen
+    onRenameTab, onToggleReadOnlyMode, tabShortcuts, isAiMode, setPlaygroundOpen, onRefreshGitFileState
   } = props;
 
   const [search, setSearch] = useState('');
@@ -234,6 +235,10 @@ export function QuickActionsModal(props: QuickActionsModalProps) {
       if (browserUrl) {
         window.maestro.shell.openExternal(browserUrl);
       }
+      setQuickActionOpen(false);
+    } }] : []),
+    ...(activeSession && onRefreshGitFileState ? [{ id: 'refreshGitFileState', label: 'Refresh File/Git State', subtext: 'Reload file tree and git status', action: async () => {
+      await onRefreshGitFileState();
       setQuickActionOpen(false);
     } }] : []),
     { id: 'devtools', label: 'Toggle JavaScript Console', action: () => { window.maestro.devtools.toggle(); setQuickActionOpen(false); } },

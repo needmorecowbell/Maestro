@@ -369,7 +369,7 @@ export const InputArea = React.memo(function InputArea(props: InputAreaProps) {
       )}
 
       {/* Tab Completion Dropdown - Terminal mode only */}
-      {tabCompletionOpen && isTerminalMode && tabCompletionSuggestions.length > 0 && (
+      {tabCompletionOpen && isTerminalMode && (
         <div
           className="absolute bottom-full left-0 right-0 mb-2 border rounded-lg shadow-2xl max-h-64 overflow-hidden"
           style={{ backgroundColor: theme.colors.bgSidebar, borderColor: theme.colors.border }}
@@ -417,42 +417,51 @@ export const InputArea = React.memo(function InputArea(props: InputAreaProps) {
             )}
           </div>
           <div className="overflow-y-auto max-h-56 scrollbar-thin">
-            {tabCompletionSuggestions.map((suggestion, idx) => {
-              const isSelected = idx === selectedTabCompletionIndex;
-              const IconComponent = suggestion.type === 'history' ? History :
-                                   suggestion.type === 'branch' ? GitBranch :
-                                   suggestion.type === 'tag' ? Tag :
-                                   suggestion.type === 'folder' ? Folder : File;
-              const typeLabel = suggestion.type;
+            {tabCompletionSuggestions.length > 0 ? (
+              tabCompletionSuggestions.map((suggestion, idx) => {
+                const isSelected = idx === selectedTabCompletionIndex;
+                const IconComponent = suggestion.type === 'history' ? History :
+                                     suggestion.type === 'branch' ? GitBranch :
+                                     suggestion.type === 'tag' ? Tag :
+                                     suggestion.type === 'folder' ? Folder : File;
+                const typeLabel = suggestion.type;
 
-              return (
-                <div
-                  key={`${suggestion.type}-${suggestion.value}`}
-                  ref={el => tabCompletionItemRefs.current[idx] = el}
-                  className={`px-3 py-2 cursor-pointer text-sm font-mono flex items-center gap-2 ${isSelected ? 'ring-1 ring-inset' : ''}`}
-                  style={{
-                    backgroundColor: isSelected ? theme.colors.bgActivity : 'transparent',
-                    ringColor: theme.colors.accent,
-                    color: theme.colors.textMain
-                  }}
-                  onClick={() => {
-                    setInputValue(suggestion.value);
-                    setTabCompletionOpen?.(false);
-                    inputRef.current?.focus();
-                  }}
-                  onMouseEnter={() => setSelectedTabCompletionIndex?.(idx)}
-                >
-                  <IconComponent className="w-3.5 h-3.5 flex-shrink-0" style={{
-                    color: suggestion.type === 'history' ? theme.colors.accent :
-                           suggestion.type === 'branch' ? theme.colors.success :
-                           suggestion.type === 'tag' ? theme.colors.info :
-                           suggestion.type === 'folder' ? theme.colors.warning : theme.colors.textDim
-                  }} />
-                  <span className="flex-1 truncate">{suggestion.displayText}</span>
-                  <span className="text-[10px] opacity-40 flex-shrink-0">{typeLabel}</span>
-                </div>
-              );
-            })}
+                return (
+                  <div
+                    key={`${suggestion.type}-${suggestion.value}`}
+                    ref={el => tabCompletionItemRefs.current[idx] = el}
+                    className={`px-3 py-2 cursor-pointer text-sm font-mono flex items-center gap-2 ${isSelected ? 'ring-1 ring-inset' : ''}`}
+                    style={{
+                      backgroundColor: isSelected ? theme.colors.bgActivity : 'transparent',
+                      ringColor: theme.colors.accent,
+                      color: theme.colors.textMain
+                    }}
+                    onClick={() => {
+                      setInputValue(suggestion.value);
+                      setTabCompletionOpen?.(false);
+                      inputRef.current?.focus();
+                    }}
+                    onMouseEnter={() => setSelectedTabCompletionIndex?.(idx)}
+                  >
+                    <IconComponent className="w-3.5 h-3.5 flex-shrink-0" style={{
+                      color: suggestion.type === 'history' ? theme.colors.accent :
+                             suggestion.type === 'branch' ? theme.colors.success :
+                             suggestion.type === 'tag' ? theme.colors.info :
+                             suggestion.type === 'folder' ? theme.colors.warning : theme.colors.textDim
+                    }} />
+                    <span className="flex-1 truncate">{suggestion.displayText}</span>
+                    <span className="text-[10px] opacity-40 flex-shrink-0">{typeLabel}</span>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="px-3 py-4 text-center text-sm opacity-50" style={{ color: theme.colors.textDim }}>
+                No matching {tabCompletionFilter === 'all' ? 'suggestions' :
+                             tabCompletionFilter === 'history' ? 'history' :
+                             tabCompletionFilter === 'branch' ? 'branches' :
+                             tabCompletionFilter === 'tag' ? 'tags' : 'files'}
+              </div>
+            )}
           </div>
         </div>
       )}

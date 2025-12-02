@@ -74,7 +74,13 @@ export function useTabCompletion(session: Session | null): UseTabCompletionRetur
     // 1. Check shell command history for matches
     if (filter === 'all' || filter === 'history') {
       for (const cmd of shellHistory) {
-        if (cmd.toLowerCase().startsWith(inputLower) && !seenValues.has(cmd)) {
+        const cmdLower = cmd.toLowerCase();
+        // When specifically filtering to history, show all history items that contain any part of input
+        // When showing 'all', only show history that starts with the full input
+        const matches = filter === 'history'
+          ? (!inputLower || cmdLower.includes(inputLower))
+          : cmdLower.startsWith(inputLower);
+        if (matches && !seenValues.has(cmd)) {
           seenValues.add(cmd);
           suggestions.push({
             value: cmd,

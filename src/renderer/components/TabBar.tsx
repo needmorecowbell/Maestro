@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Plus, Star, Copy, Edit2 } from 'lucide-react';
+import { X, Plus, Star, Copy, Edit2, Mail } from 'lucide-react';
 import type { AITab, Theme } from '../types';
 
 interface TabBarProps {
@@ -486,9 +486,11 @@ export function TabBar({
 
   const [draggingTabId, setDraggingTabId] = useState<string | null>(null);
   const [dragOverTabId, setDragOverTabId] = useState<string | null>(null);
+  const [showUnreadOnly, setShowUnreadOnly] = useState(false);
 
   const tabBarRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const [isOverflowing, setIsOverflowing] = useState(false);
 
   // Scroll active tab into view when it changes or when tabs are added/removed
   // Use a small delay to ensure the DOM element is rendered and ref is registered
@@ -557,6 +559,35 @@ export function TabBar({
     }
   }, [onRequestRename]);
 
+  // Count unread tabs for the filter toggle tooltip
+  const unreadCount = tabs.filter(t => t.hasUnread).length;
+
+  // Filter tabs based on unread filter state
+  // When filter is on, show unread tabs + active tab (so user doesn't lose context)
+  const displayedTabs = showUnreadOnly
+    ? tabs.filter(t => t.hasUnread || t.id === activeTabId)
+    : tabs;
+
+  // Check if tabs overflow the container (need sticky + button)
+  useEffect(() => {
+    const checkOverflow = () => {
+      if (tabBarRef.current) {
+        // scrollWidth > clientWidth means content overflows
+        setIsOverflowing(tabBarRef.current.scrollWidth > tabBarRef.current.clientWidth);
+      }
+    };
+
+    // Check after DOM renders
+    const timeoutId = setTimeout(checkOverflow, 0);
+
+    // Re-check on window resize
+    window.addEventListener('resize', checkOverflow);
+    return () => {
+      clearTimeout(timeoutId);
+      window.removeEventListener('resize', checkOverflow);
+    };
+  }, [tabs.length, displayedTabs.length]);
+
   return (
     <div
       ref={tabBarRef}
@@ -566,11 +597,46 @@ export function TabBar({
         borderColor: theme.colors.border
       }}
     >
+      {/* Unread filter toggle - sticky at the beginning with opaque background */}
+      <div
+        className="sticky left-0 z-10 flex items-center shrink-0 pr-1 mb-1 self-center group"
+        style={{ backgroundColor: theme.colors.bgSidebar }}
+      >
+        <button
+          onClick={() => setShowUnreadOnly(!showUnreadOnly)}
+          className="relative flex items-center justify-center w-6 h-6 rounded transition-colors"
+          style={{
+            color: showUnreadOnly ? theme.colors.accent : theme.colors.textDim,
+            opacity: showUnreadOnly ? 1 : 0.5
+          }}
+        >
+          <Mail className="w-4 h-4" />
+          {/* Notification dot */}
+          <div
+            className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full"
+            style={{ backgroundColor: theme.colors.accent }}
+          />
+        </button>
+        {/* Hover overlay */}
+        <div
+          className="absolute left-0 top-full mt-1 px-2 py-1 rounded text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20"
+          style={{
+            backgroundColor: theme.colors.bgSidebar,
+            border: `1px solid ${theme.colors.border}`,
+            color: theme.colors.textMain
+          }}
+        >
+          {showUnreadOnly ? 'Showing unread only' : 'Filter unread tabs'}
+        </div>
+      </div>
+
       {/* Tabs with separators between inactive tabs */}
-      {tabs.map((tab, index) => {
+      {displayedTabs.map((tab, index) => {
         const isActive = tab.id === activeTabId;
-        const prevTab = index > 0 ? tabs[index - 1] : null;
+        const prevTab = index > 0 ? displayedTabs[index - 1] : null;
         const isPrevActive = prevTab?.id === activeTabId;
+        // Get original index for shortcut hints (Cmd+1-9)
+        const originalIndex = tabs.findIndex(t => t.id === tab.id);
 
         // Show separator between inactive tabs (not adjacent to active tab)
         const showSeparator = index > 0 && !isActive && !isPrevActive;
@@ -600,7 +666,7 @@ export function TabBar({
               isDragOver={dragOverTabId === tab.id}
               onRename={() => handleRenameRequest(tab.id)}
               onStar={onTabStar ? (starred) => onTabStar(tab.id, starred) : undefined}
-              shortcutHint={index < 9 ? index + 1 : null}
+              shortcutHint={originalIndex < 9 ? originalIndex + 1 : null}
               registerRef={(el) => {
                 if (el) {
                   tabRefs.current.set(tab.id, el);
@@ -613,15 +679,20 @@ export function TabBar({
         );
       })}
 
-      {/* New Tab Button - simple plus icon, not in a tab shape */}
-      <button
-        onClick={onNewTab}
-        className="flex items-center justify-center w-6 h-6 rounded hover:bg-white/10 transition-colors shrink-0 ml-1 mb-1 self-center"
-        style={{ color: theme.colors.textDim }}
-        title="New tab (Cmd+T)"
+      {/* New Tab Button - sticky on right when tabs overflow, otherwise inline */}
+      <div
+        className={`flex items-center shrink-0 pl-1 mb-1 self-center ${isOverflowing ? 'sticky right-0 z-10' : ''}`}
+        style={{ backgroundColor: isOverflowing ? theme.colors.bgSidebar : 'transparent' }}
       >
-        <Plus className="w-4 h-4" />
-      </button>
+        <button
+          onClick={onNewTab}
+          className="flex items-center justify-center w-6 h-6 rounded hover:bg-white/10 transition-colors"
+          style={{ color: theme.colors.textDim }}
+          title="New tab (Cmd+T)"
+        >
+          <Plus className="w-4 h-4" />
+        </button>
+      </div>
 
       {/* Context Menu */}
       {contextMenu && (

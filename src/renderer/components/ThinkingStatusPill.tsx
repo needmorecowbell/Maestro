@@ -281,6 +281,23 @@ function ThinkingStatusPillInner({ sessions, theme, onSessionClick, namedSession
     s => s.state === 'busy' && s.busySource === 'ai'
   );
 
+  // DEBUG: Log all sessions' busy state to diagnose thinking pill disappearing
+  const busySessions = sessions.filter(s => s.state === 'busy');
+  const sessionsWithBusyTabs = sessions.filter(s => s.aiTabs?.some(t => t.state === 'busy'));
+  if (busySessions.length > 0 || sessionsWithBusyTabs.length > 0) {
+    console.log('[ThinkingStatusPill] State check:', {
+      thinkingCount: thinkingSessions.length,
+      busySessionsCount: busySessions.length,
+      sessionsWithBusyTabsCount: sessionsWithBusyTabs.length,
+      details: sessions.map(s => ({
+        id: s.id.substring(0, 8),
+        state: s.state,
+        busySource: s.busySource,
+        busyTabs: s.aiTabs?.filter(t => t.state === 'busy').map(t => t.id.substring(0, 8))
+      }))
+    });
+  }
+
   if (thinkingSessions.length === 0) {
     return null;
   }
