@@ -7,6 +7,7 @@ import { AgentDetector } from './agent-detector';
 import { execFileNoThrow } from './utils/execFile';
 import { logger } from './utils/logger';
 import { detectShells } from './utils/shellDetector';
+import { isCloudflaredInstalled } from './utils/cliDetection';
 import { getThemeById } from './themes';
 import Store from 'electron-store';
 
@@ -1462,6 +1463,11 @@ function setupIpcHandlers() {
   // Shell operations
   ipcMain.handle('shell:openExternal', async (_event, url: string) => {
     await shell.openExternal(url);
+  });
+
+  // Tunnel operations (cloudflared CLI detection)
+  ipcMain.handle('tunnel:isCloudflaredInstalled', async () => {
+    return await isCloudflaredInstalled();
   });
 
   // DevTools operations
