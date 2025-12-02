@@ -352,6 +352,16 @@ export function SessionList(props: SessionListProps) {
     }
   }, [liveOverlayOpen]);
 
+  // Check for cloudflared installation when Live overlay opens
+  useEffect(() => {
+    if (isLiveMode && liveOverlayOpen && !cloudflaredChecked) {
+      window.maestro.tunnel.isCloudflaredInstalled().then((installed: boolean) => {
+        setCloudflaredInstalled(installed);
+        setCloudflaredChecked(true);
+      });
+    }
+  }, [isLiveMode, liveOverlayOpen, cloudflaredChecked]);
+
   // Toggle bookmark for a session
   const toggleBookmark = (sessionId: string) => {
     setSessions(prev => prev.map(s =>
