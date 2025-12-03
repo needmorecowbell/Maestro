@@ -99,7 +99,7 @@ export function AutoRunnerHelpModal({ theme, onClose }: AutoRunnerHelpModalProps
               style={{ color: theme.colors.textDim }}
             >
               <p>
-                Use markdown checkboxes to define tasks in the Scratchpad:
+                Use markdown checkboxes to define tasks in your Auto Run documents:
               </p>
               <div
                 className="font-mono text-xs p-3 rounded border"
@@ -160,7 +160,7 @@ export function AutoRunnerHelpModal({ theme, onClose }: AutoRunnerHelpModalProps
                 cross-contamination between tasks while keeping each agent fully informed.
               </p>
               <p>
-                The scratchpad file is passed to the AI via the <code>$$SCRATCHPAD$$</code> placeholder,
+                The Auto Run document file is passed to the AI via the <code>$$SCRATCHPAD$$</code> placeholder,
                 so the agent can read and modify tasks directly.
               </p>
             </div>
@@ -230,7 +230,7 @@ export function AutoRunnerHelpModal({ theme, onClose }: AutoRunnerHelpModalProps
               <p>
                 You can request a stop at any time by clicking the{' '}
                 <strong style={{ color: theme.colors.error }}>Stop</strong> button in the header
-                or scratchpad.
+                or Auto Run panel.
               </p>
               <p>
                 The runner will complete the current task before stopping gracefully.
