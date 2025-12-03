@@ -480,6 +480,39 @@ export function BatchRunnerModal(props: BatchRunnerModalProps) {
     setSavingPlaybook(false);
   }, [sessionId, newPlaybookName, documents, loopEnabled, prompt, savingPlaybook]);
 
+  // Handle updating an existing playbook
+  const handleSaveUpdate = useCallback(async () => {
+    if (!loadedPlaybook || savingPlaybook) return;
+
+    setSavingPlaybook(true);
+    try {
+      const result = await window.maestro.playbooks.update(sessionId, loadedPlaybook.id, {
+        documents: documents.map(d => ({
+          filename: d.filename,
+          resetOnCompletion: d.resetOnCompletion
+        })),
+        loopEnabled,
+        prompt,
+        updatedAt: Date.now()
+      });
+
+      if (result.success) {
+        setLoadedPlaybook(result.playbook);
+        setPlaybooks(prev => prev.map(p => p.id === result.playbook.id ? result.playbook : p));
+      }
+    } catch (error) {
+      console.error('Failed to update playbook:', error);
+    }
+    setSavingPlaybook(false);
+  }, [sessionId, loadedPlaybook, documents, loopEnabled, prompt, savingPlaybook]);
+
+  // Handle discarding changes and reloading original playbook configuration
+  const handleDiscardChanges = useCallback(() => {
+    if (loadedPlaybook) {
+      handleLoadPlaybook(loadedPlaybook);
+    }
+  }, [loadedPlaybook, handleLoadPlaybook]);
+
   // Focus input when save modal opens
   useEffect(() => {
     if (showSavePlaybookModal) {
@@ -631,7 +664,7 @@ export function BatchRunnerModal(props: BatchRunnerModalProps) {
               )}
             </div>
 
-            {/* Right side: Save as Playbook OR modification status */}
+            {/* Right side: Save as Playbook OR Save Update/Discard buttons */}
             <div className="flex items-center gap-2">
               {/* Save as Playbook button - shown when >1 doc and no playbook loaded */}
               {documents.length > 1 && !loadedPlaybook && (
@@ -645,14 +678,29 @@ export function BatchRunnerModal(props: BatchRunnerModalProps) {
                 </button>
               )}
 
-              {/* Loaded playbook indicator with modification status */}
+              {/* Save Update and Discard buttons - shown when playbook is loaded and modified */}
               {loadedPlaybook && isPlaybookModified && (
-                <span
-                  className="text-xs px-2 py-0.5 rounded-full"
-                  style={{ backgroundColor: theme.colors.warning + '20', color: theme.colors.warning }}
-                >
-                  Modified
-                </span>
+                <>
+                  <button
+                    onClick={handleDiscardChanges}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border hover:bg-white/5 transition-colors"
+                    style={{ borderColor: theme.colors.border, color: theme.colors.textDim }}
+                    title="Discard changes and reload original playbook configuration"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span className="text-sm">Discard</span>
+                  </button>
+                  <button
+                    onClick={handleSaveUpdate}
+                    disabled={savingPlaybook}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border hover:bg-white/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{ borderColor: theme.colors.accent, color: theme.colors.accent }}
+                    title="Save changes to the loaded playbook"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span className="text-sm">{savingPlaybook ? 'Saving...' : 'Save Update'}</span>
+                  </button>
+                </>
               )}
             </div>
           </div>
