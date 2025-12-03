@@ -61,6 +61,15 @@ interface AutoRunProps {
 // Cache for loaded images to avoid repeated IPC calls
 const imageCache = new Map<string, string>();
 
+// Undo/Redo state interface
+interface UndoState {
+  content: string;
+  cursorPosition: number;
+}
+
+// Maximum undo history entries per document
+const MAX_UNDO_HISTORY = 50;
+
 // Custom image component that loads attachments from the session storage
 function AttachmentImage({
   src,
@@ -381,6 +390,125 @@ function AutoRunInner({
   // Track the last saved content to avoid unnecessary saves
   const lastSavedContentRef = useRef<string>(content);
 
+  // Undo/Redo history maps - keyed by document filename (selectedFile)
+  // Using refs so history persists across re-renders without triggering re-renders
+  const undoHistoryRef = useRef<Map<string, UndoState[]>>(new Map());
+  const redoHistoryRef = useRef<Map<string, UndoState[]>>(new Map());
+  // Track last content that was snapshotted for undo
+  const lastUndoSnapshotRef = useRef<string>(content);
+  // Timer ref for debounced undo snapshots
+  const undoSnapshotTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Push current state to undo history (call BEFORE making changes)
+  const pushUndoState = useCallback((contentToSnapshot?: string, cursorPos?: number) => {
+    if (!selectedFile) return;
+
+    const snapshotContent = contentToSnapshot ?? localContent;
+    const snapshotCursor = cursorPos ?? textareaRef.current?.selectionStart ?? 0;
+
+    // Only push if content actually differs from last snapshot
+    if (snapshotContent === lastUndoSnapshotRef.current) return;
+
+    const currentState: UndoState = {
+      content: snapshotContent,
+      cursorPosition: snapshotCursor,
+    };
+
+    // Get or create history array for this document
+    const history = undoHistoryRef.current.get(selectedFile) || [];
+    history.push(currentState);
+
+    // Limit to MAX_UNDO_HISTORY entries
+    if (history.length > MAX_UNDO_HISTORY) {
+      history.shift();
+    }
+
+    undoHistoryRef.current.set(selectedFile, history);
+
+    // Update last snapshot reference
+    lastUndoSnapshotRef.current = snapshotContent;
+
+    // Clear redo stack on new edit action
+    redoHistoryRef.current.set(selectedFile, []);
+  }, [selectedFile, localContent]);
+
+  // Schedule a debounced undo snapshot (called on each content change)
+  const scheduleUndoSnapshot = useCallback((previousContent: string, previousCursor: number) => {
+    // Clear any pending snapshot
+    if (undoSnapshotTimeoutRef.current) {
+      clearTimeout(undoSnapshotTimeoutRef.current);
+    }
+
+    // Schedule snapshot after 1 second of inactivity
+    undoSnapshotTimeoutRef.current = setTimeout(() => {
+      pushUndoState(previousContent, previousCursor);
+    }, 1000);
+  }, [pushUndoState]);
+
+  // Handle undo (Cmd+Z)
+  const handleUndo = useCallback(() => {
+    if (!selectedFile) return;
+
+    const undoStack = undoHistoryRef.current.get(selectedFile) || [];
+    if (undoStack.length === 0) return;
+
+    // Save current state to redo stack before undoing
+    const redoStack = redoHistoryRef.current.get(selectedFile) || [];
+    redoStack.push({
+      content: localContent,
+      cursorPosition: textareaRef.current?.selectionStart || 0,
+    });
+    redoHistoryRef.current.set(selectedFile, redoStack);
+
+    // Pop and apply the undo state
+    const prevState = undoStack.pop()!;
+    undoHistoryRef.current.set(selectedFile, undoStack);
+
+    // Update content without pushing to undo stack
+    setLocalContent(prevState.content);
+    lastUndoSnapshotRef.current = prevState.content;
+
+    // Restore cursor position after React re-renders
+    requestAnimationFrame(() => {
+      if (textareaRef.current) {
+        textareaRef.current.setSelectionRange(prevState.cursorPosition, prevState.cursorPosition);
+        textareaRef.current.focus();
+      }
+    });
+  }, [selectedFile, localContent]);
+
+  // Handle redo (Cmd+Shift+Z)
+  const handleRedo = useCallback(() => {
+    if (!selectedFile) return;
+
+    const redoStack = redoHistoryRef.current.get(selectedFile) || [];
+    if (redoStack.length === 0) return;
+
+    // Save current state to undo stack before redoing
+    const undoStack = undoHistoryRef.current.get(selectedFile) || [];
+    undoStack.push({
+      content: localContent,
+      cursorPosition: textareaRef.current?.selectionStart || 0,
+    });
+    undoHistoryRef.current.set(selectedFile, undoStack);
+
+    // Pop and apply the redo state
+    const nextState = redoStack.pop()!;
+    redoHistoryRef.current.set(selectedFile, redoStack);
+
+    // Update content without pushing to undo stack
+    setLocalContent(nextState.content);
+    lastUndoSnapshotRef.current = nextState.content;
+
+    // Restore cursor position after React re-renders
+    requestAnimationFrame(() => {
+      if (textareaRef.current) {
+        textareaRef.current.setSelectionRange(nextState.cursorPosition, nextState.cursorPosition);
+        textareaRef.current.focus();
+      }
+    });
+  }, [selectedFile, localContent]);
+
   // Sync local content from prop when session changes (switching sessions)
   useEffect(() => {
     if (sessionId !== prevSessionIdRef.current) {
@@ -450,8 +578,15 @@ function AutoRunInner({
       clearTimeout(autoSaveTimeoutRef.current);
       autoSaveTimeoutRef.current = null;
     }
+    // Clear pending undo snapshot when document changes
+    if (undoSnapshotTimeoutRef.current) {
+      clearTimeout(undoSnapshotTimeoutRef.current);
+      undoSnapshotTimeoutRef.current = null;
+    }
     // Reset lastSavedContent to the new content
     lastSavedContentRef.current = content;
+    // Reset lastUndoSnapshot to the new content (so first edit creates a proper undo point)
+    lastUndoSnapshotRef.current = content;
   }, [selectedFile, sessionId, content]);
 
   // Track mode before auto-run to restore when it ends
@@ -741,6 +876,9 @@ function AutoRunInner({
               const textAfter = localContent.substring(cursorPos);
               const imageMarkdown = `![${result.filename}](maestro-attachment://${result.filename})`;
 
+              // Push undo state before modifying content
+              pushUndoState();
+
               // Add newlines if not at start of line
               let prefix = '';
               let suffix = '';
@@ -755,6 +893,7 @@ function AutoRunInner({
               // Update local state and sync to parent immediately for explicit user action
               setLocalContent(newContent);
               handleContentChange(newContent);
+              lastUndoSnapshotRef.current = newContent;
 
               // Move cursor after the inserted markdown
               const newCursorPos = cursorPos + prefix.length + imageMarkdown.length + suffix.length;
@@ -769,7 +908,7 @@ function AutoRunInner({
         break; // Only handle first image
       }
     }
-  }, [localContent, isLocked, handleContentChange, sessionId]);
+  }, [localContent, isLocked, handleContentChange, sessionId, pushUndoState]);
 
   // Handle file input for manual image upload
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -790,18 +929,22 @@ function AutoRunInner({
         setAttachmentsList(prev => [...prev, result.filename!]);
         setAttachmentPreviews(prev => new Map(prev).set(result.filename!, base64Data));
 
+        // Push undo state before modifying content
+        pushUndoState();
+
         // Insert at end of content - update local and sync to parent immediately
         const imageMarkdown = `\n![${result.filename}](maestro-attachment://${result.filename})\n`;
         const newContent = localContent + imageMarkdown;
         setLocalContent(newContent);
         handleContentChange(newContent);
+        lastUndoSnapshotRef.current = newContent;
       }
     };
     reader.readAsDataURL(file);
 
     // Reset input so same file can be selected again
     e.target.value = '';
-  }, [localContent, handleContentChange, sessionId]);
+  }, [localContent, handleContentChange, sessionId, pushUndoState]);
 
   // Handle removing an attachment
   const handleRemoveAttachment = useCallback(async (filename: string) => {
@@ -815,15 +958,19 @@ function AutoRunInner({
       return newMap;
     });
 
+    // Push undo state before modifying content
+    pushUndoState();
+
     // Remove the markdown reference from content - update local and sync to parent immediately
     const regex = new RegExp(`!\\[${filename}\\]\\(maestro-attachment://${filename}\\)\\n?`, 'g');
     const newContent = localContent.replace(regex, '');
     setLocalContent(newContent);
     handleContentChange(newContent);
+    lastUndoSnapshotRef.current = newContent;
 
     // Clear from cache
     imageCache.delete(`${sessionId}:${filename}`);
-  }, [localContent, handleContentChange, sessionId]);
+  }, [localContent, handleContentChange, sessionId, pushUndoState]);
 
   // Lightbox helpers - handles both attachment filenames and external URLs
   const openLightboxByFilename = useCallback((filenameOrUrl: string) => {
@@ -898,11 +1045,15 @@ function AutoRunInner({
       return newMap;
     });
 
+    // Push undo state before modifying content
+    pushUndoState();
+
     // Remove the markdown reference from content - update local and sync to parent immediately
     const regex = new RegExp(`!\\[${lightboxFilename}\\]\\(maestro-attachment://${lightboxFilename}\\)\\n?`, 'g');
     const newContent = localContent.replace(regex, '');
     setLocalContent(newContent);
     handleContentChange(newContent);
+    lastUndoSnapshotRef.current = newContent;
 
     // Clear from cache
     imageCache.delete(`${sessionId}:${lightboxFilename}`);
@@ -920,9 +1071,21 @@ function AutoRunInner({
       const newList = attachmentsList.filter(f => f !== lightboxFilename);
       setLightboxFilename(newList[currentIndex] || null);
     }
-  }, [lightboxFilename, lightboxCurrentIndex, attachmentsList, sessionId, localContent, handleContentChange, closeLightbox]);
+  }, [lightboxFilename, lightboxCurrentIndex, attachmentsList, sessionId, localContent, handleContentChange, closeLightbox, pushUndoState]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Cmd+Z to undo, Cmd+Shift+Z to redo
+    if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.shiftKey) {
+        handleRedo();
+      } else {
+        handleUndo();
+      }
+      return;
+    }
+
     // Command-E to toggle between edit and preview
     if ((e.metaKey || e.ctrlKey) && e.key === 'e') {
       e.preventDefault();
@@ -949,6 +1112,9 @@ function AutoRunInner({
       const textBeforeCursor = localContent.substring(0, cursorPos);
       const textAfterCursor = localContent.substring(cursorPos);
 
+      // Push undo state before modifying content
+      pushUndoState();
+
       // Check if we're at the start of a line or have text before
       const lastNewline = textBeforeCursor.lastIndexOf('\n');
       const lineStart = lastNewline === -1 ? 0 : lastNewline + 1;
@@ -968,6 +1134,8 @@ function AutoRunInner({
       }
 
       setLocalContent(newContent);
+      // Update lastUndoSnapshot since we pushed state explicitly
+      lastUndoSnapshotRef.current = newContent;
       setTimeout(() => {
         if (textareaRef.current) {
           textareaRef.current.setSelectionRange(newCursorPos, newCursorPos);
@@ -993,8 +1161,11 @@ function AutoRunInner({
         // Task list: continue with unchecked checkbox
         const indent = taskListMatch[1];
         e.preventDefault();
+        // Push undo state before modifying content
+        pushUndoState();
         const newContent = textBeforeCursor + '\n' + indent + '- [ ] ' + textAfterCursor;
         setLocalContent(newContent);
+        lastUndoSnapshotRef.current = newContent;
         setTimeout(() => {
           if (textareaRef.current) {
             const newPos = cursorPos + indent.length + 7; // "\n" + indent + "- [ ] "
@@ -1006,8 +1177,11 @@ function AutoRunInner({
         const indent = unorderedListMatch[1];
         const marker = unorderedListMatch[2];
         e.preventDefault();
+        // Push undo state before modifying content
+        pushUndoState();
         const newContent = textBeforeCursor + '\n' + indent + marker + ' ' + textAfterCursor;
         setLocalContent(newContent);
+        lastUndoSnapshotRef.current = newContent;
         setTimeout(() => {
           if (textareaRef.current) {
             const newPos = cursorPos + indent.length + 3; // "\n" + indent + marker + " "
@@ -1019,8 +1193,11 @@ function AutoRunInner({
         const indent = orderedListMatch[1];
         const num = parseInt(orderedListMatch[2]);
         e.preventDefault();
+        // Push undo state before modifying content
+        pushUndoState();
         const newContent = textBeforeCursor + '\n' + indent + (num + 1) + '. ' + textAfterCursor;
         setLocalContent(newContent);
+        lastUndoSnapshotRef.current = newContent;
         setTimeout(() => {
           if (textareaRef.current) {
             const newPos = cursorPos + indent.length + (num + 1).toString().length + 3; // "\n" + indent + num + ". "
@@ -1391,7 +1568,11 @@ function AutoRunInner({
             onChange={(e) => {
               if (!isLocked) {
                 isEditingRef.current = true;
+                // Schedule undo snapshot with current content before the change
+                const previousContent = localContent;
+                const previousCursor = textareaRef.current?.selectionStart || 0;
                 setLocalContent(e.target.value);
+                scheduleUndoSnapshot(previousContent, previousCursor);
               }
             }}
             onFocus={() => { isEditingRef.current = true; }}
