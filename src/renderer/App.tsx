@@ -52,7 +52,7 @@ import { getContextColor } from './utils/theme';
 import { fuzzyMatch } from './utils/search';
 import { setActiveTab, createTab, closeTab, reopenClosedTab, getActiveTab, getWriteModeTab, navigateToNextTab, navigateToPrevTab, navigateToTabByIndex, navigateToLastTab } from './utils/tabHelpers';
 import { TAB_SHORTCUTS } from './constants/shortcuts';
-import { shouldOpenExternally, loadFileTree, getAllFolderPaths, flattenTree } from './utils/fileExplorer';
+import { shouldOpenExternally, loadFileTree, getAllFolderPaths, flattenTree, compareFileTrees, FileTreeChanges } from './utils/fileExplorer';
 import { substituteTemplateVariables } from './utils/templateVariables';
 
 // Strip leading emojis from a string for alphabetical sorting
@@ -1234,8 +1234,14 @@ export default function MaestroConsole() {
       setSessions(prev => prev.map(s => {
         if (s.id !== actualSessionId) return s;
 
-        // Check if any AI tabs are still busy - don't clear session state if so
+        // Check if any AI tabs are still busy
         const anyAiTabBusy = s.aiTabs?.some(tab => tab.state === 'busy') || false;
+
+        // Determine new state:
+        // - If AI tabs are busy, session stays busy with busySource 'ai'
+        // - Otherwise, session becomes idle
+        const newState = anyAiTabBusy ? 'busy' as SessionState : 'idle' as SessionState;
+        const newBusySource = anyAiTabBusy ? 'ai' as const : undefined;
 
         // Only show exit code if non-zero (error)
         if (code !== 0) {
@@ -1247,18 +1253,16 @@ export default function MaestroConsole() {
           };
           return {
             ...s,
-            // Only clear session state if no AI tabs are busy
-            state: anyAiTabBusy ? s.state : 'idle' as SessionState,
-            busySource: anyAiTabBusy ? s.busySource : undefined,
+            state: newState,
+            busySource: newBusySource,
             shellLogs: [...s.shellLogs, exitLog]
           };
         }
 
         return {
           ...s,
-          // Only clear session state if no AI tabs are busy
-          state: anyAiTabBusy ? s.state : 'idle' as SessionState,
-          busySource: anyAiTabBusy ? s.busySource : undefined
+          state: newState,
+          busySource: newBusySource
         };
       }));
     });
@@ -2491,6 +2495,16 @@ export default function MaestroConsole() {
     startBatchRun(activeSession.id, config, activeSession.autoRunFolderPath);
   }, [activeSession, startBatchRun]);
 
+  // Memoized function to get task count for a document (used by BatchRunnerModal)
+  const getDocumentTaskCount = useCallback(async (filename: string) => {
+    if (!activeSession?.autoRunFolderPath) return 0;
+    const result = await window.maestro.autorun.readDoc(activeSession.autoRunFolderPath, filename + '.md');
+    if (!result.success || !result.content) return 0;
+    // Count unchecked tasks: - [ ] pattern
+    const matches = result.content.match(/^[\s]*-\s*\[\s*\]\s*.+$/gm);
+    return matches ? matches.length : 0;
+  }, [activeSession?.autoRunFolderPath]);
+
   // Handler to stop batch run for active session (with confirmation)
   const handleStopBatchRun = useCallback(() => {
     if (!activeSession) return;
@@ -3224,6 +3238,16 @@ export default function MaestroConsole() {
         // Jump to the bottom of the current main panel output (AI logs or terminal output)
         ctx.logsEndRef.current?.scrollIntoView({ behavior: 'instant' });
       }
+      else if (ctx.isShortcut(e, 'toggleMarkdownMode')) {
+        // Toggle markdown raw mode for AI message history
+        // Skip when in AutoRun panel (it has its own Cmd+E handler for edit/preview toggle)
+        // Skip when FilePreview is open (it handles its own Cmd+E)
+        const isInAutoRunPanel = ctx.activeFocus === 'right' && ctx.activeRightTab === 'autorun';
+        if (!isInAutoRunPanel && !ctx.previewFile) {
+          e.preventDefault();
+          ctx.setMarkdownRawMode(!ctx.markdownRawMode);
+        }
+      }
 
       // Opt+Cmd+NUMBER: Jump to visible session by number (1-9, 0=10th)
       // Use e.code instead of e.key because Option key on macOS produces special characters
@@ -3830,7 +3854,7 @@ export default function MaestroConsole() {
     processMonitorOpen, logViewerOpen, createGroupModalOpen, confirmModalOpen, renameInstanceModalOpen,
     renameGroupModalOpen, activeSession, previewFile, fileTreeFilter, fileTreeFilterOpen, gitDiffPreview,
     gitLogOpen, lightboxImage, hasOpenLayers, hasOpenModal, visibleSessions, sortedSessions, groups,
-    bookmarksCollapsed, leftSidebarOpen, editingSessionId, editingGroupId,
+    bookmarksCollapsed, leftSidebarOpen, editingSessionId, editingGroupId, markdownRawMode,
     setLeftSidebarOpen, setRightPanelOpen, addNewSession, deleteSession, setQuickActionInitialMode,
     setQuickActionOpen, cycleSession, toggleInputMode, setShortcutsHelpOpen, setSettingsModalOpen,
     setSettingsTab, setActiveRightTab, handleSetActiveRightTab, setActiveFocus, setBookmarksCollapsed, setGroups,
@@ -3839,7 +3863,7 @@ export default function MaestroConsole() {
     setSessions, createTab, closeTab, reopenClosedTab, getActiveTab, setRenameTabId, setRenameTabInitialName,
     setRenameTabModalOpen, navigateToNextTab, navigateToPrevTab, navigateToTabByIndex, navigateToLastTab,
     setFileTreeFilterOpen, isShortcut, isTabShortcut, handleNavBack, handleNavForward, toggleUnreadFilter,
-    setTabSwitcherOpen, showUnreadOnly, stagedImages, handleSetLightboxImage
+    setTabSwitcherOpen, showUnreadOnly, stagedImages, handleSetLightboxImage, setMarkdownRawMode
   };
 
   const toggleGroup = (groupId: string) => {
@@ -3954,6 +3978,14 @@ export default function MaestroConsole() {
     ));
   }, [activeSession]);
 
+  // File tree auto-refresh interval change handler
+  const handleAutoRefreshChange = useCallback((interval: number) => {
+    if (!activeSession) return;
+    setSessions(prev => prev.map(s =>
+      s.id === activeSession.id ? { ...s, fileTreeAutoRefreshInterval: interval } : s
+    ));
+  }, [activeSession]);
+
   // Auto Run state change handler (scroll/cursor positions)
   const handleAutoRunStateChange = useCallback((state: {
     mode: 'edit' | 'preview';
@@ -3986,38 +4018,98 @@ export default function MaestroConsole() {
       );
     }
 
-    // Update session with new selected file
-    setSessions(prev => prev.map(s =>
-      s.id === activeSession.id ? { ...s, autoRunSelectedFile: filename } : s
-    ));
-
-    // Load new document content
+    // Load new document content FIRST (before updating selectedFile)
+    // This ensures content prop updates atomically with the file selection
     const result = await window.maestro.autorun.readDoc(
       activeSession.autoRunFolderPath,
       filename + '.md'
     );
-    if (result.success) {
-      setAutoRunContent(result.content || '');
-    } else {
-      setAutoRunContent('');
-    }
+    const newContent = result.success ? (result.content || '') : '';
+
+    // Update content first, then selected file
+    // This prevents the AutoRun component from seeing mismatched file/content
+    setAutoRunContent(newContent);
+
+    // Then update the selected file
+    setSessions(prev => prev.map(s =>
+      s.id === activeSession.id ? { ...s, autoRunSelectedFile: filename } : s
+    ));
   }, [activeSession, autoRunContent]);
 
-  // Auto Run refresh handler - reload document list
+  // Auto Run refresh handler - reload document list and show flash notification
   const handleAutoRunRefresh = useCallback(async () => {
     if (!activeSession?.autoRunFolderPath) return;
+    const previousCount = autoRunDocumentList.length;
     setAutoRunIsLoadingDocuments(true);
     const result = await window.maestro.autorun.listDocs(activeSession.autoRunFolderPath);
     if (result.success) {
-      setAutoRunDocumentList(result.files || []);
+      const newFiles = result.files || [];
+      setAutoRunDocumentList(newFiles);
+      setAutoRunIsLoadingDocuments(false);
+
+      // Show flash notification with result
+      const diff = newFiles.length - previousCount;
+      let message: string;
+      if (diff > 0) {
+        message = `Found ${diff} new document${diff === 1 ? '' : 's'}`;
+      } else if (diff < 0) {
+        message = `${Math.abs(diff)} document${Math.abs(diff) === 1 ? '' : 's'} removed`;
+      } else {
+        message = 'Refresh complete, no new documents';
+      }
+      setSuccessFlashNotification(message);
+      setTimeout(() => setSuccessFlashNotification(null), 2000);
+      return;
     }
     setAutoRunIsLoadingDocuments(false);
-  }, [activeSession?.autoRunFolderPath]);
+  }, [activeSession?.autoRunFolderPath, autoRunDocumentList.length]);
 
   // Auto Run open setup handler
   const handleAutoRunOpenSetup = useCallback(() => {
     setAutoRunSetupModalOpen(true);
   }, []);
+
+  // Auto Run create new document handler
+  const handleAutoRunCreateDocument = useCallback(async (filename: string): Promise<boolean> => {
+    if (!activeSession?.autoRunFolderPath) return false;
+
+    try {
+      // Create the document with empty content so placeholder hint shows
+      const result = await window.maestro.autorun.writeDoc(
+        activeSession.autoRunFolderPath,
+        filename + '.md',
+        ''
+      );
+
+      if (result.success) {
+        // Refresh the document list
+        const listResult = await window.maestro.autorun.listDocs(activeSession.autoRunFolderPath);
+        if (listResult.success) {
+          setAutoRunDocumentList(listResult.files || []);
+        }
+
+        // Select the new document and switch to edit mode
+        setSessions(prev => prev.map(s =>
+          s.id === activeSession.id ? { ...s, autoRunSelectedFile: filename, autoRunMode: 'edit' } : s
+        ));
+
+        // Load the new document content
+        const contentResult = await window.maestro.autorun.readDoc(
+          activeSession.autoRunFolderPath,
+          filename + '.md'
+        );
+        if (contentResult.success) {
+          setAutoRunContent(contentResult.content || '');
+        }
+
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Failed to create document:', error);
+      return false;
+    }
+  }, [activeSession]);
 
   const processInput = async (overrideInputValue?: string) => {
     const effectiveInputValue = overrideInputValue ?? inputValue;
@@ -5305,16 +5397,21 @@ export default function MaestroConsole() {
     }));
   };
 
-  // Refresh file tree for a session
-  const refreshFileTree = useCallback(async (sessionId: string) => {
+  // Refresh file tree for a session and return the changes detected
+  const refreshFileTree = useCallback(async (sessionId: string): Promise<FileTreeChanges | undefined> => {
     const session = sessions.find(s => s.id === sessionId);
-    if (!session) return;
+    if (!session) return undefined;
 
     try {
-      const tree = await loadFileTree(session.cwd);
+      const oldTree = session.fileTree || [];
+      const newTree = await loadFileTree(session.cwd);
+      const changes = compareFileTrees(oldTree, newTree);
+
       setSessions(prev => prev.map(s =>
-        s.id === sessionId ? { ...s, fileTree: tree, fileTreeError: undefined } : s
+        s.id === sessionId ? { ...s, fileTree: newTree, fileTreeError: undefined } : s
       ));
+
+      return changes;
     } catch (error) {
       console.error('File tree refresh error:', error);
       const errorMsg = (error as Error)?.message || 'Unknown error';
@@ -5325,6 +5422,7 @@ export default function MaestroConsole() {
           fileTreeError: `Cannot access directory: ${session.cwd}\n${errorMsg}`
         } : s
       ));
+      return undefined;
     }
   }, [sessions]);
 
@@ -5726,6 +5824,8 @@ export default function MaestroConsole() {
             processQueuedItem(activeSessionId, nextItem);
             console.log('[Debug] Released queued item:', nextItem);
           }}
+          markdownRawMode={markdownRawMode}
+          onToggleMarkdownRawMode={() => setMarkdownRawMode(!markdownRawMode)}
         />
       )}
       {lightboxImage && (
@@ -6415,6 +6515,7 @@ export default function MaestroConsole() {
             updateSessionWorkingDirectory={updateSessionWorkingDirectory}
             refreshFileTree={refreshFileTree}
             setSessions={setSessions}
+            onAutoRefreshChange={handleAutoRefreshChange}
             autoRunDocumentList={autoRunDocumentList}
             autoRunContent={autoRunContent}
             autoRunIsLoadingDocuments={autoRunIsLoadingDocuments}
@@ -6422,6 +6523,7 @@ export default function MaestroConsole() {
             onAutoRunModeChange={handleAutoRunModeChange}
             onAutoRunStateChange={handleAutoRunStateChange}
             onAutoRunSelectDocument={handleAutoRunSelectDocument}
+            onAutoRunCreateDocument={handleAutoRunCreateDocument}
             onAutoRunRefresh={handleAutoRunRefresh}
             onAutoRunOpenSetup={handleAutoRunOpenSetup}
             batchRunState={activeBatchRunState}
@@ -6441,6 +6543,7 @@ export default function MaestroConsole() {
           onClose={() => setAutoRunSetupModalOpen(false)}
           onFolderSelected={handleAutoRunFolderSelected}
           currentFolder={activeSession?.autoRunFolderPath}
+          sessionName={activeSession?.name}
         />
       )}
 
@@ -6462,13 +6565,7 @@ export default function MaestroConsole() {
           folderPath={activeSession.autoRunFolderPath}
           currentDocument={activeSession.autoRunSelectedFile || ''}
           allDocuments={autoRunDocumentList}
-          getDocumentTaskCount={async (filename: string) => {
-            const result = await window.maestro.autorun.readDoc(activeSession.autoRunFolderPath!, filename + '.md');
-            if (!result.success || !result.content) return 0;
-            // Count unchecked tasks: - [ ] pattern
-            const matches = result.content.match(/^[\s]*-\s*\[\s*\]\s*.+$/gm);
-            return matches ? matches.length : 0;
-          }}
+          getDocumentTaskCount={getDocumentTaskCount}
           sessionId={activeSession.id}
           sessionCwd={activeSession.cwd}
         />

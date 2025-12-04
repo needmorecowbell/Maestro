@@ -1867,11 +1867,25 @@ export const TerminalOutput = forwardRef<HTMLDivElement, TerminalOutputProps>((p
           className="fixed inset-0 flex items-center justify-center z-50"
           style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
           onClick={() => setQueueRemoveConfirmId(null)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              if (onRemoveQueuedItem) {
+                onRemoveQueuedItem(queueRemoveConfirmId);
+              }
+              setQueueRemoveConfirmId(null);
+            } else if (e.key === 'Escape') {
+              e.preventDefault();
+              setQueueRemoveConfirmId(null);
+            }
+          }}
         >
           <div
             className="p-4 rounded-lg shadow-xl max-w-md mx-4"
             style={{ backgroundColor: theme.colors.bgMain }}
             onClick={(e) => e.stopPropagation()}
+            tabIndex={-1}
+            ref={(el) => el?.focus()}
           >
             <h3 className="text-lg font-semibold mb-2" style={{ color: theme.colors.textMain }}>
               Remove Queued Message?
@@ -1896,6 +1910,7 @@ export const TerminalOutput = forwardRef<HTMLDivElement, TerminalOutputProps>((p
                 }}
                 className="px-3 py-1.5 rounded text-sm"
                 style={{ backgroundColor: theme.colors.error, color: 'white' }}
+                autoFocus
               >
                 Remove
               </button>

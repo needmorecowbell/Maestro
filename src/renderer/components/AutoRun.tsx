@@ -44,6 +44,7 @@ interface AutoRunProps {
   onOpenSetup: () => void;
   onRefresh: () => void;
   onSelectDocument: (filename: string) => void;
+  onCreateDocument: (filename: string) => Promise<boolean>;
   isLoadingDocuments?: boolean;
 
   // Batch processing props
@@ -360,6 +361,7 @@ function AutoRunInner({
   onOpenSetup,
   onRefresh,
   onSelectDocument,
+  onCreateDocument,
   isLoadingDocuments = false,
   batchRunState,
   onOpenBatchRunner,
@@ -547,6 +549,9 @@ function AutoRunInner({
     // Only save if we have a folder and selected file
     if (!folderPath || !selectedFile) return;
 
+    // Never auto-save empty content - this prevents wiping files during load
+    if (!localContent) return;
+
     // Only save if content has actually changed from last saved
     if (localContent === lastSavedContentRef.current) return;
 
@@ -613,6 +618,8 @@ function AutoRunInner({
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
   const [totalMatches, setTotalMatches] = useState(0);
   const matchElementsRef = useRef<HTMLElement[]>([]);
+  // Refresh animation state for empty state button
+  const [isRefreshingEmpty, setIsRefreshingEmpty] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
@@ -713,6 +720,54 @@ function AutoRunInner({
     }
   }, [mode]);
 
+  // Track previous selectedFile to detect document changes
+  const prevSelectedFileRef = useRef(selectedFile);
+  // Track previous content to detect when content prop actually changes
+  const prevContentRef = useRef(content);
+
+  // Handle document selection change - focus and reset editing state
+  useEffect(() => {
+    if (!selectedFile) return;
+
+    const isNewDocument = selectedFile !== prevSelectedFileRef.current;
+    prevSelectedFileRef.current = selectedFile;
+
+    if (isNewDocument) {
+      // Reset editing flag so content syncs properly for new document
+      isEditingRef.current = false;
+      // Reset lastSavedContent to prevent auto-save from firing with stale comparison
+      lastSavedContentRef.current = content;
+      // Focus on document change
+      requestAnimationFrame(() => {
+        if (mode === 'edit' && textareaRef.current) {
+          textareaRef.current.focus();
+        } else if (mode === 'preview' && previewRef.current) {
+          previewRef.current.focus();
+        }
+      });
+    }
+  }, [selectedFile, content, mode]);
+
+  // Sync content from prop - only when content prop actually changes
+  useEffect(() => {
+    // Skip if no document selected
+    if (!selectedFile) return;
+
+    // Only sync when the content PROP actually changed (not just a re-render)
+    const contentPropChanged = content !== prevContentRef.current;
+    prevContentRef.current = content;
+
+    if (!contentPropChanged) return;
+
+    // Skip if user is actively editing - don't overwrite their changes
+    if (isEditingRef.current) return;
+
+    // Content prop changed - sync to local state
+    setLocalContent(content);
+    // Update lastSavedContent so auto-save knows this is the baseline
+    lastSavedContentRef.current = content;
+  }, [selectedFile, content]);
+
   // Save cursor position and scroll position when they change
   const handleCursorOrScrollChange = () => {
     if (textareaRef.current) {
@@ -743,6 +798,17 @@ function AutoRunInner({
       }
     }
   };
+
+  // Handle refresh for empty state with animation
+  const handleEmptyStateRefresh = useCallback(async () => {
+    setIsRefreshingEmpty(true);
+    try {
+      await onRefresh();
+    } finally {
+      // Keep spinner visible for at least 500ms for visual feedback
+      setTimeout(() => setIsRefreshingEmpty(false), 500);
+    }
+  }, [onRefresh]);
 
   // Open search function
   const openSearch = useCallback(() => {
@@ -853,31 +919,50 @@ function AutoRunInner({
 
   // Handle image paste
   const handlePaste = useCallback(async (e: React.ClipboardEvent) => {
-    if (isLocked || !folderPath || !selectedFile) return;
+    if (isLocked || !folderPath || !selectedFile) {
+      console.log('[AutoRun] Paste blocked:', { isLocked, folderPath, selectedFile });
+      return;
+    }
 
     const items = e.clipboardData?.items;
-    if (!items) return;
+    if (!items) {
+      console.log('[AutoRun] No clipboard items');
+      return;
+    }
 
+    console.log('[AutoRun] Clipboard items:', items.length);
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
+      console.log('[AutoRun] Item', i, ':', item.type);
       if (item.type.startsWith('image/')) {
         e.preventDefault();
 
         const file = item.getAsFile();
-        if (!file) continue;
+        if (!file) {
+          console.log('[AutoRun] Could not get file from item');
+          continue;
+        }
+
+        console.log('[AutoRun] Processing image:', file.name, file.type, file.size);
 
         // Read as base64
         const reader = new FileReader();
         reader.onload = async (event) => {
           const base64Data = event.target?.result as string;
-          if (!base64Data) return;
+          if (!base64Data) {
+            console.log('[AutoRun] No base64 data');
+            return;
+          }
 
           // Extract the base64 content without the data URL prefix
           const base64Content = base64Data.replace(/^data:image\/\w+;base64,/, '');
           const extension = item.type.split('/')[1] || 'png';
 
+          console.log('[AutoRun] Saving image to:', folderPath, 'doc:', selectedFile, 'ext:', extension);
+
           // Save to Auto Run folder using the new API
           const result = await window.maestro.autorun.saveImage(folderPath, selectedFile, base64Content, extension);
+          console.log('[AutoRun] Save result:', result);
           if (result.success && result.relativePath) {
             // Update attachments list with the relative path
             const filename = result.relativePath.split('/').pop() || result.relativePath;
@@ -1348,7 +1433,7 @@ function AutoRunInner({
   return (
     <div
       ref={containerRef}
-      className="h-full flex flex-col outline-none"
+      className="h-full flex flex-col outline-none relative"
       tabIndex={-1}
       onKeyDown={(e) => {
         if ((e.metaKey || e.ctrlKey) && e.key === 'e') {
@@ -1365,18 +1450,20 @@ function AutoRunInner({
         }
       }}
     >
-      {/* Document Selector */}
-      {folderPath && (
-        <div className="pt-2 px-2">
-          <AutoRunDocumentSelector
-            theme={theme}
-            documents={documentList}
-            selectedDocument={selectedFile}
-            onSelectDocument={onSelectDocument}
-            onRefresh={onRefresh}
-            onChangeFolder={onOpenSetup}
-            isLoading={isLoadingDocuments}
-          />
+      {/* Select Folder Button - shown when no folder is configured */}
+      {!folderPath && (
+        <div className="pt-2 flex justify-center">
+          <button
+            onClick={onOpenSetup}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors hover:opacity-90"
+            style={{
+              backgroundColor: theme.colors.accent,
+              color: theme.colors.accentForeground,
+            }}
+          >
+            <FolderOpen className="w-3.5 h-3.5" />
+            Select Auto Run Folder
+          </button>
         </div>
       )}
 
@@ -1486,6 +1573,22 @@ function AutoRunInner({
         </button>
       </div>
 
+      {/* Document Selector */}
+      {folderPath && (
+        <div className="px-2 mb-2">
+          <AutoRunDocumentSelector
+            theme={theme}
+            documents={documentList}
+            selectedDocument={selectedFile}
+            onSelectDocument={onSelectDocument}
+            onRefresh={onRefresh}
+            onChangeFolder={onOpenSetup}
+            onCreateDocument={onCreateDocument}
+            isLoading={isLoadingDocuments}
+          />
+        </div>
+      )}
+
       {/* Attached Images Preview (edit mode) */}
       {mode === 'edit' && attachmentsList.length > 0 && (
         <div
@@ -1588,7 +1691,7 @@ function AutoRunInner({
       )}
 
       {/* Content Area */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 min-h-0">
         {/* Empty folder state - show when folder is configured but has no documents */}
         {folderPath && documentList.length === 0 && !isLoadingDocuments ? (
           <div
@@ -1615,7 +1718,7 @@ function AutoRunInner({
             </p>
             <div className="flex gap-3">
               <button
-                onClick={onRefresh}
+                onClick={handleEmptyStateRefresh}
                 className="flex items-center gap-2 px-4 py-2 rounded text-sm transition-colors hover:opacity-90"
                 style={{
                   backgroundColor: 'transparent',
@@ -1623,7 +1726,7 @@ function AutoRunInner({
                   border: `1px solid ${theme.colors.border}`,
                 }}
               >
-                <RefreshCw className="w-4 h-4" />
+                <RefreshCw className={`w-4 h-4 ${isRefreshingEmpty ? 'animate-spin' : ''}`} />
                 Refresh
               </button>
               <button
@@ -1657,7 +1760,7 @@ function AutoRunInner({
             onBlur={syncContentToParent}
             onKeyDown={!isLocked ? handleKeyDown : undefined}
             onPaste={handlePaste}
-            placeholder="Write your notes in markdown... (paste images from clipboard)"
+            placeholder="Capture notes, images, and tasks in Markdown."
             readOnly={isLocked}
             className={`w-full h-full border rounded p-4 bg-transparent outline-none resize-none font-mono text-sm ${isLocked ? 'cursor-not-allowed opacity-70' : ''}`}
             style={{

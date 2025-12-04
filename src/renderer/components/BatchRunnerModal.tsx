@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { X, RotateCcw, Play, Variable, ChevronDown, ChevronRight, Save, GripVertical, Plus, Repeat, FolderOpen, Bookmark, GitBranch, AlertTriangle } from 'lucide-react';
+import { X, RotateCcw, Play, Variable, ChevronDown, ChevronRight, Save, GripVertical, Plus, Repeat, FolderOpen, Bookmark, GitBranch, AlertTriangle, Loader2, Maximize2 } from 'lucide-react';
 import type { Theme, BatchDocumentEntry, BatchRunConfig, Playbook, PlaybookDocumentEntry, WorktreeConfig } from '../types';
 import { useLayerStack } from '../contexts/LayerStackContext';
 import { MODAL_PRIORITIES } from '../constants/modalPriorities';
 import { TEMPLATE_VARIABLES } from '../utils/templateVariables';
 import { PlaybookDeleteConfirmModal } from './PlaybookDeleteConfirmModal';
 import { PlaybookNameModal } from './PlaybookNameModal';
+import { AgentPromptComposerModal } from './AgentPromptComposerModal';
 
 // Default batch processing prompt
 export const DEFAULT_BATCH_PROMPT = `CRITICAL: You must complete EXACTLY ONE task and then exit. Do not attempt multiple tasks.
@@ -13,16 +14,17 @@ export const DEFAULT_BATCH_PROMPT = `CRITICAL: You must complete EXACTLY ONE tas
 Your responsibilities are as follows:
 
 1. Project Orientation
-    Begin by reviewing claude.md in this folder to understand the project's structure, conventions, and workflow expectations.
+    Begin by reviewing CLAUDE.md (when available) in this folder to understand the project's structure, conventions, and workflow expectations.
 
 2. Task Selection
-    Navigate to $$SCRATCHPAD$$ and select the FIRST unchecked task (- [ ]) from top to bottom. Note that there may be relevant images associated with the task, analyze them, and include in your final synopsis back how many images you analyzed in preparation for solving the task.
+    Process the FIRST unchecked task (- [ ]) from top to bottom. Note that there may be relevant images associated with the task, analyze them, and include in your final synopsis back how many images you analyzed in preparation for solving the task.
 
     IMPORTANT: You will only work on this single task. If it appears to have logical subtasks, treat them as one cohesive unit—but do not move on to the next top-level task.
 
 3. Task Evaluation
     - Fully understand the task and inspect the relevant code.
-    - If you determine the task should not be executed, mark it as completed anyway and record a concise explanation of why it was skipped.
+    - If you determine the task should not be executed, mark it as completed anyway and record a concise explanation of why it was skipped directly in the document.
+    - If upon examining the code carefully you decide there is a better approach, take it, and document record a detailed explanation of why directly in the document.
 
 4. Task Implementation
     Implement the task according to the project's established style, architecture, and coding norms.
@@ -36,10 +38,10 @@ Your responsibilities are as follows:
       - If implementation failed, explain the failure and do NOT check off the item.
 
 6. Version Control
-    For any code or documentation changes:
+    For any code or documentation changes, if we're in a Github repo:
     - Commit using a descriptive message prefixed with MAESTRO:.
     - Push to GitHub.
-    - Update claude.md, README.md, or any other top-level documentation if appropriate.
+    - Update CLAUDE.md, README.md, or any other top-level documentation if appropriate.
 
 7. Exit Immediately
     After completing (or skipping) the single task, EXIT. Do not proceed to additional tasks—another agent instance will handle them.
@@ -133,11 +135,14 @@ export function BatchRunnerModal(props: BatchRunnerModalProps) {
 
   // Loop mode state
   const [loopEnabled, setLoopEnabled] = useState(false);
+  const [maxLoops, setMaxLoops] = useState<number | null>(null); // null = infinite
+  const [showMaxLoopsSlider, setShowMaxLoopsSlider] = useState(false);
 
   // Prompt state
   const [prompt, setPrompt] = useState(initialPrompt || DEFAULT_BATCH_PROMPT);
   const [variablesExpanded, setVariablesExpanded] = useState(false);
   const [savedPrompt, setSavedPrompt] = useState(initialPrompt || '');
+  const [promptComposerOpen, setPromptComposerOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Drag state for reordering
@@ -164,6 +169,11 @@ export function BatchRunnerModal(props: BatchRunnerModalProps) {
   const [worktreePath, setWorktreePath] = useState('');
   const [branchName, setBranchName] = useState('');
   const [createPROnCompletion, setCreatePROnCompletion] = useState(false);
+  const [prTargetBranch, setPrTargetBranch] = useState('main');
+  const [availableBranches, setAvailableBranches] = useState<string[]>([]);
+  const [showBranchDropdown, setShowBranchDropdown] = useState(false);
+  const branchDropdownRef = useRef<HTMLDivElement>(null);
+  const [ghCliStatus, setGhCliStatus] = useState<{ installed: boolean; authenticated: boolean } | null>(null);
 
   // Worktree validation state
   const [worktreeValidation, setWorktreeValidation] = useState<{
@@ -180,7 +190,11 @@ export function BatchRunnerModal(props: BatchRunnerModalProps) {
   const { registerLayer, unregisterLayer, updateLayerHandler } = useLayerStack();
   const layerIdRef = useRef<string>();
 
-  // Load task counts for all documents
+  // Use ref for getDocumentTaskCount to avoid dependency issues
+  const getDocumentTaskCountRef = useRef(getDocumentTaskCount);
+  getDocumentTaskCountRef.current = getDocumentTaskCount;
+
+  // Load task counts for all documents (only when document list changes)
   useEffect(() => {
     const loadTaskCounts = async () => {
       setLoadingTaskCounts(true);
@@ -188,7 +202,7 @@ export function BatchRunnerModal(props: BatchRunnerModalProps) {
 
       for (const doc of allDocuments) {
         try {
-          counts[doc] = await getDocumentTaskCount(doc);
+          counts[doc] = await getDocumentTaskCountRef.current(doc);
         } catch {
           counts[doc] = 0;
         }
@@ -199,7 +213,7 @@ export function BatchRunnerModal(props: BatchRunnerModalProps) {
     };
 
     loadTaskCounts();
-  }, [allDocuments, getDocumentTaskCount]);
+  }, [allDocuments]);
 
   // Load playbooks on mount
   useEffect(() => {
@@ -225,7 +239,30 @@ export function BatchRunnerModal(props: BatchRunnerModalProps) {
       setCheckingGitRepo(true);
       try {
         const result = await window.maestro.git.isRepo(sessionCwd);
-        setIsGitRepo(result === true);
+        const isRepo = result === true;
+        setIsGitRepo(isRepo);
+
+        // If it's a git repo, fetch available branches and check gh CLI
+        if (isRepo) {
+          const [branchResult, ghResult] = await Promise.all([
+            window.maestro.git.branches(sessionCwd),
+            window.maestro.git.checkGhCli()
+          ]);
+
+          if (branchResult.branches && branchResult.branches.length > 0) {
+            setAvailableBranches(branchResult.branches);
+            // Set default target branch to 'main' or 'master' if available
+            if (branchResult.branches.includes('main')) {
+              setPrTargetBranch('main');
+            } else if (branchResult.branches.includes('master')) {
+              setPrTargetBranch('master');
+            } else {
+              setPrTargetBranch(branchResult.branches[0]);
+            }
+          }
+
+          setGhCliStatus(ghResult);
+        }
       } catch (error) {
         console.error('Failed to check if git repo:', error);
         setIsGitRepo(false);
@@ -372,6 +409,10 @@ export function BatchRunnerModal(props: BatchRunnerModalProps) {
     // Compare loop setting
     if (loopEnabled !== loadedPlaybook.loopEnabled) return true;
 
+    // Compare maxLoops setting
+    const savedMaxLoops = loadedPlaybook.maxLoops ?? null;
+    if (maxLoops !== savedMaxLoops) return true;
+
     // Compare prompt
     if (prompt !== loadedPlaybook.prompt) return true;
 
@@ -382,13 +423,14 @@ export function BatchRunnerModal(props: BatchRunnerModalProps) {
       if (!worktreeEnabled) return true;
       if (branchName !== savedWorktree.branchNameTemplate) return true;
       if (createPROnCompletion !== savedWorktree.createPROnCompletion) return true;
+      if (savedWorktree.prTargetBranch && prTargetBranch !== savedWorktree.prTargetBranch) return true;
     } else {
       // Playbook doesn't have worktree settings - modified if worktree is now enabled with a branch
       if (worktreeEnabled && branchName) return true;
     }
 
     return false;
-  }, [documents, loopEnabled, prompt, loadedPlaybook, worktreeEnabled, branchName, createPROnCompletion]);
+  }, [documents, loopEnabled, maxLoops, prompt, loadedPlaybook, worktreeEnabled, branchName, createPROnCompletion, prTargetBranch]);
 
   // Register layer on mount
   useEffect(() => {
@@ -467,7 +509,8 @@ export function BatchRunnerModal(props: BatchRunnerModalProps) {
     const config: BatchRunConfig = {
       documents: validDocuments,
       prompt,
-      loopEnabled
+      loopEnabled,
+      maxLoops: loopEnabled ? maxLoops : null
     };
 
     // Add worktree config if enabled and valid
@@ -476,7 +519,8 @@ export function BatchRunnerModal(props: BatchRunnerModalProps) {
         enabled: true,
         path: worktreePath,
         branchName,
-        createPROnCompletion
+        createPROnCompletion,
+        prTargetBranch
       };
     }
 
@@ -614,6 +658,8 @@ export function BatchRunnerModal(props: BatchRunnerModalProps) {
 
     setDocuments(entries);
     setLoopEnabled(playbook.loopEnabled);
+    setMaxLoops(playbook.maxLoops ?? null);
+    setShowMaxLoopsSlider(playbook.maxLoops != null);
     setPrompt(playbook.prompt);
     setLoadedPlaybook(playbook);
     setShowPlaybookDropdown(false);
@@ -623,6 +669,9 @@ export function BatchRunnerModal(props: BatchRunnerModalProps) {
       setWorktreeEnabled(true);
       setBranchName(playbook.worktreeSettings.branchNameTemplate);
       setCreatePROnCompletion(playbook.worktreeSettings.createPROnCompletion);
+      if (playbook.worktreeSettings.prTargetBranch) {
+        setPrTargetBranch(playbook.worktreeSettings.prTargetBranch);
+      }
     } else {
       // Clear worktree settings if playbook doesn't have them
       setWorktreeEnabled(false);
@@ -679,6 +728,7 @@ export function BatchRunnerModal(props: BatchRunnerModalProps) {
           resetOnCompletion: d.resetOnCompletion
         })),
         loopEnabled,
+        maxLoops,
         prompt
       };
 
@@ -687,7 +737,8 @@ export function BatchRunnerModal(props: BatchRunnerModalProps) {
       if (worktreeEnabled && branchName) {
         playbookData.worktreeSettings = {
           branchNameTemplate: branchName,
-          createPROnCompletion
+          createPROnCompletion,
+          prTargetBranch
         };
       }
 
@@ -702,7 +753,7 @@ export function BatchRunnerModal(props: BatchRunnerModalProps) {
       console.error('Failed to save playbook:', error);
     }
     setSavingPlaybook(false);
-  }, [sessionId, documents, loopEnabled, prompt, worktreeEnabled, branchName, createPROnCompletion, savingPlaybook]);
+  }, [sessionId, documents, loopEnabled, maxLoops, prompt, worktreeEnabled, branchName, createPROnCompletion, prTargetBranch, savingPlaybook]);
 
   // Handle updating an existing playbook
   const handleSaveUpdate = useCallback(async () => {
@@ -717,6 +768,7 @@ export function BatchRunnerModal(props: BatchRunnerModalProps) {
           resetOnCompletion: d.resetOnCompletion
         })),
         loopEnabled,
+        maxLoops,
         prompt,
         updatedAt: Date.now()
       };
@@ -725,7 +777,8 @@ export function BatchRunnerModal(props: BatchRunnerModalProps) {
       if (worktreeEnabled && branchName) {
         updateData.worktreeSettings = {
           branchNameTemplate: branchName,
-          createPROnCompletion
+          createPROnCompletion,
+          prTargetBranch
         };
       } else {
         // Explicitly set to undefined to clear previous worktree settings
@@ -742,7 +795,7 @@ export function BatchRunnerModal(props: BatchRunnerModalProps) {
       console.error('Failed to update playbook:', error);
     }
     setSavingPlaybook(false);
-  }, [sessionId, loadedPlaybook, documents, loopEnabled, prompt, worktreeEnabled, branchName, createPROnCompletion, savingPlaybook]);
+  }, [sessionId, loadedPlaybook, documents, loopEnabled, maxLoops, prompt, worktreeEnabled, branchName, createPROnCompletion, prTargetBranch, savingPlaybook]);
 
   // Handle discarding changes and reloading original playbook configuration
   const handleDiscardChanges = useCallback(() => {
@@ -765,6 +818,20 @@ export function BatchRunnerModal(props: BatchRunnerModalProps) {
     }
   }, [showPlaybookDropdown]);
 
+  // Close branch dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (branchDropdownRef.current && !branchDropdownRef.current.contains(e.target as Node)) {
+        setShowBranchDropdown(false);
+      }
+    };
+
+    if (showBranchDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showBranchDropdown]);
+
   return (
     <div
       className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[9999] animate-in fade-in duration-200"
@@ -779,26 +846,9 @@ export function BatchRunnerModal(props: BatchRunnerModalProps) {
       >
         {/* Header */}
         <div className="p-4 border-b flex items-center justify-between shrink-0" style={{ borderColor: theme.colors.border }}>
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-3">
-              <h2 className="text-sm font-bold" style={{ color: theme.colors.textMain }}>
-                Batch Run Configuration
-              </h2>
-              {isModified && (
-                <span
-                  className="text-[10px] px-2 py-0.5 rounded-full"
-                  style={{ backgroundColor: theme.colors.accent + '20', color: theme.colors.accent }}
-                >
-                  CUSTOMIZED
-                </span>
-              )}
-            </div>
-            {isModified && lastModifiedAt && (
-              <span className="text-[10px]" style={{ color: theme.colors.textDim }}>
-                Last modified {formatLastModified(lastModifiedAt)}
-              </span>
-            )}
-          </div>
+          <h2 className="text-sm font-bold" style={{ color: theme.colors.textMain }}>
+            Auto Run Configuration
+          </h2>
           <div className="flex items-center gap-4">
             {/* Total Task Count Badge */}
             <div
@@ -831,33 +881,28 @@ export function BatchRunnerModal(props: BatchRunnerModalProps) {
         <div className="flex-1 overflow-y-auto p-6">
           {/* Playbook Section */}
           <div className="mb-6 flex items-center justify-between">
-            {/* Load Playbook Dropdown */}
-            <div className="relative" ref={playbackDropdownRef}>
-              <button
-                onClick={() => setShowPlaybookDropdown(!showPlaybookDropdown)}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg border hover:bg-white/5 transition-colors"
-                style={{ borderColor: theme.colors.border, color: theme.colors.textMain }}
-                disabled={loadingPlaybooks}
-              >
-                <FolderOpen className="w-4 h-4" style={{ color: theme.colors.accent }} />
-                <span className="text-sm">
-                  {loadedPlaybook ? loadedPlaybook.name : 'Load Playbook'}
-                </span>
-                <ChevronDown className="w-3.5 h-3.5" style={{ color: theme.colors.textDim }} />
-              </button>
-
-              {/* Dropdown Menu */}
-              {showPlaybookDropdown && (
-                <div
-                  className="absolute top-full left-0 mt-1 w-64 rounded-lg border shadow-lg z-10 overflow-hidden"
-                  style={{ backgroundColor: theme.colors.bgSidebar, borderColor: theme.colors.border }}
+            {/* Load Playbook Dropdown - only show when playbooks exist or one is loaded */}
+            {(playbooks.length > 0 || loadedPlaybook) ? (
+              <div className="relative" ref={playbackDropdownRef}>
+                <button
+                  onClick={() => setShowPlaybookDropdown(!showPlaybookDropdown)}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg border hover:bg-white/5 transition-colors"
+                  style={{ borderColor: theme.colors.border, color: theme.colors.textMain }}
+                  disabled={loadingPlaybooks}
                 >
-                  {playbooks.length === 0 ? (
-                    <div className="px-4 py-3 text-center" style={{ color: theme.colors.textDim }}>
-                      <p className="text-sm">No saved playbooks</p>
-                      <p className="text-xs mt-1">Save a configuration to create one</p>
-                    </div>
-                  ) : (
+                  <FolderOpen className="w-4 h-4" style={{ color: theme.colors.accent }} />
+                  <span className="text-sm">
+                    {loadedPlaybook ? loadedPlaybook.name : 'Load Playbook'}
+                  </span>
+                  <ChevronDown className="w-3.5 h-3.5" style={{ color: theme.colors.textDim }} />
+                </button>
+
+                {/* Dropdown Menu */}
+                {showPlaybookDropdown && (
+                  <div
+                    className="absolute top-full left-0 mt-1 w-64 rounded-lg border shadow-lg z-10 overflow-hidden"
+                    style={{ backgroundColor: theme.colors.bgSidebar, borderColor: theme.colors.border }}
+                  >
                     <div className="max-h-48 overflow-y-auto">
                       {playbooks.map((pb) => (
                         <div
@@ -890,10 +935,12 @@ export function BatchRunnerModal(props: BatchRunnerModalProps) {
                         </div>
                       ))}
                     </div>
-                  )}
-                </div>
-              )}
-            </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div /> /* Empty placeholder to maintain flex layout */
+            )}
 
             {/* Right side: Save as Playbook OR Save Update/Discard buttons */}
             <div className="flex items-center gap-2">
@@ -952,11 +999,66 @@ export function BatchRunnerModal(props: BatchRunnerModalProps) {
               </button>
             </div>
 
-            {/* Document List */}
-            <div
-              className="rounded-lg border overflow-hidden"
-              style={{ backgroundColor: theme.colors.bgMain, borderColor: theme.colors.border }}
-            >
+            {/* Document List with Loop Indicator */}
+            <div className={`relative ${loopEnabled && documents.length > 1 ? 'ml-7' : ''}`}>
+              {/* Loop path - right-angled lines from bottom around left to top */}
+              {loopEnabled && documents.length > 1 && (
+                <>
+                  {/* Left vertical line */}
+                  <div
+                    className="absolute pointer-events-none"
+                    style={{
+                      left: -24,
+                      top: 8,
+                      bottom: 8,
+                      width: 3,
+                      backgroundColor: theme.colors.accent,
+                      borderRadius: 1.5
+                    }}
+                  />
+                  {/* Top horizontal line - stops before document */}
+                  <div
+                    className="absolute pointer-events-none"
+                    style={{
+                      left: -24,
+                      top: 8,
+                      width: 18,
+                      height: 3,
+                      backgroundColor: theme.colors.accent,
+                      borderRadius: 1.5
+                    }}
+                  />
+                  {/* Bottom horizontal line - stops before document */}
+                  <div
+                    className="absolute pointer-events-none"
+                    style={{
+                      left: -24,
+                      bottom: 8,
+                      width: 18,
+                      height: 3,
+                      backgroundColor: theme.colors.accent,
+                      borderRadius: 1.5
+                    }}
+                  />
+                  {/* Arrow head pointing right (toward top doc) */}
+                  <div
+                    className="absolute pointer-events-none"
+                    style={{
+                      left: -10,
+                      top: 2,
+                      width: 0,
+                      height: 0,
+                      borderTop: '6px solid transparent',
+                      borderBottom: '6px solid transparent',
+                      borderLeft: `9px solid ${theme.colors.accent}`
+                    }}
+                  />
+                </>
+              )}
+              <div
+                className="rounded-lg border overflow-hidden"
+                style={{ backgroundColor: theme.colors.bgMain, borderColor: theme.colors.border }}
+              >
               {documents.length === 0 ? (
                 <div className="p-4 text-center" style={{ color: theme.colors.textDim }}>
                   <p className="text-sm">No documents selected</p>
@@ -1014,15 +1116,6 @@ export function BatchRunnerModal(props: BatchRunnerModalProps) {
                           </span>
                         )}
 
-                        {/* Reset Indicator (shown when reset is enabled, hidden for missing docs) */}
-                        {doc.resetOnCompletion && !doc.isMissing && (
-                          <RotateCcw
-                            className="w-3.5 h-3.5 shrink-0"
-                            style={{ color: theme.colors.accent }}
-                            title="Resets on completion"
-                          />
-                        )}
-
                         {/* Task Count Badge (hidden for missing docs) */}
                         {!doc.isMissing && (
                           <span
@@ -1037,21 +1130,45 @@ export function BatchRunnerModal(props: BatchRunnerModalProps) {
                         )}
 
                         {/* Reset Toggle Button (hidden for missing docs) */}
-                        {!doc.isMissing && (
-                          <button
-                            onClick={() => handleToggleReset(doc.id)}
-                            className={`p-1 rounded transition-colors shrink-0 ${
-                              doc.resetOnCompletion ? '' : 'hover:bg-white/10'
-                            }`}
-                            style={{
-                              backgroundColor: doc.resetOnCompletion ? theme.colors.accent + '20' : 'transparent',
-                              color: doc.resetOnCompletion ? theme.colors.accent : theme.colors.textDim
-                            }}
-                            title={doc.resetOnCompletion ? 'Disable reset on completion' : 'Enable reset on completion'}
-                          >
-                            <RotateCcw className="w-3.5 h-3.5" />
-                          </button>
-                        )}
+                        {!doc.isMissing && (() => {
+                          // Check if this document has duplicates (other entries with same filename)
+                          const hasDuplicates = documents.filter(d => d.filename === doc.filename).length > 1;
+                          const canDisableReset = !hasDuplicates;
+
+                          let tooltipText: string;
+                          if (doc.resetOnCompletion) {
+                            if (canDisableReset) {
+                              tooltipText = 'Reset enabled: uncompleted tasks will be re-checked when done. Click to disable.';
+                            } else {
+                              tooltipText = 'Reset enabled: uncompleted tasks will be re-checked when done. Remove duplicates to disable.';
+                            }
+                          } else {
+                            tooltipText = 'Enable reset: uncompleted tasks will be re-checked when this document completes';
+                          }
+
+                          return (
+                            <button
+                              onClick={() => {
+                                if (!doc.resetOnCompletion || canDisableReset) {
+                                  handleToggleReset(doc.id);
+                                }
+                              }}
+                              className={`p-1 rounded transition-colors shrink-0 ${
+                                doc.resetOnCompletion
+                                  ? (canDisableReset ? 'hover:bg-white/10' : 'cursor-not-allowed')
+                                  : 'hover:bg-white/10'
+                              }`}
+                              style={{
+                                backgroundColor: doc.resetOnCompletion ? theme.colors.accent + '20' : 'transparent',
+                                color: doc.resetOnCompletion ? theme.colors.accent : theme.colors.textDim,
+                                opacity: doc.resetOnCompletion && !canDisableReset ? 0.7 : 1
+                              }}
+                              title={tooltipText}
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                            </button>
+                          );
+                        })()}
 
                         {/* Duplicate Button (only shown for reset-enabled docs that aren't missing) */}
                         {doc.resetOnCompletion && !doc.isMissing && (
@@ -1081,6 +1198,7 @@ export function BatchRunnerModal(props: BatchRunnerModalProps) {
                   })}
                 </div>
               )}
+              </div>
             </div>
 
             {/* Missing Documents Warning */}
@@ -1100,67 +1218,109 @@ export function BatchRunnerModal(props: BatchRunnerModalProps) {
               </div>
             )}
 
-            {/* Total Summary */}
+            {/* Total Summary with Loop Button */}
             {documents.length > 1 && (
-              <div className="mt-2 text-xs" style={{ color: theme.colors.textDim }}>
-                Total: {loadingTaskCounts ? '...' : totalTaskCount} tasks across {documents.length - missingDocCount} {hasMissingDocs ? 'available ' : ''}document{documents.length - missingDocCount !== 1 ? 's' : ''}
-                {hasMissingDocs && ` (${missingDocCount} missing)`}
-              </div>
-            )}
-
-            {/* Loop Mode Toggle - only shown when multiple documents exist */}
-            {documents.length > 1 && (
-              <div className="mt-4 flex items-center gap-3">
-                <button
-                  onClick={() => setLoopEnabled(!loopEnabled)}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-colors ${
-                    loopEnabled ? 'border-accent' : 'border-border hover:bg-white/5'
-                  }`}
-                  style={{
-                    borderColor: loopEnabled ? theme.colors.accent : theme.colors.border,
-                    backgroundColor: loopEnabled ? theme.colors.accent + '15' : 'transparent'
-                  }}
-                >
-                  <Repeat
-                    className="w-4 h-4"
-                    style={{ color: loopEnabled ? theme.colors.accent : theme.colors.textDim }}
-                  />
-                  <span
-                    className="text-sm font-medium"
-                    style={{ color: loopEnabled ? theme.colors.accent : theme.colors.textMain }}
+              <div className="mt-2 flex items-center justify-between">
+                {/* Loop Mode Toggle with Max Loops Control */}
+                <div className="flex items-center gap-2">
+                  {/* Loop Toggle Button */}
+                  <button
+                    onClick={() => setLoopEnabled(!loopEnabled)}
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-colors ${
+                      loopEnabled ? 'border-accent' : 'border-border hover:bg-white/5'
+                    }`}
+                    style={{
+                      borderColor: loopEnabled ? theme.colors.accent : theme.colors.border,
+                      backgroundColor: loopEnabled ? theme.colors.accent + '15' : 'transparent'
+                    }}
+                    title="Loop back to first document when finished"
                   >
-                    Loop
-                  </span>
-                </button>
+                    <Repeat
+                      className="w-3.5 h-3.5"
+                      style={{ color: loopEnabled ? theme.colors.accent : theme.colors.textDim }}
+                    />
+                    <span
+                      className="text-xs font-medium"
+                      style={{ color: loopEnabled ? theme.colors.accent : theme.colors.textMain }}
+                    >
+                      Loop
+                    </span>
+                  </button>
+
+                  {/* Max Loops Control - only shown when loop is enabled */}
+                  {loopEnabled && (
+                    <div
+                      className="flex items-center rounded-lg border overflow-hidden"
+                      style={{ borderColor: theme.colors.border }}
+                    >
+                      {/* Infinity Toggle */}
+                      <button
+                        onClick={() => {
+                          setShowMaxLoopsSlider(false);
+                          setMaxLoops(null);
+                        }}
+                        className={`px-2.5 py-1 text-xs font-medium transition-colors ${
+                          !showMaxLoopsSlider ? 'bg-white/10' : 'hover:bg-white/5'
+                        }`}
+                        style={{
+                          color: !showMaxLoopsSlider ? theme.colors.accent : theme.colors.textDim
+                        }}
+                        title="Loop forever until all tasks complete"
+                      >
+                        ∞
+                      </button>
+                      {/* Max Toggle */}
+                      <button
+                        onClick={() => {
+                          setShowMaxLoopsSlider(true);
+                          if (maxLoops === null) {
+                            setMaxLoops(5); // Default to 5 loops
+                          }
+                        }}
+                        className={`px-2.5 py-1 text-xs font-medium transition-colors border-l ${
+                          showMaxLoopsSlider ? 'bg-white/10' : 'hover:bg-white/5'
+                        }`}
+                        style={{
+                          color: showMaxLoopsSlider ? theme.colors.accent : theme.colors.textDim,
+                          borderColor: theme.colors.border
+                        }}
+                        title="Set maximum loop iterations"
+                      >
+                        max
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Slider for max loops - shown when max is selected */}
+                  {loopEnabled && showMaxLoopsSlider && (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="range"
+                        min="1"
+                        max="50"
+                        value={maxLoops ?? 5}
+                        onChange={(e) => setMaxLoops(parseInt(e.target.value))}
+                        className="w-20 h-1 rounded-lg appearance-none cursor-pointer"
+                        style={{
+                          background: `linear-gradient(to right, ${theme.colors.accent} 0%, ${theme.colors.accent} ${((maxLoops ?? 5) / 50) * 100}%, ${theme.colors.border} ${((maxLoops ?? 5) / 50) * 100}%, ${theme.colors.border} 100%)`
+                        }}
+                      />
+                      <span
+                        className="text-xs font-mono w-6 text-center"
+                        style={{ color: theme.colors.accent }}
+                      >
+                        {maxLoops}
+                      </span>
+                    </div>
+                  )}
+                </div>
                 <span className="text-xs" style={{ color: theme.colors.textDim }}>
-                  Loop back to first document when finished
+                  Total: {loadingTaskCounts ? '...' : totalTaskCount} tasks across {documents.length - missingDocCount} {hasMissingDocs ? 'available ' : ''}document{documents.length - missingDocCount !== 1 ? 's' : ''}
+                  {hasMissingDocs && ` (${missingDocCount} missing)`}
                 </span>
               </div>
             )}
 
-            {/* Loop Indicator - curved arrow from last doc back to first */}
-            {loopEnabled && documents.length > 1 && (
-              <div className="flex justify-center mt-3">
-                <svg width="50" height="24" viewBox="0 0 50 24" fill="none">
-                  {/* Curved arrow from bottom back to top */}
-                  <path
-                    d="M5 20 Q 25 28, 45 12 Q 50 8, 45 4"
-                    stroke={theme.colors.accent}
-                    strokeWidth="2"
-                    fill="none"
-                    strokeLinecap="round"
-                  />
-                  {/* Arrow head pointing left (back to start) */}
-                  <path
-                    d="M45 4 L 40 2 M 45 4 L 42 8"
-                    stroke={theme.colors.accent}
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </div>
-            )}
           </div>
 
           {/* Git Worktree Section - only visible for git repos */}
@@ -1353,33 +1513,105 @@ export function BatchRunnerModal(props: BatchRunnerModalProps) {
                   )}
 
                   {/* Create PR on Completion */}
-                  <div className="flex items-center gap-3 pt-2 border-t" style={{ borderColor: theme.colors.border }}>
-                    <button
-                      onClick={() => setCreatePROnCompletion(!createPROnCompletion)}
-                      className="flex items-center gap-2"
-                    >
-                      <div
-                        className={`w-4 h-4 rounded border flex items-center justify-center ${
-                          createPROnCompletion ? 'bg-accent border-accent' : ''
-                        }`}
-                        style={{
-                          borderColor: createPROnCompletion ? theme.colors.accent : theme.colors.border,
-                          backgroundColor: createPROnCompletion ? theme.colors.accent : 'transparent'
-                        }}
-                      >
-                        {createPROnCompletion && (
-                          <svg className="w-3 h-3 text-white" viewBox="0 0 12 12" fill="none">
-                            <path d="M2 6L5 9L10 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                        )}
+                  <div className="pt-2 border-t" style={{ borderColor: theme.colors.border }}>
+                    {ghCliStatus === null ? (
+                      // Still checking gh CLI status
+                      <div className="flex items-center gap-2 text-xs" style={{ color: theme.colors.textDim }}>
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        Checking GitHub CLI...
                       </div>
-                      <span className="text-sm" style={{ color: theme.colors.textMain }}>
-                        Create PR on completion
-                      </span>
-                    </button>
-                    <span className="text-xs" style={{ color: theme.colors.textDim }}>
-                      → main
-                    </span>
+                    ) : !ghCliStatus.installed ? (
+                      // gh CLI not installed
+                      <div className="flex items-center gap-2 text-xs" style={{ color: theme.colors.textDim }}>
+                        <AlertTriangle className="w-4 h-4 shrink-0" style={{ color: theme.colors.warning }} />
+                        <span>
+                          Install{' '}
+                          <a
+                            href="https://cli.github.com"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="underline hover:opacity-80"
+                            style={{ color: theme.colors.accent }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            GitHub CLI
+                          </a>
+                          {' '}to enable automatic PR creation
+                        </span>
+                      </div>
+                    ) : !ghCliStatus.authenticated ? (
+                      // gh CLI installed but not authenticated
+                      <div className="flex items-center gap-2 text-xs" style={{ color: theme.colors.textDim }}>
+                        <AlertTriangle className="w-4 h-4 shrink-0" style={{ color: theme.colors.warning }} />
+                        <span>
+                          Run <code className="px-1 py-0.5 rounded" style={{ backgroundColor: theme.colors.bgActivity }}>gh auth login</code> to enable automatic PR creation
+                        </span>
+                      </div>
+                    ) : (
+                      // gh CLI installed and authenticated - show the checkbox
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => setCreatePROnCompletion(!createPROnCompletion)}
+                          className="flex items-center gap-2"
+                        >
+                          <div
+                            className={`w-4 h-4 rounded border flex items-center justify-center ${
+                              createPROnCompletion ? 'bg-accent border-accent' : ''
+                            }`}
+                            style={{
+                              borderColor: createPROnCompletion ? theme.colors.accent : theme.colors.border,
+                              backgroundColor: createPROnCompletion ? theme.colors.accent : 'transparent'
+                            }}
+                          >
+                            {createPROnCompletion && (
+                              <svg className="w-3 h-3 text-white" viewBox="0 0 12 12" fill="none">
+                                <path d="M2 6L5 9L10 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                            )}
+                          </div>
+                          <span className="text-sm" style={{ color: theme.colors.textMain }}>
+                            Create PR on completion
+                          </span>
+                        </button>
+                        {/* Target branch selector */}
+                        <div className="relative" ref={branchDropdownRef}>
+                          <button
+                            onClick={() => setShowBranchDropdown(!showBranchDropdown)}
+                            className="flex items-center gap-1 text-xs px-2 py-1 rounded hover:bg-white/10 transition-colors"
+                            style={{ color: theme.colors.textDim }}
+                            title="Select target branch for PR"
+                          >
+                            <span>→</span>
+                            <span style={{ color: theme.colors.textMain }}>{prTargetBranch}</span>
+                            <ChevronDown className="w-3 h-3" />
+                          </button>
+                          {showBranchDropdown && availableBranches.length > 0 && (
+                            <div
+                              className="absolute bottom-full left-0 mb-1 w-48 max-h-48 overflow-y-auto rounded-lg border shadow-xl"
+                              style={{ backgroundColor: theme.colors.bgSidebar, borderColor: theme.colors.border }}
+                            >
+                              {availableBranches.map((branch) => (
+                                <button
+                                  key={branch}
+                                  onClick={() => {
+                                    setPrTargetBranch(branch);
+                                    setShowBranchDropdown(false);
+                                  }}
+                                  className={`w-full text-left px-3 py-2 text-xs hover:bg-white/10 transition-colors ${
+                                    branch === prTargetBranch ? 'bg-white/5' : ''
+                                  }`}
+                                  style={{
+                                    color: branch === prTargetBranch ? theme.colors.accent : theme.colors.textMain
+                                  }}
+                                >
+                                  {branch}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -1392,9 +1624,19 @@ export function BatchRunnerModal(props: BatchRunnerModalProps) {
           {/* Agent Prompt Section */}
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-bold uppercase" style={{ color: theme.colors.textDim }}>
-                Agent Prompt
-              </label>
+              <div className="flex items-center gap-3">
+                <label className="text-xs font-bold uppercase" style={{ color: theme.colors.textDim }}>
+                  Agent Prompt
+                </label>
+                {isModified && (
+                  <span
+                    className="text-[10px] px-2 py-0.5 rounded-full"
+                    style={{ backgroundColor: theme.colors.accent + '20', color: theme.colors.accent }}
+                  >
+                    CUSTOMIZED
+                  </span>
+                )}
+              </div>
               <button
                 onClick={handleReset}
                 disabled={!isModified}
@@ -1407,7 +1649,12 @@ export function BatchRunnerModal(props: BatchRunnerModalProps) {
               </button>
             </div>
             <div className="text-[10px] mb-2" style={{ color: theme.colors.textDim }}>
-              Use <code className="px-1 py-0.5 rounded" style={{ backgroundColor: theme.colors.bgActivity }}>$$SCRATCHPAD$$</code> as placeholder for the document file path
+              This prompt is sent to the AI agent for each document in the queue.{' '}
+              {isModified && lastModifiedAt && (
+                <span style={{ color: theme.colors.textMain }}>
+                  Last modified {formatLastModified(lastModifiedAt)}.
+                </span>
+              )}
             </div>
 
             {/* Template Variables Documentation */}
@@ -1454,18 +1701,28 @@ export function BatchRunnerModal(props: BatchRunnerModalProps) {
                 </div>
               )}
             </div>
-            <textarea
-              ref={textareaRef}
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              className="w-full p-4 rounded border bg-transparent outline-none resize-none font-mono text-sm"
-              style={{
-                borderColor: theme.colors.border,
-                color: theme.colors.textMain,
-                minHeight: '200px'
-              }}
-              placeholder="Enter the prompt for the batch agent..."
-            />
+            <div className="relative">
+              <textarea
+                ref={textareaRef}
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                className="w-full p-4 pr-10 rounded border bg-transparent outline-none resize-none font-mono text-sm"
+                style={{
+                  borderColor: theme.colors.border,
+                  color: theme.colors.textMain,
+                  minHeight: '200px'
+                }}
+                placeholder="Enter the prompt for the batch agent..."
+              />
+              <button
+                onClick={() => setPromptComposerOpen(true)}
+                className="absolute top-2 right-2 p-1.5 rounded hover:bg-white/10 transition-colors"
+                style={{ color: theme.colors.textDim }}
+                title="Expand editor"
+              >
+                <Maximize2 className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1630,6 +1887,15 @@ export function BatchRunnerModal(props: BatchRunnerModalProps) {
           onCancel={handleCancelDeletePlaybook}
         />
       )}
+
+      {/* Agent Prompt Composer Modal */}
+      <AgentPromptComposerModal
+        isOpen={promptComposerOpen}
+        onClose={() => setPromptComposerOpen(false)}
+        theme={theme}
+        initialValue={prompt}
+        onSubmit={(value) => setPrompt(value)}
+      />
     </div>
   );
 }

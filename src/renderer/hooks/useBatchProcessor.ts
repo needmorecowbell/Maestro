@@ -237,7 +237,7 @@ ${docList}
       return;
     }
 
-    const { documents, prompt, loopEnabled, worktree } = config;
+    const { documents, prompt, loopEnabled, maxLoops, worktree } = config;
 
     if (documents.length === 0) {
       console.warn('No documents provided for batch processing:', sessionId);
@@ -372,6 +372,9 @@ ${docList}
 
       // Track if any tasks were processed in this iteration
       let anyTasksProcessedThisIteration = false;
+      // Track tasks completed in non-reset documents this iteration
+      // This is critical for loop mode: if only reset docs have tasks, we'd loop forever
+      let tasksCompletedInNonResetDocs = 0;
 
       // Process each document in order
       for (let docIndex = 0; docIndex < documents.length; docIndex++) {
@@ -445,6 +448,11 @@ ${docList}
             // Update counters
             docTasksCompleted += tasksCompletedThisRun;
             totalCompletedTasks += tasksCompletedThisRun;
+
+            // Track non-reset document completions for loop exit logic
+            if (!docEntry.resetOnCompletion) {
+              tasksCompletedInNonResetDocs += tasksCompletedThisRun;
+            }
 
             // Update progress state
             setBatchRunStates(prev => ({
@@ -555,27 +563,49 @@ ${docList}
         break;
       }
 
+      // Check if we've hit the max loop limit
+      if (maxLoops !== null && maxLoops !== undefined && loopIteration + 1 >= maxLoops) {
+        console.log(`[BatchProcessor] Reached max loop limit (${maxLoops}), exiting loop`);
+        break;
+      }
+
       // Check for stop request after full pass
       if (stopRequestedRefs.current[sessionId]) {
         break;
       }
 
-      // Loop mode: check if any documents have tasks remaining
-      let anyDocsHaveTasks = false;
-      for (const doc of documents) {
-        const { taskCount } = await readDocAndCountTasks(folderPath, doc.filename);
-        if (taskCount > 0) {
-          anyDocsHaveTasks = true;
+      // Loop mode: check if we should continue looping
+      // Key insight: Reset documents will always have tasks after being reset, so we only
+      // continue looping if there are non-reset documents with remaining tasks
+
+      // Check if there are any non-reset documents in the playbook
+      const hasAnyNonResetDocs = documents.some(doc => !doc.resetOnCompletion);
+
+      if (hasAnyNonResetDocs) {
+        // If we have non-reset docs, only continue if they have remaining tasks
+        let anyNonResetDocsHaveTasks = false;
+        for (const doc of documents) {
+          if (doc.resetOnCompletion) continue;
+
+          const { taskCount } = await readDocAndCountTasks(folderPath, doc.filename);
+          if (taskCount > 0) {
+            anyNonResetDocsHaveTasks = true;
+            break;
+          }
+        }
+
+        if (!anyNonResetDocsHaveTasks) {
+          console.log('[BatchProcessor] All non-reset documents completed, exiting loop');
           break;
         }
-      }
-
-      if (!anyDocsHaveTasks) {
-        console.log('[BatchProcessor] All documents completed, exiting loop');
+      } else {
+        // All documents are reset documents - exit after one pass
+        // Without non-reset docs to track progress, we'd loop forever
+        console.log('[BatchProcessor] All documents are reset-on-completion, exiting after one pass');
         break;
       }
 
-      // If we didn't process any tasks this iteration but docs still have tasks,
+      // Safety check: if we didn't process ANY tasks this iteration but docs still have tasks,
       // something is wrong - exit to avoid infinite loop
       if (!anyTasksProcessedThisIteration) {
         console.warn('[BatchProcessor] No tasks processed but documents still have tasks - exiting to avoid infinite loop');
@@ -601,11 +631,14 @@ ${docList}
       console.log('[BatchProcessor] Creating PR from worktree branch', worktreeBranch);
 
       try {
-        // Get the default branch to use as the PR base
-        const defaultBranchResult = await window.maestro.git.getDefaultBranch(session.cwd);
-        const baseBranch = defaultBranchResult.success && defaultBranchResult.branch
-          ? defaultBranchResult.branch
-          : 'main';
+        // Use the user-selected target branch, or fall back to default branch detection
+        let baseBranch = worktree.prTargetBranch;
+        if (!baseBranch) {
+          const defaultBranchResult = await window.maestro.git.getDefaultBranch(session.cwd);
+          baseBranch = defaultBranchResult.success && defaultBranchResult.branch
+            ? defaultBranchResult.branch
+            : 'main';
+        }
 
         // Generate PR title and body
         const prTitle = `Auto Run: ${documents.length} document(s) processed`;

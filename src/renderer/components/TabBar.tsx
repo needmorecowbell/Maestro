@@ -623,7 +623,7 @@ export function TabBar({
     >
       {/* Unread filter toggle - sticky at the beginning with full-height opaque background */}
       <div
-        className="sticky left-0 flex items-center shrink-0 pl-2 pr-2 self-stretch group"
+        className="sticky left-0 flex items-center shrink-0 pl-2 pr-2 self-stretch"
         style={{ backgroundColor: theme.colors.bgSidebar, zIndex: 5 }}
       >
         <button
@@ -633,6 +633,7 @@ export function TabBar({
             color: showUnreadOnly ? theme.colors.accent : theme.colors.textDim,
             opacity: showUnreadOnly ? 1 : 0.5
           }}
+          title={showUnreadOnly ? 'Showing unread only (Cmd+U)' : 'Filter unread tabs (Cmd+U)'}
         >
           <Mail className="w-4 h-4" />
           {/* Notification dot */}
@@ -641,19 +642,6 @@ export function TabBar({
             style={{ backgroundColor: theme.colors.accent }}
           />
         </button>
-        {/* Hover overlay */}
-        <div
-          className="absolute left-2 top-full mt-1 px-2 py-1 rounded text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
-          style={{
-            backgroundColor: theme.colors.bgSidebar,
-            border: `1px solid ${theme.colors.border}`,
-            color: theme.colors.textMain,
-            zIndex: 6
-          }}
-        >
-          {showUnreadOnly ? 'Showing unread only' : 'Filter unread tabs'}{' '}
-          <span style={{ color: theme.colors.textDim }}>(Cmd+U)</span>
-        </div>
       </div>
 
       {/* Empty state when filter is on but no unread tabs */}

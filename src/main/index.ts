@@ -1,5 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron';
 import path from 'path';
+import os from 'os';
+import crypto from 'crypto';
 import fs from 'fs/promises';
 import { ProcessManager } from './process-manager';
 import { WebServer } from './web-server';
@@ -698,6 +700,10 @@ function setupIpcHandlers() {
   });
 
   ipcMain.handle('sessions:setAll', async (_, sessions: any[]) => {
+    // Debug: log autoRunFolderPath values received from renderer
+    const autoRunPaths = sessions.map((s: any) => ({ id: s.id, name: s.name, autoRunFolderPath: s.autoRunFolderPath }));
+    logger.debug('[Sessions:setAll] Received sessions with autoRunFolderPaths:', 'Sessions', autoRunPaths);
+
     // Get previous sessions to detect changes
     const previousSessions = sessionsStore.get('sessions', []);
     const previousSessionMap = new Map(previousSessions.map((s: any) => [s.id, s]));
@@ -742,6 +748,12 @@ function setupIpcHandlers() {
     }
 
     sessionsStore.set('sessions', sessions);
+
+    // Debug: verify what was stored
+    const storedSessions = sessionsStore.get('sessions', []);
+    const storedAutoRunPaths = storedSessions.map((s: any) => ({ id: s.id, name: s.name, autoRunFolderPath: s.autoRunFolderPath }));
+    logger.debug('[Sessions:setAll] After store, autoRunFolderPaths:', 'Sessions', storedAutoRunPaths);
+
     return true;
   });
 
@@ -1362,6 +1374,25 @@ function setupIpcHandlers() {
     }
   });
 
+  // Check if GitHub CLI (gh) is installed and authenticated
+  ipcMain.handle('git:checkGhCli', async () => {
+    try {
+      // Check if gh is installed by running gh --version
+      const versionResult = await execFileNoThrow('gh', ['--version']);
+      if (versionResult.exitCode !== 0) {
+        return { installed: false, authenticated: false };
+      }
+
+      // Check if gh is authenticated by running gh auth status
+      const authResult = await execFileNoThrow('gh', ['auth', 'status']);
+      const authenticated = authResult.exitCode === 0;
+
+      return { installed: true, authenticated };
+    } catch {
+      return { installed: false, authenticated: false };
+    }
+  });
+
   // Get the default branch name (main or master)
   ipcMain.handle('git:getDefaultBranch', async (_, cwd: string) => {
     try {
@@ -1393,6 +1424,10 @@ function setupIpcHandlers() {
   });
 
   // File system operations
+  ipcMain.handle('fs:homeDir', () => {
+    return os.homedir();
+  });
+
   ipcMain.handle('fs:readDir', async (_, dirPath: string) => {
     const entries = await fs.readdir(dirPath, { withFileTypes: true });
     // Convert Dirent objects to plain objects for IPC serialization
@@ -3826,6 +3861,7 @@ function setupIpcHandlers() {
         worktreeSettings?: {
           branchNameTemplate: string;
           createPROnCompletion: boolean;
+          prTargetBranch?: string;
         };
       }
     ) => {
@@ -3845,6 +3881,7 @@ function setupIpcHandlers() {
           worktreeSettings?: {
             branchNameTemplate: string;
             createPROnCompletion: boolean;
+            prTargetBranch?: string;
           };
         } = {
           id: crypto.randomUUID(),
@@ -3890,6 +3927,7 @@ function setupIpcHandlers() {
         worktreeSettings?: {
           branchNameTemplate: string;
           createPROnCompletion: boolean;
+          prTargetBranch?: string;
         };
       }>
     ) => {

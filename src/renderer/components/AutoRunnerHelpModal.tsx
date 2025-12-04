@@ -227,8 +227,7 @@ export function AutoRunnerHelpModal({ theme, onClose }: AutoRunnerHelpModalProps
                 the agent checks it off and exits. If tasks remain, another agent is spawned for the next task.
               </p>
               <p>
-                The <code>$$SCRATCHPAD$$</code> placeholder in your prompt is replaced with the document's
-                file path, giving the agent direct access to read and modify tasks.
+                The document is provided to the agent as a file path, giving it direct access to read and modify tasks.
               </p>
             </div>
           </section>
@@ -326,32 +325,6 @@ export function AutoRunnerHelpModal({ theme, onClose }: AutoRunnerHelpModalProps
             </div>
           </section>
 
-          {/* Git Worktree */}
-          <section>
-            <div className="flex items-center gap-2 mb-3">
-              <GitBranch className="w-5 h-5" style={{ color: theme.colors.accent }} />
-              <h3 className="font-bold">Git Worktree (Parallel Work)</h3>
-            </div>
-            <div
-              className="text-sm space-y-2 pl-7"
-              style={{ color: theme.colors.textDim }}
-            >
-              <p>
-                For Git repositories, enable <strong style={{ color: theme.colors.textMain }}>Git Worktree</strong> to
-                run Auto Run in an isolated working directory. This allows you to continue working
-                in the main project while Auto Run operates independently.
-              </p>
-              <p>
-                Specify a worktree path and branch name. Optionally enable <strong style={{ color: theme.colors.textMain }}>"Create PR on completion"</strong> to
-                automatically open a pull request when all tasks finish.
-              </p>
-              <p>
-                <strong style={{ color: theme.colors.warning }}>Note:</strong> Without a worktree, Auto Run operates
-                in the current branch. Write operations from other tabs will queue behind Auto Run to prevent conflicts.
-              </p>
-            </div>
-          </section>
-
           {/* History & Tracking */}
           <section>
             <div className="flex items-center gap-2 mb-3">
@@ -390,7 +363,32 @@ export function AutoRunnerHelpModal({ theme, onClose }: AutoRunnerHelpModalProps
               </p>
               <p>
                 The input shows a <span style={{ color: theme.colors.warning }}>READ-ONLY</span> indicator
-                as a reminder. This prevents conflicts between manual and automated work.
+                as a reminder. This prevents conflicts between manual and automated work...
+              </p>
+              <p>
+                <em style={{ color: theme.colors.textMain }}>Unless</em> you enable Git Worktree:
+              </p>
+            </div>
+          </section>
+
+          {/* Git Worktree */}
+          <section>
+            <div className="flex items-center gap-2 mb-3">
+              <GitBranch className="w-5 h-5" style={{ color: theme.colors.accent }} />
+              <h3 className="font-bold">Git Worktree (Parallel Work)</h3>
+            </div>
+            <div
+              className="text-sm space-y-2 pl-7"
+              style={{ color: theme.colors.textDim }}
+            >
+              <p>
+                For Git repositories, enable <strong style={{ color: theme.colors.textMain }}>Git Worktree</strong> to
+                run Auto Run in an isolated working directory. This allows you to continue working
+                in the main project while Auto Run operates independently—no read-only restrictions.
+              </p>
+              <p>
+                Specify a worktree path and branch name. Optionally enable <strong style={{ color: theme.colors.textMain }}>"Create PR on completion"</strong> to
+                automatically open a pull request when all tasks finish.
               </p>
             </div>
           </section>

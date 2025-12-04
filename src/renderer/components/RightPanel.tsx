@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
 import { PanelRightClose, PanelRightOpen, Loader2 } from 'lucide-react';
 import type { Session, Theme, RightPanelTab, Shortcut, BatchRunState } from '../types';
+import type { FileTreeChanges } from '../utils/fileExplorer';
 import { FileExplorerPanel } from './FileExplorerPanel';
 import { HistoryPanel, HistoryPanelHandle } from './HistoryPanel';
 import { AutoRun } from './AutoRun';
@@ -48,8 +49,9 @@ interface RightPanelProps {
   expandAllFolders: (activeSessionId: string, activeSession: Session, setSessions: React.Dispatch<React.SetStateAction<Session[]>>) => void;
   collapseAllFolders: (activeSessionId: string, setSessions: React.Dispatch<React.SetStateAction<Session[]>>) => void;
   updateSessionWorkingDirectory: (activeSessionId: string, setSessions: React.Dispatch<React.SetStateAction<Session[]>>) => Promise<void>;
-  refreshFileTree: (sessionId: string) => Promise<void>;
+  refreshFileTree: (sessionId: string) => Promise<FileTreeChanges | undefined>;
   setSessions: React.Dispatch<React.SetStateAction<Session[]>>;
+  onAutoRefreshChange?: (interval: number) => void;
 
   // Auto Run handlers
   autoRunDocumentList: string[];        // List of document filenames (without .md)
@@ -64,6 +66,7 @@ interface RightPanelProps {
     previewScrollPos: number;
   }) => void;
   onAutoRunSelectDocument: (filename: string) => void;
+  onAutoRunCreateDocument: (filename: string) => Promise<boolean>;
   onAutoRunRefresh: () => void;
   onAutoRunOpenSetup: () => void;
 
@@ -83,10 +86,10 @@ export const RightPanel = forwardRef<RightPanelHandle, RightPanelProps>(function
     fileTreeFilter, setFileTreeFilter, fileTreeFilterOpen, setFileTreeFilterOpen,
     filteredFileTree, selectedFileIndex, setSelectedFileIndex, previewFile, fileTreeContainerRef,
     fileTreeFilterInputRef, toggleFolder, handleFileClick, expandAllFolders, collapseAllFolders,
-    updateSessionWorkingDirectory, refreshFileTree, setSessions,
+    updateSessionWorkingDirectory, refreshFileTree, setSessions, onAutoRefreshChange,
     autoRunDocumentList, autoRunContent, autoRunIsLoadingDocuments,
     onAutoRunContentChange, onAutoRunModeChange, onAutoRunStateChange,
-    onAutoRunSelectDocument, onAutoRunRefresh, onAutoRunOpenSetup,
+    onAutoRunSelectDocument, onAutoRunCreateDocument, onAutoRunRefresh, onAutoRunOpenSetup,
     batchRunState, onOpenBatchRunner, onStopBatchRun, onJumpToClaudeSession, onResumeSession,
     onOpenSessionAsTab
   } = props;
@@ -167,13 +170,13 @@ export const RightPanel = forwardRef<RightPanelHandle, RightPanelProps>(function
           <button
             key={tab}
             onClick={() => setActiveRightTab(tab as RightPanelTab)}
-            className="flex-1 text-xs font-bold border-b-2 capitalize transition-colors"
+            className="flex-1 text-xs font-bold border-b-2 transition-colors"
             style={{
               borderColor: activeRightTab === tab ? theme.colors.accent : 'transparent',
               color: activeRightTab === tab ? theme.colors.textMain : theme.colors.textDim
             }}
           >
-            {tab}
+            {tab === 'autorun' ? 'Auto Run' : tab.charAt(0).toUpperCase() + tab.slice(1)}
           </button>
         ))}
       </div>
@@ -224,6 +227,7 @@ export const RightPanel = forwardRef<RightPanelHandle, RightPanelProps>(function
             updateSessionWorkingDirectory={updateSessionWorkingDirectory}
             refreshFileTree={refreshFileTree}
             setSessions={setSessions}
+            onAutoRefreshChange={onAutoRefreshChange}
           />
         )}
 
@@ -256,6 +260,7 @@ export const RightPanel = forwardRef<RightPanelHandle, RightPanelProps>(function
             onOpenSetup={onAutoRunOpenSetup}
             onRefresh={onAutoRunRefresh}
             onSelectDocument={onAutoRunSelectDocument}
+            onCreateDocument={onAutoRunCreateDocument}
             isLoadingDocuments={autoRunIsLoadingDocuments}
             batchRunState={batchRunState}
             onOpenBatchRunner={onOpenBatchRunner}

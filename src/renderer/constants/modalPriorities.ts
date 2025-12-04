@@ -50,6 +50,9 @@ export const MODAL_PRIORITIES = {
   /** Prompt composer modal for long prompts */
   PROMPT_COMPOSER: 725,
 
+  /** Agent prompt composer modal (opens from batch runner) */
+  AGENT_PROMPT_COMPOSER: 730,
+
   /** Auto Run setup/folder selection modal */
   AUTORUN_SETUP: 710,
 

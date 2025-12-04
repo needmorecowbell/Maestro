@@ -107,6 +107,7 @@ export interface WorktreeConfig {
   path: string;                  // Absolute path for the worktree
   branchName: string;            // Branch name to use/create
   createPROnCompletion: boolean; // Create PR when Auto Run finishes
+  prTargetBranch: string;        // Target branch for the PR (e.g., 'main')
 }
 
 // Configuration for starting a batch run
@@ -114,6 +115,7 @@ export interface BatchRunConfig {
   documents: BatchDocumentEntry[];  // Ordered list of docs to run
   prompt: string;
   loopEnabled: boolean;    // Loop back to first doc when done
+  maxLoops?: number | null;  // Max loop iterations (null/undefined = infinite)
   worktree?: WorktreeConfig;     // Optional worktree configuration
 }
 
@@ -176,12 +178,14 @@ export interface Playbook {
   // Configuration
   documents: PlaybookDocumentEntry[];  // Ordered list of documents
   loopEnabled: boolean;
+  maxLoops?: number | null;          // Max loop iterations (null/undefined = infinite)
   prompt: string;                    // Custom agent prompt
 
   // Optional worktree settings (path not stored - user selects each time)
   worktreeSettings?: {
     branchNameTemplate: string;    // e.g., "autorun-{playbook}-{timestamp}"
     createPROnCompletion: boolean;
+    prTargetBranch?: string;       // Target branch for PR (e.g., 'main')
   };
 }
 
@@ -346,6 +350,9 @@ export interface Session {
   autoRunEditScrollPos?: number;         // Scroll position in edit mode
   autoRunPreviewScrollPos?: number;      // Scroll position in preview mode
   autoRunCursorPosition?: number;        // Cursor position in edit mode
+
+  // File tree auto-refresh interval in seconds (0 = disabled)
+  fileTreeAutoRefreshInterval?: number;
 }
 
 export interface Group {

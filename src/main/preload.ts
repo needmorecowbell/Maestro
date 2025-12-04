@@ -262,10 +262,16 @@ contextBridge.exposeInMainWorld('maestro', {
         branch?: string;
         error?: string;
       }>,
+    checkGhCli: () =>
+      ipcRenderer.invoke('git:checkGhCli') as Promise<{
+        installed: boolean;
+        authenticated: boolean;
+      }>,
   },
 
   // File System API
   fs: {
+    homeDir: () => ipcRenderer.invoke('fs:homeDir') as Promise<string>,
     readDir: (dirPath: string) => ipcRenderer.invoke('fs:readDir', dirPath),
     readFile: (filePath: string) => ipcRenderer.invoke('fs:readFile', filePath),
     stat: (filePath: string) => ipcRenderer.invoke('fs:stat', filePath),
@@ -652,8 +658,13 @@ export interface MaestroAPI {
       branch?: string;
       error?: string;
     }>;
+    checkGhCli: () => Promise<{
+      installed: boolean;
+      authenticated: boolean;
+    }>;
   };
   fs: {
+    homeDir: () => Promise<string>;
     readDir: (dirPath: string) => Promise<DirectoryEntry[]>;
     readFile: (filePath: string) => Promise<string>;
     stat: (filePath: string) => Promise<{

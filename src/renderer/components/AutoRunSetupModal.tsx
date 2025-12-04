@@ -9,14 +9,92 @@ interface AutoRunSetupModalProps {
   onClose: () => void;
   onFolderSelected: (folderPath: string) => void;
   currentFolder?: string; // If changing existing folder
+  sessionName?: string; // Name of the agent session
 }
 
-export function AutoRunSetupModal({ theme, onClose, onFolderSelected, currentFolder }: AutoRunSetupModalProps) {
+export function AutoRunSetupModal({ theme, onClose, onFolderSelected, currentFolder, sessionName }: AutoRunSetupModalProps) {
   const [selectedFolder, setSelectedFolder] = useState(currentFolder || '');
+  const [homeDir, setHomeDir] = useState<string>('');
+  const [folderValidation, setFolderValidation] = useState<{
+    checking: boolean;
+    valid: boolean;
+    docCount: number;
+    error?: string;
+  }>({ checking: false, valid: false, docCount: 0 });
   const { registerLayer, unregisterLayer, updateLayerHandler } = useLayerStack();
   const layerIdRef = useRef<string>();
   const modalRef = useRef<HTMLDivElement>(null);
   const continueButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Fetch home directory on mount for tilde expansion
+  useEffect(() => {
+    window.maestro.fs.homeDir().then(setHomeDir);
+  }, []);
+
+  // Expand tilde in path
+  const expandTilde = (path: string): string => {
+    if (!homeDir) return path;
+    if (path === '~') return homeDir;
+    if (path.startsWith('~/')) return homeDir + path.slice(1);
+    return path;
+  };
+
+  // Validate folder and count markdown documents (debounced)
+  useEffect(() => {
+    if (!selectedFolder.trim()) {
+      setFolderValidation({ checking: false, valid: false, docCount: 0 });
+      return;
+    }
+
+    // If path starts with ~ but homeDir isn't loaded yet, wait
+    if (selectedFolder.startsWith('~') && !homeDir) {
+      setFolderValidation({ checking: true, valid: false, docCount: 0 });
+      return;
+    }
+
+    // Debounce the validation
+    const timeoutId = setTimeout(async () => {
+      setFolderValidation(prev => ({ ...prev, checking: true }));
+
+      try {
+        // Expand tilde inline to avoid closure issues
+        let expandedPath = selectedFolder.trim();
+        if (homeDir) {
+          if (expandedPath === '~') {
+            expandedPath = homeDir;
+          } else if (expandedPath.startsWith('~/')) {
+            expandedPath = homeDir + expandedPath.slice(1);
+          }
+        }
+
+        const result = await window.maestro.autorun.listDocs(expandedPath);
+
+        if (result.success) {
+          setFolderValidation({
+            checking: false,
+            valid: true,
+            docCount: result.files?.length || 0
+          });
+        } else {
+          setFolderValidation({
+            checking: false,
+            valid: false,
+            docCount: 0,
+            error: 'Folder not found or not accessible'
+          });
+        }
+      } catch {
+        setFolderValidation({
+          checking: false,
+          valid: false,
+          docCount: 0,
+          error: 'Failed to access folder'
+        });
+      }
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [selectedFolder, homeDir]);
 
   // Register layer on mount
   useEffect(() => {
@@ -45,23 +123,22 @@ export function AutoRunSetupModal({ theme, onClose, onFolderSelected, currentFol
     }
   }, [onClose, updateLayerHandler]);
 
-  // Focus continue button when a folder is selected
-  useEffect(() => {
-    if (selectedFolder) {
-      continueButtonRef.current?.focus();
-    }
-  }, [selectedFolder]);
-
   const handleSelectFolder = async () => {
     const folder = await window.maestro.dialog.selectFolder();
     if (folder) {
       setSelectedFolder(folder);
+      // Focus continue button after folder picker selection (not on typing)
+      requestAnimationFrame(() => {
+        continueButtonRef.current?.focus();
+      });
     }
   };
 
   const handleContinue = () => {
     if (selectedFolder) {
-      onFolderSelected(selectedFolder);
+      // Expand tilde before passing to callback
+      const expandedPath = expandTilde(selectedFolder.trim());
+      onFolderSelected(expandedPath);
       onClose();
     }
   };
@@ -114,8 +191,8 @@ export function AutoRunSetupModal({ theme, onClose, onFolderSelected, currentFol
           {/* Explanation */}
           <div className="space-y-4">
             <p className="text-sm leading-relaxed" style={{ color: theme.colors.textMain }}>
-              Auto Run lets you manage and execute markdown documents containing automated tasks.
-              Select a folder that contains your task documents.
+              Auto Run lets you manage and execute Markdown documents containing open tasks.
+              Select a folder that contains your task documents. Each Maestro agent is assigned its own working folder.
             </p>
 
             {/* Feature list */}
@@ -171,7 +248,7 @@ export function AutoRunSetupModal({ theme, onClose, onFolderSelected, currentFol
                 type="text"
                 value={selectedFolder}
                 onChange={(e) => setSelectedFolder(e.target.value)}
-                placeholder="Select a folder containing markdown documents..."
+                placeholder={sessionName ? `Select Auto Run folder for ${sessionName}` : 'Select Auto Run folder'}
                 className="flex-1 p-2 rounded border bg-transparent outline-none font-mono text-sm"
                 style={{ borderColor: theme.colors.border, color: theme.colors.textMain }}
               />
@@ -185,8 +262,18 @@ export function AutoRunSetupModal({ theme, onClose, onFolderSelected, currentFol
               </button>
             </div>
             {selectedFolder && (
-              <div className="mt-2 text-xs" style={{ color: theme.colors.success }}>
-                Folder selected
+              <div className="mt-2 text-xs">
+                {folderValidation.checking ? (
+                  <span style={{ color: theme.colors.textDim }}>Checking folder...</span>
+                ) : folderValidation.valid ? (
+                  <span style={{ color: theme.colors.success }}>
+                    {folderValidation.docCount === 0
+                      ? 'Folder found (no markdown documents yet)'
+                      : `Found ${folderValidation.docCount} markdown document${folderValidation.docCount === 1 ? '' : 's'}`}
+                  </span>
+                ) : folderValidation.error ? (
+                  <span style={{ color: theme.colors.error }}>{folderValidation.error}</span>
+                ) : null}
               </div>
             )}
           </div>

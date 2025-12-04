@@ -59,6 +59,8 @@ interface QuickActionsModalProps {
   setPlaygroundOpen?: (open: boolean) => void;
   onRefreshGitFileState?: () => Promise<void>;
   onDebugReleaseQueuedItem?: () => void;
+  markdownRawMode?: boolean;
+  onToggleMarkdownRawMode?: () => void;
 }
 
 export function QuickActionsModal(props: QuickActionsModalProps) {
@@ -73,7 +75,7 @@ export function QuickActionsModal(props: QuickActionsModalProps) {
     setShortcutsHelpOpen, setAboutModalOpen, setLogViewerOpen, setProcessMonitorOpen,
     setAgentSessionsOpen, setActiveClaudeSessionId, setGitDiffPreview, setGitLogOpen, startFreshSession,
     onRenameTab, onToggleReadOnlyMode, onOpenTabSwitcher, tabShortcuts, isAiMode, setPlaygroundOpen, onRefreshGitFileState,
-    onDebugReleaseQueuedItem
+    onDebugReleaseQueuedItem, markdownRawMode, onToggleMarkdownRawMode
   } = props;
 
   const [search, setSearch] = useState('');
@@ -218,6 +220,7 @@ export function QuickActionsModal(props: QuickActionsModalProps) {
     ...(isAiMode && onOpenTabSwitcher ? [{ id: 'tabSwitcher', label: 'Tab Switcher', shortcut: tabShortcuts?.tabSwitcher, action: () => { onOpenTabSwitcher(); setQuickActionOpen(false); } }] : []),
     ...(isAiMode && onRenameTab ? [{ id: 'renameTab', label: 'Rename Tab', shortcut: tabShortcuts?.renameTab, action: () => { onRenameTab(); setQuickActionOpen(false); } }] : []),
     ...(isAiMode && onToggleReadOnlyMode ? [{ id: 'toggleReadOnly', label: 'Toggle Read-Only Mode', shortcut: tabShortcuts?.toggleReadOnlyMode, action: () => { onToggleReadOnlyMode(); setQuickActionOpen(false); } }] : []),
+    ...(isAiMode && onToggleMarkdownRawMode ? [{ id: 'toggleMarkdown', label: markdownRawMode ? 'Show Formatted Markdown' : 'Show Raw Markdown', shortcut: shortcuts.toggleMarkdownMode, subtext: markdownRawMode ? 'Currently showing plain text' : 'Currently showing formatted', action: () => { onToggleMarkdownRawMode(); setQuickActionOpen(false); } }] : []),
     ...(activeSession ? [{ id: 'kill', label: `Remove Agent: ${activeSession.name}`, shortcut: shortcuts.killInstance, action: () => deleteSession(activeSessionId) }] : []),
     { id: 'settings', label: 'Settings', shortcut: shortcuts.settings, action: () => { setSettingsModalOpen(true); setQuickActionOpen(false); } },
     { id: 'theme', label: 'Change Theme', action: () => { setSettingsModalOpen(true); setSettingsTab('theme'); setQuickActionOpen(false); } },

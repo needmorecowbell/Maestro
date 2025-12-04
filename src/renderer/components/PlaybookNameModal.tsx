@@ -78,7 +78,7 @@ export function PlaybookNameModal({
 
   return (
     <div
-      className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[10000] animate-in fade-in duration-200"
+      className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[10002] animate-in fade-in duration-200"
       role="dialog"
       aria-modal="true"
       aria-label={title}
@@ -103,6 +103,7 @@ export function PlaybookNameModal({
             </h3>
           </div>
           <button
+            type="button"
             onClick={onCancel}
             className="p-1 rounded hover:bg-white/10 transition-colors"
             style={{ color: theme.colors.textDim }}
@@ -148,6 +149,7 @@ export function PlaybookNameModal({
           style={{ borderColor: theme.colors.border }}
         >
           <button
+            type="button"
             onClick={onCancel}
             className="px-4 py-2 rounded border hover:bg-white/5 transition-colors"
             style={{ borderColor: theme.colors.border, color: theme.colors.textMain }}
@@ -155,6 +157,7 @@ export function PlaybookNameModal({
             Cancel
           </button>
           <button
+            type="button"
             onClick={handleSave}
             disabled={!isValid}
             className="px-4 py-2 rounded font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
