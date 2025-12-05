@@ -1,15 +1,14 @@
 // Run playbook command
 // Executes a playbook and streams events to stdout
 
-import { getSessionById, resolveAgentId } from '../services/storage';
-import { getPlaybook, findPlaybookById } from '../services/playbooks';
+import { getSessionById } from '../services/storage';
+import { findPlaybookById } from '../services/playbooks';
 import { runPlaybook as executePlaybook } from '../services/batch-processor';
 import { detectClaude } from '../services/agent-spawner';
 import { emitError } from '../output/jsonl';
 import { formatRunEvent, formatError, formatInfo, RunEvent } from '../output/formatter';
 
 interface RunPlaybookOptions {
-  agent?: string;
   playbook: string;
   dryRun?: boolean;
   history?: boolean; // commander uses --no-history which becomes history: false
@@ -35,45 +34,19 @@ export async function runPlaybook(options: RunPlaybookOptions): Promise<void> {
     let agentId: string;
     let playbook;
 
-    if (options.agent) {
-      // Agent specified - resolve it and find playbook within that agent
-      try {
-        agentId = resolveAgentId(options.agent);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unknown error';
-        if (useJson) {
-          emitError(message, 'AGENT_NOT_FOUND');
-        } else {
-          console.error(formatError(message));
-        }
-        process.exit(1);
+    // Find playbook across all agents
+    try {
+      const result = findPlaybookById(options.playbook);
+      playbook = result.playbook;
+      agentId = result.agentId;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      if (useJson) {
+        emitError(message, 'PLAYBOOK_NOT_FOUND');
+      } else {
+        console.error(formatError(message));
       }
-
-      playbook = getPlaybook(agentId, options.playbook);
-      if (!playbook) {
-        const message = `Playbook not found: ${options.playbook}`;
-        if (useJson) {
-          emitError(message, 'PLAYBOOK_NOT_FOUND');
-        } else {
-          console.error(formatError(message));
-        }
-        process.exit(1);
-      }
-    } else {
-      // No agent specified - find playbook across all agents
-      try {
-        const result = findPlaybookById(options.playbook);
-        playbook = result.playbook;
-        agentId = result.agentId;
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unknown error';
-        if (useJson) {
-          emitError(message, 'PLAYBOOK_NOT_FOUND');
-        } else {
-          console.error(formatError(message));
-        }
-        process.exit(1);
-      }
+      process.exit(1);
     }
 
     const agent = getSessionById(agentId)!;
@@ -94,6 +67,11 @@ export async function runPlaybook(options: RunPlaybookOptions): Promise<void> {
       console.log(formatInfo(`Running playbook: ${playbook.name}`));
       console.log(formatInfo(`Agent: ${agent.name}`));
       console.log(formatInfo(`Documents: ${playbook.documents.length}`));
+      // Show loop configuration
+      if (playbook.loopEnabled) {
+        const loopInfo = playbook.maxLoops ? `max ${playbook.maxLoops}` : '∞';
+        console.log(formatInfo(`Loop: enabled (${loopInfo})`));
+      }
       if (options.dryRun) {
         console.log(formatInfo('Dry run mode - no changes will be made'));
       }

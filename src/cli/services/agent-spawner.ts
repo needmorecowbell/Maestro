@@ -244,6 +244,24 @@ export function readDocAndCountTasks(folderPath: string, filename: string): { co
 }
 
 /**
+ * Read a markdown document and extract unchecked task text
+ */
+export function readDocAndGetTasks(folderPath: string, filename: string): { content: string; tasks: string[] } {
+  const filePath = `${folderPath}/${filename}.md`;
+
+  try {
+    const content = fs.readFileSync(filePath, 'utf-8');
+    const matches = content.match(/^[\s]*-\s*\[\s*\]\s*(.+)$/gm);
+    const tasks = matches
+      ? matches.map(m => m.replace(/^[\s]*-\s*\[\s*\]\s*/, '').trim())
+      : [];
+    return { content, tasks };
+  } catch (error) {
+    return { content: '', tasks: [] };
+  }
+}
+
+/**
  * Uncheck all markdown checkboxes in content (for reset-on-completion)
  */
 export function uncheckAllTasks(content: string): string {

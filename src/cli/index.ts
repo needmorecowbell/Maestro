@@ -43,7 +43,6 @@ program
   .command('run')
   .description('Run a playbook')
   .requiredOption('-p, --playbook <id>', 'Playbook ID')
-  .option('-a, --agent <id>', 'Agent ID (auto-detected from playbook if not specified)')
   .option('--dry-run', 'Show what would be executed without running')
   .option('--no-history', 'Do not write history entries')
   .option('--json', 'Output as JSON lines (for scripting)')

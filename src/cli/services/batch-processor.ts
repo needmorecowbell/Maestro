@@ -6,6 +6,7 @@ import type { JsonlEvent } from '../output/jsonl';
 import {
   spawnAgent,
   readDocAndCountTasks,
+  readDocAndGetTasks,
   uncheckAllTasks,
   writeDoc,
 } from './agent-spawner';
@@ -135,7 +136,46 @@ export async function* runPlaybook(
   }
 
   if (dryRun) {
-    // Dry run - just show what would be executed
+    // Dry run - show detailed breakdown of what would be executed
+    for (let docIndex = 0; docIndex < playbook.documents.length; docIndex++) {
+      const docEntry = playbook.documents[docIndex];
+      const { tasks } = readDocAndGetTasks(folderPath, docEntry.filename);
+
+      if (tasks.length === 0) {
+        continue;
+      }
+
+      // Emit document start event
+      yield {
+        type: 'document_start',
+        timestamp: Date.now(),
+        document: docEntry.filename,
+        index: docIndex,
+        taskCount: tasks.length,
+        dryRun: true,
+      };
+
+      // Emit each task that would be processed
+      for (let taskIndex = 0; taskIndex < tasks.length; taskIndex++) {
+        yield {
+          type: 'task_preview',
+          timestamp: Date.now(),
+          document: docEntry.filename,
+          taskIndex,
+          task: tasks[taskIndex],
+        };
+      }
+
+      // Emit document complete event
+      yield {
+        type: 'document_complete',
+        timestamp: Date.now(),
+        document: docEntry.filename,
+        tasksCompleted: tasks.length,
+        dryRun: true,
+      };
+    }
+
     yield {
       type: 'complete',
       timestamp: Date.now(),
