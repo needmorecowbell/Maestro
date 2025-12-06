@@ -24,6 +24,17 @@ export interface AgentResult {
 }
 
 /**
+ * Generate a UUID for session isolation
+ */
+function generateUUID(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+/**
  * Build an expanded PATH that includes common binary installation locations
  */
 function getExpandedPath(): string {
@@ -159,11 +170,16 @@ export async function spawnAgent(
       PATH: getExpandedPath(),
     };
 
-    // Build args: base args + optional resume + prompt
+    // Build args: base args + session handling + prompt
     const args = [...CLAUDE_ARGS];
 
     if (claudeSessionId) {
+      // Resume an existing session (e.g., for synopsis generation)
       args.push('--resume', claudeSessionId);
+    } else {
+      // Force a fresh, isolated session for each task execution
+      // This prevents context bleeding between tasks in Auto Run
+      args.push('--session-id', generateUUID());
     }
 
     // Add prompt as positional argument

@@ -321,6 +321,16 @@ The runner will:
 - Mark tasks as complete (`- [x]`) when done
 - Log each completion to the **History** panel
 
+### Session Isolation
+
+Each task executes in a completely fresh AI session with its own unique session ID. This provides:
+
+- **Clean context** - No conversation history bleeding between tasks
+- **Predictable behavior** - Tasks in looping playbooks execute identically each iteration
+- **Independent execution** - The agent approaches each task without memory of previous work
+
+This isolation is critical for playbooks with `Reset on Completion` documents that loop indefinitely. Without it, the AI might "remember" completing a task and skip re-execution on subsequent loops.
+
 ### History & Tracking
 
 Each completed task is logged to the History panel with:

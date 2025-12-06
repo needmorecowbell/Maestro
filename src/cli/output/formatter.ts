@@ -302,9 +302,10 @@ export interface RunEvent {
   [key: string]: unknown;
 }
 
-export function formatRunEvent(event: RunEvent): string {
+export function formatRunEvent(event: RunEvent, options?: { debug?: boolean }): string {
   const time = new Date(event.timestamp).toLocaleTimeString();
   const timeStr = dim(`[${time}]`);
+  const debug = options?.debug ?? false;
 
   switch (event.type) {
     case 'start':
@@ -333,10 +334,27 @@ export function formatRunEvent(event: RunEvent): string {
     case 'task_complete': {
       const success = event.success as boolean;
       const elapsed = ((event.elapsedMs as number) / 1000).toFixed(1);
-      const summary = truncate(event.summary as string || '', 60);
       const icon = success ? c('green', '✓') : c('red', '✗');
       // Indent: 6 spaces under task (result of task)
-      return `${timeStr}       ${icon} ${summary} ${dim(`(${elapsed}s)`)}`;
+
+      if (debug && event.fullResponse) {
+        // In debug mode, show full response with proper formatting
+        const fullResponse = event.fullResponse as string;
+        const lines = fullResponse.split('\n');
+        const formattedLines = lines.map((line, idx) => {
+          if (idx === 0) {
+            return `${timeStr}       ${icon} ${line}`;
+          }
+          // Continuation lines get same indent but no icon/timestamp
+          return `                ${line}`;
+        });
+        formattedLines.push(`                ${dim(`(${elapsed}s)`)}`);
+        return formattedLines.join('\n');
+      } else {
+        // Normal mode: truncated summary
+        const summary = truncate(event.summary as string || '', 60);
+        return `${timeStr}       ${icon} ${summary} ${dim(`(${elapsed}s)`)}`;
+      }
     }
 
     case 'history_write': {
@@ -351,7 +369,7 @@ export function formatRunEvent(event: RunEvent): string {
     }
 
     case 'loop_complete': {
-      const loopNum = event.loopNumber as number;
+      const loopNum = event.iteration as number;
       return `${timeStr} ${c('magenta', '↻')} Loop ${loopNum} complete`;
     }
 

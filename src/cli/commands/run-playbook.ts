@@ -214,7 +214,7 @@ export async function runPlaybook(playbookId: string, options: RunPlaybookOption
       if (useJson) {
         console.log(JSON.stringify(event));
       } else {
-        console.log(formatRunEvent(event as RunEvent));
+        console.log(formatRunEvent(event as RunEvent, { debug: options.debug }));
       }
     }
   } catch (error) {
