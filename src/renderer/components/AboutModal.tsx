@@ -212,11 +212,11 @@ export function AboutModal({ theme, sessions, autoRunStats, onClose }: AboutModa
                 {/* Sessions & Messages */}
                 <div className="flex justify-between">
                   <span style={{ color: theme.colors.textDim }}>Sessions</span>
-                  <span className="font-mono font-bold" style={{ color: theme.colors.textMain }}>{globalStats.totalSessions}</span>
+                  <span className="font-mono font-bold" style={{ color: theme.colors.textMain }}>{formatTokens(globalStats.totalSessions)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span style={{ color: theme.colors.textDim }}>Messages</span>
-                  <span className="font-mono font-bold" style={{ color: theme.colors.textMain }}>{globalStats.totalMessages}</span>
+                  <span className="font-mono font-bold" style={{ color: theme.colors.textMain }}>{formatTokens(globalStats.totalMessages)}</span>
                 </div>
 
                 {/* Tokens */}
@@ -243,23 +243,29 @@ export function AboutModal({ theme, sessions, autoRunStats, onClose }: AboutModa
                   </>
                 )}
 
-                {/* Active Time (from current Maestro sessions) */}
-                {totalActiveTimeMs > 0 && (
-                  <div className="flex justify-between col-span-2 pt-2 border-t" style={{ borderColor: theme.colors.border }}>
-                    <span style={{ color: theme.colors.textDim }}>Active Time</span>
-                    <span className="font-mono font-bold" style={{ color: theme.colors.textMain }}>{formatDuration(totalActiveTimeMs)}</span>
-                  </div>
-                )}
-
-                {/* Total Cost - shows pulsing green while counting, solid green when complete */}
+                {/* Active Time & Total Cost - merged into single line */}
                 <div className="flex justify-between col-span-2 pt-2 border-t" style={{ borderColor: theme.colors.border }}>
-                  <span style={{ color: theme.colors.textDim }}>Total Cost</span>
-                  <span
-                    className={`font-mono font-bold ${!isStatsComplete ? 'animate-pulse' : ''}`}
-                    style={{ color: theme.colors.success }}
-                  >
-                    ${globalStats.totalCostUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
+                  {totalActiveTimeMs > 0 ? (
+                    <>
+                      <span style={{ color: theme.colors.textDim }}>{formatDuration(totalActiveTimeMs)}</span>
+                      <span
+                        className={`font-mono font-bold ${!isStatsComplete ? 'animate-pulse' : ''}`}
+                        style={{ color: theme.colors.success }}
+                      >
+                        ${globalStats.totalCostUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span style={{ color: theme.colors.textDim }}>Total Cost</span>
+                      <span
+                        className={`font-mono font-bold ${!isStatsComplete ? 'animate-pulse' : ''}`}
+                        style={{ color: theme.colors.success }}
+                      >
+                        ${globalStats.totalCostUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </>
+                  )}
                 </div>
               </div>
             ) : (
