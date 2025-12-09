@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { Eye, Edit, Play, Square, HelpCircle, Loader2, Image, X, Search, ChevronUp, ChevronDown, ChevronRight, ChevronLeft, Copy, Check, Trash2, FolderOpen, FileText, RefreshCw } from 'lucide-react';
+import { Eye, Edit, Play, Square, HelpCircle, Loader2, Image, X, Search, ChevronUp, ChevronDown, ChevronRight, ChevronLeft, Copy, Check, Trash2, FolderOpen, FileText, RefreshCw, Maximize2 } from 'lucide-react';
 import type { BatchRunState, SessionState, Theme } from '../types';
 import { AutoRunnerHelpModal } from './AutoRunnerHelpModal';
 import { MermaidRenderer } from './MermaidRenderer';
@@ -58,6 +58,9 @@ interface AutoRunProps {
 
   // Session state for disabling Run when agent is busy
   sessionState?: SessionState;
+
+  // Expand to modal callback
+  onExpand?: () => void;
 
   // Legacy prop for backwards compatibility
   onChange?: (content: string) => void;
@@ -377,6 +380,7 @@ const AutoRunInner = forwardRef<AutoRunHandle, AutoRunProps>(function AutoRunInn
   onOpenBatchRunner,
   onStopBatchRun,
   sessionState,
+  onExpand,
   onChange,  // Legacy prop for backwards compatibility
 }, ref) {
   const isLocked = batchRunState?.isRunning || false;
@@ -1552,6 +1556,20 @@ const AutoRunInner = forwardRef<AutoRunHandle, AutoRunProps>(function AutoRunInn
 
       {/* Mode Toggle */}
       <div className="flex gap-2 mb-3 justify-center pt-2">
+        {/* Expand button */}
+        {onExpand && (
+          <button
+            onClick={onExpand}
+            className="flex items-center justify-center w-8 h-8 rounded transition-colors hover:bg-white/10"
+            style={{
+              color: theme.colors.textDim,
+              border: `1px solid ${theme.colors.border}`
+            }}
+            title="Expand to full screen"
+          >
+            <Maximize2 className="w-3.5 h-3.5" />
+          </button>
+        )}
         <button
           onClick={() => !isLocked && setMode('edit')}
           disabled={isLocked}

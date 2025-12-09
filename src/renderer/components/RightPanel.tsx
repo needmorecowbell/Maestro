@@ -1,10 +1,11 @@
-import React, { useRef, useEffect, useImperativeHandle, forwardRef, useState } from 'react';
+import React, { useRef, useEffect, useImperativeHandle, forwardRef, useState, useCallback } from 'react';
 import { PanelRightClose, PanelRightOpen, Loader2 } from 'lucide-react';
 import type { Session, Theme, RightPanelTab, Shortcut, BatchRunState } from '../types';
 import type { FileTreeChanges } from '../utils/fileExplorer';
 import { FileExplorerPanel } from './FileExplorerPanel';
 import { HistoryPanel, HistoryPanelHandle } from './HistoryPanel';
 import { AutoRun, AutoRunHandle } from './AutoRun';
+import { AutoRunExpandedModal } from './AutoRunExpandedModal';
 import { formatShortcutKeys } from '../utils/shortcutFormatter';
 
 export interface RightPanelHandle {
@@ -104,6 +105,11 @@ export const RightPanel = forwardRef<RightPanelHandle, RightPanelProps>(function
 
   // Elapsed time for Auto Run display (updates every second when current session is running)
   const [elapsedTime, setElapsedTime] = useState<string>('');
+
+  // Expanded modal state for Auto Run
+  const [autoRunExpanded, setAutoRunExpanded] = useState(false);
+  const handleExpandAutoRun = useCallback(() => setAutoRunExpanded(true), []);
+  const handleCollapseAutoRun = useCallback(() => setAutoRunExpanded(false), []);
 
   useEffect(() => {
     if (!currentSessionBatchState?.isRunning || !currentSessionBatchState?.startTime) {
@@ -318,9 +324,41 @@ export const RightPanel = forwardRef<RightPanelHandle, RightPanelProps>(function
             onOpenBatchRunner={onOpenBatchRunner}
             onStopBatchRun={onStopBatchRun}
             sessionState={session.state}
+            onExpand={handleExpandAutoRun}
           />
         )}
       </div>
+
+      {/* Auto Run Expanded Modal */}
+      {autoRunExpanded && session && (
+        <AutoRunExpandedModal
+          theme={theme}
+          onClose={handleCollapseAutoRun}
+          sessionId={session.id}
+          folderPath={session.autoRunFolderPath || null}
+          selectedFile={session.autoRunSelectedFile || null}
+          documentList={autoRunDocumentList}
+          documentTree={autoRunDocumentTree}
+          content={autoRunContent}
+          contentVersion={autoRunContentVersion}
+          onContentChange={onAutoRunContentChange}
+          mode={session.autoRunMode || 'edit'}
+          onModeChange={onAutoRunModeChange}
+          initialCursorPosition={session.autoRunCursorPosition || 0}
+          initialEditScrollPos={session.autoRunEditScrollPos || 0}
+          initialPreviewScrollPos={session.autoRunPreviewScrollPos || 0}
+          onStateChange={onAutoRunStateChange}
+          onOpenSetup={onAutoRunOpenSetup}
+          onRefresh={onAutoRunRefresh}
+          onSelectDocument={onAutoRunSelectDocument}
+          onCreateDocument={onAutoRunCreateDocument}
+          isLoadingDocuments={autoRunIsLoadingDocuments}
+          batchRunState={currentSessionBatchState || undefined}
+          onOpenBatchRunner={onOpenBatchRunner}
+          onStopBatchRun={onStopBatchRun}
+          sessionState={session.state}
+        />
+      )}
 
       {/* Batch Run Progress - shown at bottom of all tabs (only for current session) */}
       {currentSessionBatchState && currentSessionBatchState.isRunning && (

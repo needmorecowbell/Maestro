@@ -498,6 +498,7 @@ export class ProcessManager extends EventEmitter {
 
         childProcess.on('error', (error) => {
           this.emit('data', sessionId, `[error] ${error.message}`);
+          this.emit('exit', sessionId, 1); // Ensure exit is emitted on error
           this.processes.delete(sessionId);
         });
 

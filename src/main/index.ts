@@ -1356,6 +1356,20 @@ function setupIpcHandlers() {
     try {
       const path = require('path');
 
+      // Resolve paths to absolute for proper comparison
+      const resolvedMainRepo = path.resolve(mainRepoCwd);
+      const resolvedWorktree = path.resolve(worktreePath);
+
+      // Check if worktree path is inside the main repo (nested worktree)
+      // This can cause issues because git and Claude Code search upward for .git
+      // and may resolve to the parent repo instead of the worktree
+      if (resolvedWorktree.startsWith(resolvedMainRepo + path.sep)) {
+        return {
+          success: false,
+          error: 'Worktree path cannot be inside the main repository. Please use a sibling directory (e.g., ../my-worktree) instead.'
+        };
+      }
+
       // First check if the worktree path already exists
       let pathExists = true;
       try {

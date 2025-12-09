@@ -121,6 +121,10 @@ export interface UseSettingsReturn {
   toastDuration: number;
   setToastDuration: (value: number) => void;
 
+  // Update settings
+  checkForUpdatesOnStartup: boolean;
+  setCheckForUpdatesOnStartup: (value: boolean) => void;
+
   // Log Viewer settings
   logViewerSelectedLevels: string[];
   setLogViewerSelectedLevels: (value: string[]) => void;
@@ -194,6 +198,9 @@ export function useSettings(): UseSettingsReturn {
   const [audioFeedbackEnabled, setAudioFeedbackEnabledState] = useState(false); // Default: off
   const [audioFeedbackCommand, setAudioFeedbackCommandState] = useState('say'); // Default: macOS say command
   const [toastDuration, setToastDurationState] = useState(20); // Default: 20 seconds, 0 = never auto-dismiss
+
+  // Update Config
+  const [checkForUpdatesOnStartup, setCheckForUpdatesOnStartupState] = useState(true); // Default: on
 
   // Log Viewer Config
   const [logViewerSelectedLevels, setLogViewerSelectedLevelsState] = useState<string[]>(['debug', 'info', 'warn', 'error', 'toast']);
@@ -334,6 +341,11 @@ export function useSettings(): UseSettingsReturn {
   const setToastDuration = (value: number) => {
     setToastDurationState(value);
     window.maestro.settings.set('toastDuration', value);
+  };
+
+  const setCheckForUpdatesOnStartup = (value: boolean) => {
+    setCheckForUpdatesOnStartupState(value);
+    window.maestro.settings.set('checkForUpdatesOnStartup', value);
   };
 
   const setLogViewerSelectedLevels = (value: string[]) => {
@@ -554,6 +566,7 @@ export function useSettings(): UseSettingsReturn {
       const savedAudioFeedbackEnabled = await window.maestro.settings.get('audioFeedbackEnabled');
       const savedAudioFeedbackCommand = await window.maestro.settings.get('audioFeedbackCommand');
       const savedToastDuration = await window.maestro.settings.get('toastDuration');
+      const savedCheckForUpdatesOnStartup = await window.maestro.settings.get('checkForUpdatesOnStartup');
       const savedLogViewerSelectedLevels = await window.maestro.settings.get('logViewerSelectedLevels');
       const savedCustomAICommands = await window.maestro.settings.get('customAICommands');
       const savedGlobalStats = await window.maestro.settings.get('globalStats');
@@ -584,6 +597,7 @@ export function useSettings(): UseSettingsReturn {
       if (savedAudioFeedbackEnabled !== undefined) setAudioFeedbackEnabledState(savedAudioFeedbackEnabled);
       if (savedAudioFeedbackCommand !== undefined) setAudioFeedbackCommandState(savedAudioFeedbackCommand);
       if (savedToastDuration !== undefined) setToastDurationState(savedToastDuration);
+      if (savedCheckForUpdatesOnStartup !== undefined) setCheckForUpdatesOnStartupState(savedCheckForUpdatesOnStartup);
       if (savedLogViewerSelectedLevels !== undefined) setLogViewerSelectedLevelsState(savedLogViewerSelectedLevels);
 
       // Merge saved shortcuts with defaults (in case new shortcuts were added)
@@ -679,6 +693,8 @@ export function useSettings(): UseSettingsReturn {
     setAudioFeedbackCommand,
     toastDuration,
     setToastDuration,
+    checkForUpdatesOnStartup,
+    setCheckForUpdatesOnStartup,
     logViewerSelectedLevels,
     setLogViewerSelectedLevels,
     shortcuts,

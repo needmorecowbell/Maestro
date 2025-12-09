@@ -73,6 +73,22 @@ const compareNamesIgnoringEmojis = (a: string, b: string): number => {
 
 // Get description for Claude Code slash commands
 // Built-in commands have known descriptions, custom ones use a generic description
+// Map toolType to human-readable agent display name
+const AGENT_DISPLAY_NAMES: Record<string, string> = {
+  'claude-code': 'Claude Code',
+  'claude': 'Claude',
+  'terminal': 'Terminal',
+  'aider': 'Aider',
+  'opencode': 'OpenCode',
+  'openai-codex': 'OpenAI Codex',
+  'gemini-cli': 'Gemini CLI',
+  'qwen3-coder': 'Qwen3 Coder',
+};
+
+const getAgentDisplayName = (toolType: string): string => {
+  return AGENT_DISPLAY_NAMES[toolType] || toolType;
+};
+
 const CLAUDE_BUILTIN_COMMANDS: Record<string, string> = {
   'compact': 'Summarize conversation to reduce context usage',
   'context': 'Show current context window usage',
@@ -150,6 +166,7 @@ export default function MaestroConsole() {
     audioFeedbackEnabled, setAudioFeedbackEnabled,
     audioFeedbackCommand, setAudioFeedbackCommand,
     toastDuration, setToastDuration,
+    checkForUpdatesOnStartup, setCheckForUpdatesOnStartup,
     shortcuts, setShortcuts,
     customAICommands, setCustomAICommands,
     globalStats, updateGlobalStats,
@@ -595,6 +612,24 @@ export default function MaestroConsole() {
     }
   }, [settingsLoaded, sessionsLoaded]); // Only run once on startup
 
+  // Check for updates on startup if enabled
+  useEffect(() => {
+    if (settingsLoaded && checkForUpdatesOnStartup) {
+      // Delay to let the app fully initialize
+      const timer = setTimeout(async () => {
+        try {
+          const result = await window.maestro.updates.check();
+          if (result.updateAvailable && !result.error) {
+            setUpdateCheckModalOpen(true);
+          }
+        } catch (error) {
+          console.error('Failed to check for updates on startup:', error);
+        }
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [settingsLoaded, checkForUpdatesOnStartup]);
+
   // Set up process event listeners for real-time output
   useEffect(() => {
     // Handle process output data
@@ -789,6 +824,7 @@ export default function MaestroConsole() {
         summary: string;
         groupName: string;
         projectName: string;
+        agentName: string;
         duration: number;
         claudeSessionId?: string;
         tabName?: string;
@@ -801,7 +837,7 @@ export default function MaestroConsole() {
       } | null = null;
       let queuedItemToProcess: { sessionId: string; item: QueuedItem } | null = null;
       // Track if we need to run synopsis after completion (for /commit and other AI commands)
-      let synopsisData: { sessionId: string; cwd: string; claudeSessionId: string; command: string; groupName: string; projectName: string; tabName?: string; tabId?: string } | null = null;
+      let synopsisData: { sessionId: string; cwd: string; claudeSessionId: string; command: string; groupName: string; projectName: string; agentName: string; tabName?: string; tabId?: string } | null = null;
 
       if (isFromAi) {
         const currentSession = sessionsRef.current.find(s => s.id === actualSessionId);
@@ -872,6 +908,7 @@ export default function MaestroConsole() {
             summary,
             groupName,
             projectName,
+            agentName: getAgentDisplayName(currentSession.toolType),
             duration,
             claudeSessionId: claudeSessionId || undefined,
             tabName,
@@ -899,6 +936,7 @@ export default function MaestroConsole() {
               command: currentSession.pendingAICommandForSynopsis || 'Save to History',
               groupName,
               projectName,
+              agentName: getAgentDisplayName(currentSession.toolType),
               tabName,
               tabId: completedTab?.id
             };
@@ -1106,6 +1144,7 @@ export default function MaestroConsole() {
               message: toastData!.summary,
               group: toastData!.groupName,
               project: toastData!.projectName,
+              agentName: toastData!.agentName,
               taskDuration: toastData!.duration,
               claudeSessionId: toastData!.claudeSessionId,
               tabName: toastData!.tabName,
@@ -1149,6 +1188,7 @@ export default function MaestroConsole() {
               message: result.response,
               group: synopsisData!.groupName,
               project: synopsisData!.projectName,
+              agentName: synopsisData!.agentName,
               taskDuration: duration,
               sessionId: synopsisData!.sessionId,
               tabId: synopsisData!.tabId,
@@ -2555,6 +2595,7 @@ export default function MaestroConsole() {
         message,
         group: groupName,
         project: info.sessionName,
+        agentName: session ? getAgentDisplayName(session.toolType) : undefined,
         taskDuration: info.elapsedTimeMs,
         sessionId: info.sessionId,
       });
@@ -2596,6 +2637,7 @@ export default function MaestroConsole() {
           message: info.prUrl || 'Pull request created successfully',
           group: groupName,
           project: info.sessionName,
+          agentName: session ? getAgentDisplayName(session.toolType) : undefined,
           sessionId: info.sessionId,
         });
       } else {
@@ -2606,6 +2648,7 @@ export default function MaestroConsole() {
           message: info.error || 'Failed to create pull request',
           group: groupName,
           project: info.sessionName,
+          agentName: session ? getAgentDisplayName(session.toolType) : undefined,
           sessionId: info.sessionId,
         });
       }
@@ -7095,6 +7138,8 @@ export default function MaestroConsole() {
         setAudioFeedbackCommand={setAudioFeedbackCommand}
         toastDuration={toastDuration}
         setToastDuration={setToastDuration}
+        checkForUpdatesOnStartup={checkForUpdatesOnStartup}
+        setCheckForUpdatesOnStartup={setCheckForUpdatesOnStartup}
         customAICommands={customAICommands}
         setCustomAICommands={setCustomAICommands}
         initialTab={settingsTab}

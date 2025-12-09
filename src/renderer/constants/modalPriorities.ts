@@ -56,6 +56,9 @@ export const MODAL_PRIORITIES = {
   /** Auto Run setup/folder selection modal */
   AUTORUN_SETUP: 710,
 
+  /** Auto Run expanded view modal */
+  AUTORUN_EXPANDED: 705,
+
   /** Quick actions command palette (Cmd+K) */
   QUICK_ACTION: 700,
 

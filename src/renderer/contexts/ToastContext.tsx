@@ -7,6 +7,7 @@ export interface Toast {
   message: string;
   group?: string;
   project?: string;
+  agentName?: string; // Agent/tool name (e.g., "Claude Code") for OS notifications
   duration?: number;
   taskDuration?: number; // How long the task took in ms
   claudeSessionId?: string; // Claude Code session UUID for traceability
@@ -92,11 +93,26 @@ export function ToastProvider({ children, defaultDuration: initialDuration = 20 
 
     // Show OS notification if enabled (compact format for small notification area)
     if (osNotificationsRef.current.enabled) {
-      // Build concise title: "Group > Session" or just "Session" or fallback to toast title
+      // Build concise title including agent name and group
+      // Format: "AgentName: Group > Session" or "AgentName: Session" or fallbacks
       const sessionLabel = toast.tabName || (toast.claudeSessionId ? toast.claudeSessionId.slice(0, 8) : null);
-      const notifTitle = toast.group && sessionLabel
-        ? `${toast.group} > ${sessionLabel}`
-        : sessionLabel || toast.group || toast.title;
+      const agentPrefix = toast.agentName ? `${toast.agentName}: ` : '';
+
+      let notifTitle: string;
+      if (toast.group && sessionLabel) {
+        // Full format: "Claude Code: MyGroup > ABC123"
+        notifTitle = `${agentPrefix}${toast.group} > ${sessionLabel}`;
+      } else if (toast.group) {
+        // Group only: "Claude Code: MyGroup"
+        notifTitle = `${agentPrefix}${toast.group}`;
+      } else if (sessionLabel) {
+        // Session only: "Claude Code: ABC123"
+        notifTitle = `${agentPrefix}${sessionLabel}`;
+      } else {
+        // Fallback: use agent name or toast title
+        notifTitle = toast.agentName || toast.title;
+      }
+
       // Body is just a one-word status derived from toast type
       const notifBody = toast.type === 'success' ? 'Done'
         : toast.type === 'error' ? 'Error'

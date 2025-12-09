@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { X, Key, Moon, Sun, Keyboard, Check, Terminal, Bell, Volume2, Square, Cpu, Clock, Settings, Palette, Sparkles, History } from 'lucide-react';
+import { X, Key, Moon, Sun, Keyboard, Check, Terminal, Bell, Volume2, Square, Cpu, Clock, Settings, Palette, Sparkles, History, Download } from 'lucide-react';
 import type { AgentConfig, Theme, Shortcut, ShellInfo, CustomAICommand } from '../types';
 import { useLayerStack } from '../contexts/LayerStackContext';
 import { MODAL_PRIORITIES } from '../constants/modalPriorities';
@@ -58,6 +58,8 @@ interface SettingsModalProps {
   setAudioFeedbackCommand: (value: string) => void;
   toastDuration: number;
   setToastDuration: (value: number) => void;
+  checkForUpdatesOnStartup: boolean;
+  setCheckForUpdatesOnStartup: (value: boolean) => void;
   customAICommands: CustomAICommand[];
   setCustomAICommands: (commands: CustomAICommand[]) => void;
   initialTab?: 'general' | 'llm' | 'shortcuts' | 'theme' | 'notifications' | 'aicommands';
@@ -1283,6 +1285,34 @@ export function SettingsModal(props: SettingsModalProps) {
                     </div>
                     <div className="text-xs opacity-50 mt-0.5" style={{ color: theme.colors.textDim }}>
                       When enabled, new AI tabs will have the "History" toggle on by default, saving a synopsis after each completion
+                    </div>
+                  </div>
+                </label>
+              </div>
+
+              {/* Check for Updates on Startup */}
+              <div>
+                <label className="block text-xs font-bold opacity-70 uppercase mb-2 flex items-center gap-2">
+                  <Download className="w-3 h-3" />
+                  Updates
+                </label>
+                <label
+                  className="flex items-center gap-3 p-3 rounded border cursor-pointer hover:bg-opacity-10"
+                  style={{ borderColor: theme.colors.border, backgroundColor: theme.colors.bgMain }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={props.checkForUpdatesOnStartup}
+                    onChange={(e) => props.setCheckForUpdatesOnStartup(e.target.checked)}
+                    className="w-4 h-4"
+                    style={{ accentColor: theme.colors.accent }}
+                  />
+                  <div className="flex-1">
+                    <div className="font-medium" style={{ color: theme.colors.textMain }}>
+                      Check for updates on startup
+                    </div>
+                    <div className="text-xs opacity-50 mt-0.5" style={{ color: theme.colors.textDim }}>
+                      Automatically check for new Maestro versions when the app starts
                     </div>
                   </div>
                 </label>
