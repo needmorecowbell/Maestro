@@ -82,7 +82,7 @@ export function createTab(session: Session, options: CreateTabOptions = {}): Cre
     name = null,
     starred = false,
     usageStats,
-    saveToHistory = false
+    saveToHistory = true
   } = options;
 
   // Create the new tab with default values

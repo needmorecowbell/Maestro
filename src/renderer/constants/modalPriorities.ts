@@ -17,6 +17,9 @@ export const MODAL_PRIORITIES = {
   /** Standing ovation achievement overlay - celebration! */
   STANDING_OVATION: 1100,
 
+  /** Onboarding tour overlay - above wizard, guides new users */
+  TOUR: 1050,
+
   /** Confirmation dialogs - highest priority, always on top */
   CONFIRM: 1000,
 
@@ -37,6 +40,18 @@ export const MODAL_PRIORITIES = {
 
   /** Create new group modal */
   CREATE_GROUP: 800,
+
+  /** Wizard exit confirmation dialog - appears above wizard when exiting mid-flow */
+  WIZARD_EXIT_CONFIRM: 770,
+
+  /** Existing Auto Run docs detection modal - appears above wizard during directory selection */
+  EXISTING_AUTORUN_DOCS: 768,
+
+  /** Wizard resume dialog - appears above wizard to ask about resuming */
+  WIZARD_RESUME: 765,
+
+  /** Onboarding wizard - high priority, guides new users through setup */
+  WIZARD: 760,
 
   /** New instance creation modal */
   NEW_INSTANCE: 750,

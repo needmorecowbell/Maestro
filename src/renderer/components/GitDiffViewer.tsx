@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, memo } from 'react';
 import { Diff, Hunk, tokenize } from 'react-diff-view';
 import { X, Plus, Minus, ImageIcon } from 'lucide-react';
 import type { Theme } from '../types';
@@ -15,7 +15,7 @@ interface GitDiffViewerProps {
   onClose: () => void;
 }
 
-export function GitDiffViewer({ diffText, cwd, theme, onClose }: GitDiffViewerProps) {
+export const GitDiffViewer = memo(function GitDiffViewer({ diffText, cwd, theme, onClose }: GitDiffViewerProps) {
   const [activeTab, setActiveTab] = useState(0);
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const { registerLayer, unregisterLayer, updateLayerHandler } = useLayerStack();
@@ -344,4 +344,4 @@ export function GitDiffViewer({ diffText, cwd, theme, onClose }: GitDiffViewerPr
       </div>
     </div>
   );
-}
+});

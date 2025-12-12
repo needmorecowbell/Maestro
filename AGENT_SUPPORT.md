@@ -2,10 +2,25 @@
 
 This document describes the architecture for supporting multiple AI coding agents in Maestro, the refactoring needed to move from Claude-specific code to a generic agent abstraction, and how to add new agents.
 
+## Vernacular
+
+Use these terms consistently throughout the codebase:
+
+| Term | Definition |
+|------|------------|
+| **Maestro Agent** | A configured AI assistant in Maestro (e.g., "My Claude Assistant") |
+| **Provider** | The underlying AI service (Claude Code, OpenCode, Codex, Gemini CLI) |
+| **Provider Session** | A conversation session managed by the provider (e.g., Claude's `session_id`) |
+| **Tab** | A Maestro UI tab that maps 1:1 to a Provider Session |
+
+**Hierarchy:** `Maestro Agent → Provider → Provider Sessions → Tabs`
+
 ## Table of Contents
 
+- [Vernacular](#vernacular)
 - [Overview](#overview)
 - [Agent Capability Model](#agent-capability-model)
+- [Message Display Classification](#message-display-classification)
 - [Current State: Claude-Specific Code](#current-state-claude-specific-code)
 - [Target State: Generic Agent Architecture](#target-state-generic-agent-architecture)
 - [Refactoring Plan](#refactoring-plan)
@@ -52,6 +67,9 @@ interface AgentCapabilities {
   // Streaming behavior
   supportsBatchMode: boolean;        // Runs per-message (vs persistent process)
   supportsStreaming: boolean;        // Streams output incrementally
+
+  // Message classification
+  supportsResultMessages: boolean;   // Distinguishes final result from intermediary messages
 }
 ```
 
@@ -67,6 +85,7 @@ interface AgentCapabilities {
 | `supportsImageInput` | Image attachment button | `InputArea.tsx` |
 | `supportsSlashCommands` | Slash command autocomplete | `InputArea.tsx`, autocomplete |
 | `supportsSessionId` | Session ID pill in header | `MainPanel.tsx` |
+| `supportsResultMessages` | Show only final result in AI Terminal | `LogViewer.tsx` |
 
 ### Per-Agent Capability Definitions
 
@@ -86,6 +105,7 @@ const AGENT_CAPABILITIES: Record<string, AgentCapabilities> = {
     supportsUsageStats: true,
     supportsBatchMode: true,
     supportsStreaming: true,
+    supportsResultMessages: true,      // type: "result" vs type: "assistant"
   },
 
   'opencode': {
@@ -100,6 +120,7 @@ const AGENT_CAPABILITIES: Record<string, AgentCapabilities> = {
     supportsUsageStats: true,          // tokens in step_finish
     supportsBatchMode: true,
     supportsStreaming: true,
+    supportsResultMessages: false,     // TBD - needs investigation
   },
 
   'gemini-cli': {
@@ -114,6 +135,7 @@ const AGENT_CAPABILITIES: Record<string, AgentCapabilities> = {
     supportsUsageStats: false,
     supportsBatchMode: false,          // TBD
     supportsStreaming: true,
+    supportsResultMessages: false,     // TBD
   },
 
   // Template for new agents - start with all false
@@ -129,8 +151,48 @@ const AGENT_CAPABILITIES: Record<string, AgentCapabilities> = {
     supportsUsageStats: false,
     supportsBatchMode: false,
     supportsStreaming: false,
+    supportsResultMessages: false,
   },
 };
+```
+
+---
+
+## Message Display Classification
+
+Providers emit both **intermediary messages** (streaming content, tool calls, thinking) and **result messages** (final response). The AI Terminal should display result messages prominently while suppressing or collapsing intermediary messages.
+
+### Result vs Intermediary Messages
+
+| Provider | Result Message | Intermediary Messages | Display Behavior |
+|----------|----------------|----------------------|------------------|
+| **Claude Code** | `type: "result"` → `msg.result` | `type: "assistant"` (streaming content) | Show result only, suppress intermediary |
+| **OpenCode** | `type: "step_finish"` (TBD) | `type: "text"`, `type: "tool_use"` | TBD - needs investigation |
+| **Gemini CLI** | TBD | TBD | TBD |
+| **Codex** | TBD | TBD | TBD |
+
+### Implementation Notes
+
+For providers with `supportsResultMessages: true`:
+- Parse streaming output for message type
+- Buffer intermediary messages (may show in expandable section)
+- Display result message as the primary content in AI Terminal
+
+For providers with `supportsResultMessages: false`:
+- Show all messages as they stream
+- No distinction between intermediary and final content
+
+### Claude Code Message Types
+
+```typescript
+// Intermediary - suppress in AI Terminal
+{ type: "assistant", message: { content: [...] } }
+
+// Result - show in AI Terminal
+{ type: "result", result: "Final response text", session_id: "...", modelUsage: {...} }
+
+// System/Init - metadata only
+{ type: "system", subtype: "init", session_id: "...", slash_commands: [...] }
 ```
 
 ---

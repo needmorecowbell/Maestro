@@ -92,6 +92,125 @@ function encodeClaudeProjectPath(projectPath: string): string {
   return projectPath.replace(/[/.]/g, '-');
 }
 
+// Cache structure for project stats
+interface SessionStatsCache {
+  // Per-session stats keyed by session ID
+  sessions: Record<string, {
+    messages: number;
+    costUsd: number;
+    sizeBytes: number;
+    tokens: number;
+    oldestTimestamp: string | null;
+    fileMtimeMs: number; // File modification time to detect changes
+  }>;
+  // Aggregate totals (computed from sessions)
+  totals: {
+    totalSessions: number;
+    totalMessages: number;
+    totalCostUsd: number;
+    totalSizeBytes: number;
+    totalTokens: number;
+    oldestTimestamp: string | null;
+  };
+  // Cache metadata
+  lastUpdated: number;
+  version: number; // Bump this to invalidate old caches
+}
+
+const STATS_CACHE_VERSION = 1;
+
+// Helper to get cache file path for a project
+function getStatsCachePath(projectPath: string): string {
+  const encodedPath = encodeClaudeProjectPath(projectPath);
+  return path.join(app.getPath('userData'), 'stats-cache', `${encodedPath}.json`);
+}
+
+// Helper to load stats cache for a project
+async function loadStatsCache(projectPath: string): Promise<SessionStatsCache | null> {
+  try {
+    const cachePath = getStatsCachePath(projectPath);
+    const content = await fs.readFile(cachePath, 'utf-8');
+    const cache = JSON.parse(content) as SessionStatsCache;
+    // Invalidate cache if version mismatch
+    if (cache.version !== STATS_CACHE_VERSION) {
+      return null;
+    }
+    return cache;
+  } catch {
+    return null;
+  }
+}
+
+// Helper to save stats cache for a project
+async function saveStatsCache(projectPath: string, cache: SessionStatsCache): Promise<void> {
+  try {
+    const cachePath = getStatsCachePath(projectPath);
+    const cacheDir = path.dirname(cachePath);
+    await fs.mkdir(cacheDir, { recursive: true });
+    await fs.writeFile(cachePath, JSON.stringify(cache), 'utf-8');
+  } catch (error) {
+    logger.warn('Failed to save stats cache', 'ClaudeSessions', { projectPath, error });
+  }
+}
+
+// Global stats cache structure (for About modal)
+interface GlobalStatsCache {
+  // Per-session stats keyed by "projectDir/sessionId"
+  sessions: Record<string, {
+    messages: number;
+    inputTokens: number;
+    outputTokens: number;
+    cacheReadTokens: number;
+    cacheCreationTokens: number;
+    sizeBytes: number;
+    fileMtimeMs: number;
+  }>;
+  // Aggregate totals
+  totals: {
+    totalSessions: number;
+    totalMessages: number;
+    totalInputTokens: number;
+    totalOutputTokens: number;
+    totalCacheReadTokens: number;
+    totalCacheCreationTokens: number;
+    totalCostUsd: number;
+    totalSizeBytes: number;
+  };
+  lastUpdated: number;
+  version: number;
+}
+
+const GLOBAL_STATS_CACHE_VERSION = 1;
+
+function getGlobalStatsCachePath(): string {
+  return path.join(app.getPath('userData'), 'stats-cache', 'global-stats.json');
+}
+
+async function loadGlobalStatsCache(): Promise<GlobalStatsCache | null> {
+  try {
+    const cachePath = getGlobalStatsCachePath();
+    const content = await fs.readFile(cachePath, 'utf-8');
+    const cache = JSON.parse(content) as GlobalStatsCache;
+    if (cache.version !== GLOBAL_STATS_CACHE_VERSION) {
+      return null;
+    }
+    return cache;
+  } catch {
+    return null;
+  }
+}
+
+async function saveGlobalStatsCache(cache: GlobalStatsCache): Promise<void> {
+  try {
+    const cachePath = getGlobalStatsCachePath();
+    const cacheDir = path.dirname(cachePath);
+    await fs.mkdir(cacheDir, { recursive: true });
+    await fs.writeFile(cachePath, JSON.stringify(cache), 'utf-8');
+  } catch (error) {
+    logger.warn('Failed to save global stats cache', 'ClaudeSessions', { error });
+  }
+}
+
 // Helper: Extract semantic text from message content
 // Skips images, tool_use, and tool_result - only returns actual text content
 function extractTextFromContent(content: unknown): string {
@@ -2141,6 +2260,13 @@ function setupIpcHandlers() {
     return logger.getMaxLogBuffer();
   });
 
+  // Subscribe to new log events and forward to renderer
+  logger.on('newLog', (entry) => {
+    if (mainWindow) {
+      mainWindow.webContents.send('logger:newLog', entry);
+    }
+  });
+
   // Claude Code sessions API
   // Sessions are stored in ~/.claude/projects/<encoded-project-path>/<session-id>.jsonl
   ipcMain.handle('claude:listSessions', async (_event, projectPath: string) => {
@@ -2522,8 +2648,8 @@ function setupIpcHandlers() {
     }
   });
 
-  // Get aggregate stats for ALL sessions in a project (streams updates as it calculates)
-  // This reads all session files to compute totals for messages, cost, size, etc.
+  // Get aggregate stats for ALL sessions in a project (uses cache for speed)
+  // Only recalculates stats for new or modified session files
   ipcMain.handle('claude:getProjectStats', async (_event, projectPath: string) => {
     // Helper to send progressive updates to renderer
     const sendUpdate = (stats: {
@@ -2541,11 +2667,65 @@ function setupIpcHandlers() {
       }
     };
 
-    try {
-      const os = await import('os');
-      const homeDir = os.default.homedir();
-      const claudeProjectsDir = path.join(homeDir, '.claude', 'projects');
+    // Helper to parse a single session file and extract stats
+    const parseSessionFile = async (_filePath: string, content: string, fileStat: { size: number }) => {
+      // Count messages using regex (fast)
+      const userMessageCount = (content.match(/"type"\s*:\s*"user"/g) || []).length;
+      const assistantMessageCount = (content.match(/"type"\s*:\s*"assistant"/g) || []).length;
+      const messages = userMessageCount + assistantMessageCount;
 
+      // Extract tokens for cost calculation
+      let inputTokens = 0;
+      let outputTokens = 0;
+      let cacheReadTokens = 0;
+      let cacheCreationTokens = 0;
+
+      const inputMatches = content.matchAll(/"input_tokens"\s*:\s*(\d+)/g);
+      for (const m of inputMatches) inputTokens += parseInt(m[1], 10);
+
+      const outputMatches = content.matchAll(/"output_tokens"\s*:\s*(\d+)/g);
+      for (const m of outputMatches) outputTokens += parseInt(m[1], 10);
+
+      const cacheReadMatches = content.matchAll(/"cache_read_input_tokens"\s*:\s*(\d+)/g);
+      for (const m of cacheReadMatches) cacheReadTokens += parseInt(m[1], 10);
+
+      const cacheCreationMatches = content.matchAll(/"cache_creation_input_tokens"\s*:\s*(\d+)/g);
+      for (const m of cacheCreationMatches) cacheCreationTokens += parseInt(m[1], 10);
+
+      // Calculate cost
+      const inputCost = (inputTokens / 1_000_000) * CLAUDE_PRICING.INPUT_PER_MILLION;
+      const outputCost = (outputTokens / 1_000_000) * CLAUDE_PRICING.OUTPUT_PER_MILLION;
+      const cacheReadCost = (cacheReadTokens / 1_000_000) * CLAUDE_PRICING.CACHE_READ_PER_MILLION;
+      const cacheCreationCost = (cacheCreationTokens / 1_000_000) * CLAUDE_PRICING.CACHE_CREATION_PER_MILLION;
+      const costUsd = inputCost + outputCost + cacheReadCost + cacheCreationCost;
+
+      // Find oldest timestamp
+      let oldestTimestamp: string | null = null;
+      const lines = content.split('\n').filter(l => l.trim());
+      for (let j = 0; j < Math.min(lines.length, CLAUDE_SESSION_PARSE_LIMITS.OLDEST_TIMESTAMP_SCAN_LINES); j++) {
+        try {
+          const entry = JSON.parse(lines[j]);
+          if (entry.timestamp) {
+            oldestTimestamp = entry.timestamp;
+            break;
+          }
+        } catch {
+          // Skip malformed lines
+        }
+      }
+
+      return {
+        messages,
+        costUsd,
+        sizeBytes: fileStat.size,
+        tokens: inputTokens + outputTokens,
+        oldestTimestamp,
+      };
+    };
+
+    try {
+      const homeDir = os.homedir();
+      const claudeProjectsDir = path.join(homeDir, '.claude', 'projects');
       const encodedPath = encodeClaudeProjectPath(projectPath);
       const projectDir = path.join(claudeProjectsDir, encodedPath);
 
@@ -2556,91 +2736,138 @@ function setupIpcHandlers() {
         return { totalSessions: 0, totalMessages: 0, totalCostUsd: 0, totalSizeBytes: 0, totalTokens: 0, oldestTimestamp: null };
       }
 
-      // List all .jsonl files
+      // Load existing cache
+      const cache = await loadStatsCache(projectPath);
+
+      // List all .jsonl files with their stats
       const files = await fs.readdir(projectDir);
       const sessionFiles = files.filter(f => f.endsWith('.jsonl'));
       const totalSessions = sessionFiles.length;
 
-      // Initialize stats
-      let totalMessages = 0;
-      let totalCostUsd = 0;
-      let totalSizeBytes = 0;
-      let totalTokens = 0;
-      let oldestTimestamp: string | null = null;
-      let processedCount = 0;
+      // Track which sessions need to be parsed
+      const sessionsToProcess: { filename: string; filePath: string; mtimeMs: number }[] = [];
+      const currentSessionIds = new Set<string>();
 
-      // Process files in batches to allow UI updates
+      // Check each file against cache
+      for (const filename of sessionFiles) {
+        const sessionId = filename.replace('.jsonl', '');
+        currentSessionIds.add(sessionId);
+        const filePath = path.join(projectDir, filename);
+
+        try {
+          const fileStat = await fs.stat(filePath);
+          const cachedSession = cache?.sessions[sessionId];
+
+          // Need to process if: no cache, or file modified since cache
+          if (!cachedSession || cachedSession.fileMtimeMs < fileStat.mtimeMs) {
+            sessionsToProcess.push({ filename, filePath, mtimeMs: fileStat.mtimeMs });
+          }
+        } catch {
+          // Skip files we can't stat
+        }
+      }
+
+      // Initialize new cache or reuse existing
+      const newCache: SessionStatsCache = {
+        sessions: {},
+        totals: {
+          totalSessions: 0,
+          totalMessages: 0,
+          totalCostUsd: 0,
+          totalSizeBytes: 0,
+          totalTokens: 0,
+          oldestTimestamp: null,
+        },
+        lastUpdated: Date.now(),
+        version: STATS_CACHE_VERSION,
+      };
+
+      // Copy over cached sessions that still exist
+      if (cache) {
+        for (const sessionId of Object.keys(cache.sessions)) {
+          if (currentSessionIds.has(sessionId)) {
+            newCache.sessions[sessionId] = cache.sessions[sessionId];
+          }
+        }
+      }
+
+      // If we have cached data and no updates needed, send immediately
+      if (sessionsToProcess.length === 0 && cache) {
+        logger.info(`Using cached project stats for ${totalSessions} sessions (no changes)`, 'ClaudeSessions', { projectPath });
+        sendUpdate({
+          ...cache.totals,
+          processedCount: totalSessions,
+          isComplete: true,
+        });
+        return cache.totals;
+      }
+
+      // Send initial update with cached data if available
+      if (cache && Object.keys(newCache.sessions).length > 0) {
+        // Calculate totals from cached sessions
+        let cachedMessages = 0, cachedCost = 0, cachedSize = 0, cachedTokens = 0;
+        let cachedOldest: string | null = null;
+        for (const session of Object.values(newCache.sessions)) {
+          cachedMessages += session.messages;
+          cachedCost += session.costUsd;
+          cachedSize += session.sizeBytes;
+          cachedTokens += session.tokens;
+          if (session.oldestTimestamp && (!cachedOldest || session.oldestTimestamp < cachedOldest)) {
+            cachedOldest = session.oldestTimestamp;
+          }
+        }
+        sendUpdate({
+          totalSessions,
+          totalMessages: cachedMessages,
+          totalCostUsd: cachedCost,
+          totalSizeBytes: cachedSize,
+          totalTokens: cachedTokens,
+          oldestTimestamp: cachedOldest,
+          processedCount: Object.keys(newCache.sessions).length,
+          isComplete: false,
+        });
+      }
+
+      // Process new/modified files in batches
       const batchSize = CLAUDE_SESSION_PARSE_LIMITS.STATS_BATCH_SIZE;
+      let processedNew = 0;
 
-      for (let i = 0; i < sessionFiles.length; i += batchSize) {
-        const batch = sessionFiles.slice(i, i + batchSize);
+      for (let i = 0; i < sessionsToProcess.length; i += batchSize) {
+        const batch = sessionsToProcess.slice(i, i + batchSize);
 
         await Promise.all(
-          batch.map(async (filename) => {
-            const filePath = path.join(projectDir, filename);
+          batch.map(async ({ filename, filePath, mtimeMs }) => {
+            const sessionId = filename.replace('.jsonl', '');
             try {
-              const stats = await fs.stat(filePath);
-              totalSizeBytes += stats.size;
-
+              const fileStat = await fs.stat(filePath);
               const content = await fs.readFile(filePath, 'utf-8');
+              const stats = await parseSessionFile(filePath, content, fileStat);
 
-              // Count messages using regex (fast)
-              const userMessageCount = (content.match(/"type"\s*:\s*"user"/g) || []).length;
-              const assistantMessageCount = (content.match(/"type"\s*:\s*"assistant"/g) || []).length;
-              totalMessages += userMessageCount + assistantMessageCount;
-
-              // Extract tokens for cost calculation
-              let inputTokens = 0;
-              let outputTokens = 0;
-              let cacheReadTokens = 0;
-              let cacheCreationTokens = 0;
-
-              const inputMatches = content.matchAll(/"input_tokens"\s*:\s*(\d+)/g);
-              for (const m of inputMatches) inputTokens += parseInt(m[1], 10);
-
-              const outputMatches = content.matchAll(/"output_tokens"\s*:\s*(\d+)/g);
-              for (const m of outputMatches) outputTokens += parseInt(m[1], 10);
-
-              const cacheReadMatches = content.matchAll(/"cache_read_input_tokens"\s*:\s*(\d+)/g);
-              for (const m of cacheReadMatches) cacheReadTokens += parseInt(m[1], 10);
-
-              const cacheCreationMatches = content.matchAll(/"cache_creation_input_tokens"\s*:\s*(\d+)/g);
-              for (const m of cacheCreationMatches) cacheCreationTokens += parseInt(m[1], 10);
-
-              // Calculate cost
-              const inputCost = (inputTokens / 1_000_000) * CLAUDE_PRICING.INPUT_PER_MILLION;
-              const outputCost = (outputTokens / 1_000_000) * CLAUDE_PRICING.OUTPUT_PER_MILLION;
-              const cacheReadCost = (cacheReadTokens / 1_000_000) * CLAUDE_PRICING.CACHE_READ_PER_MILLION;
-              const cacheCreationCost = (cacheCreationTokens / 1_000_000) * CLAUDE_PRICING.CACHE_CREATION_PER_MILLION;
-              totalCostUsd += inputCost + outputCost + cacheReadCost + cacheCreationCost;
-
-              // Accumulate total tokens (input + output)
-              totalTokens += inputTokens + outputTokens;
-
-              // Find oldest timestamp
-              const lines = content.split('\n').filter(l => l.trim());
-              for (let j = 0; j < Math.min(lines.length, CLAUDE_SESSION_PARSE_LIMITS.OLDEST_TIMESTAMP_SCAN_LINES); j++) {
-                try {
-                  const entry = JSON.parse(lines[j]);
-                  if (entry.timestamp) {
-                    if (!oldestTimestamp || entry.timestamp < oldestTimestamp) {
-                      oldestTimestamp = entry.timestamp;
-                    }
-                    break;
-                  }
-                } catch {
-                  // Skip malformed lines
-                }
-              }
+              newCache.sessions[sessionId] = {
+                ...stats,
+                fileMtimeMs: mtimeMs,
+              };
             } catch {
               // Skip files that can't be read
             }
           })
         );
 
-        processedCount = Math.min(i + batchSize, sessionFiles.length);
+        processedNew += batch.length;
 
-        // Send progressive update
+        // Calculate current totals and send update
+        let totalMessages = 0, totalCostUsd = 0, totalSizeBytes = 0, totalTokens = 0;
+        let oldestTimestamp: string | null = null;
+        for (const session of Object.values(newCache.sessions)) {
+          totalMessages += session.messages;
+          totalCostUsd += session.costUsd;
+          totalSizeBytes += session.sizeBytes;
+          totalTokens += session.tokens;
+          if (session.oldestTimestamp && (!oldestTimestamp || session.oldestTimestamp < oldestTimestamp)) {
+            oldestTimestamp = session.oldestTimestamp;
+          }
+        }
+
         sendUpdate({
           totalSessions,
           totalMessages,
@@ -2648,28 +2875,100 @@ function setupIpcHandlers() {
           totalSizeBytes,
           totalTokens,
           oldestTimestamp,
-          processedCount,
-          isComplete: processedCount >= totalSessions,
+          processedCount: Object.keys(newCache.sessions).length,
+          isComplete: processedNew >= sessionsToProcess.length,
         });
       }
 
-      logger.info(`Computed project stats for ${totalSessions} sessions`, 'ClaudeSessions', { projectPath });
+      // Calculate final totals
+      let totalMessages = 0, totalCostUsd = 0, totalSizeBytes = 0, totalTokens = 0;
+      let oldestTimestamp: string | null = null;
+      for (const session of Object.values(newCache.sessions)) {
+        totalMessages += session.messages;
+        totalCostUsd += session.costUsd;
+        totalSizeBytes += session.sizeBytes;
+        totalTokens += session.tokens;
+        if (session.oldestTimestamp && (!oldestTimestamp || session.oldestTimestamp < oldestTimestamp)) {
+          oldestTimestamp = session.oldestTimestamp;
+        }
+      }
 
-      return {
-        totalSessions,
-        totalMessages,
-        totalCostUsd,
-        totalSizeBytes,
-        totalTokens,
-        oldestTimestamp,
-      };
+      newCache.totals = { totalSessions, totalMessages, totalCostUsd, totalSizeBytes, totalTokens, oldestTimestamp };
+
+      // Save cache
+      await saveStatsCache(projectPath, newCache);
+
+      const cachedCount = Object.keys(newCache.sessions).length - sessionsToProcess.length;
+      logger.info(`Computed project stats: ${sessionsToProcess.length} new/modified, ${cachedCount} cached`, 'ClaudeSessions', { projectPath });
+
+      return newCache.totals;
     } catch (error) {
       logger.error('Error computing project stats', 'ClaudeSessions', error);
       return { totalSessions: 0, totalMessages: 0, totalCostUsd: 0, totalSizeBytes: 0, totalTokens: 0, oldestTimestamp: null };
     }
   });
 
-  // Get global stats across ALL Claude projects (streams updates as it processes)
+  // Get all session timestamps for activity graph (lightweight, from cache or quick scan)
+  ipcMain.handle('claude:getSessionTimestamps', async (_event, projectPath: string) => {
+    try {
+      // First try to get from cache
+      const cache = await loadStatsCache(projectPath);
+      if (cache && Object.keys(cache.sessions).length > 0) {
+        // Return timestamps from cache
+        const timestamps = Object.values(cache.sessions)
+          .map(s => s.oldestTimestamp)
+          .filter((t): t is string => t !== null);
+        return { timestamps };
+      }
+
+      // Fall back to quick scan of session files (just read first line for timestamp)
+      const homeDir = os.homedir();
+      const claudeProjectsDir = path.join(homeDir, '.claude', 'projects');
+      const encodedPath = encodeClaudeProjectPath(projectPath);
+      const projectDir = path.join(claudeProjectsDir, encodedPath);
+
+      try {
+        await fs.access(projectDir);
+      } catch {
+        return { timestamps: [] };
+      }
+
+      const files = await fs.readdir(projectDir);
+      const sessionFiles = files.filter(f => f.endsWith('.jsonl'));
+
+      const timestamps: string[] = [];
+      await Promise.all(
+        sessionFiles.map(async (filename) => {
+          const filePath = path.join(projectDir, filename);
+          try {
+            // Read only first few KB to get the timestamp
+            const handle = await fs.open(filePath, 'r');
+            const buffer = Buffer.alloc(1024);
+            await handle.read(buffer, 0, 1024, 0);
+            await handle.close();
+
+            const firstLine = buffer.toString('utf-8').split('\n')[0];
+            if (firstLine) {
+              const entry = JSON.parse(firstLine);
+              if (entry.timestamp) {
+                timestamps.push(entry.timestamp);
+              }
+            }
+          } catch {
+            // Skip files that can't be read
+          }
+        })
+      );
+
+      return { timestamps };
+    } catch (error) {
+      logger.error('Error getting session timestamps', 'ClaudeSessions', error);
+      return { timestamps: [] };
+    }
+  });
+
+  // Get global stats across ALL Claude projects (uses cache for speed)
+  // Only recalculates stats for new or modified session files
   ipcMain.handle('claude:getGlobalStats', async () => {
     // Helper to calculate cost from tokens
     const calculateCost = (input: number, output: number, cacheRead: number, cacheCreation: number) => {
@@ -2697,9 +2996,27 @@ function setupIpcHandlers() {
       }
     };
 
+    // Helper to calculate totals from cache
+    const calculateTotals = (cache: GlobalStatsCache) => {
+      let totalSessions = 0, totalMessages = 0, totalInputTokens = 0, totalOutputTokens = 0;
+      let totalCacheReadTokens = 0, totalCacheCreationTokens = 0, totalSizeBytes = 0;
+
+      for (const session of Object.values(cache.sessions)) {
+        totalSessions++;
+        totalMessages += session.messages;
+        totalInputTokens += session.inputTokens;
+        totalOutputTokens += session.outputTokens;
+        totalCacheReadTokens += session.cacheReadTokens;
+        totalCacheCreationTokens += session.cacheCreationTokens;
+        totalSizeBytes += session.sizeBytes;
+      }
+
+      const totalCostUsd = calculateCost(totalInputTokens, totalOutputTokens, totalCacheReadTokens, totalCacheCreationTokens);
+      return { totalSessions, totalMessages, totalInputTokens, totalOutputTokens, totalCacheReadTokens, totalCacheCreationTokens, totalCostUsd, totalSizeBytes };
+    };
+
     try {
-      const os = await import('os');
-      const homeDir = os.default.homedir();
+      const homeDir = os.homedir();
       const claudeProjectsDir = path.join(homeDir, '.claude', 'projects');
 
       // Check if the projects directory exists
@@ -2722,19 +3039,34 @@ function setupIpcHandlers() {
         return emptyStats;
       }
 
+      // Load existing cache
+      const cache = await loadGlobalStatsCache();
+
+      // Initialize new cache
+      const newCache: GlobalStatsCache = {
+        sessions: {},
+        totals: {
+          totalSessions: 0,
+          totalMessages: 0,
+          totalInputTokens: 0,
+          totalOutputTokens: 0,
+          totalCacheReadTokens: 0,
+          totalCacheCreationTokens: 0,
+          totalCostUsd: 0,
+          totalSizeBytes: 0,
+        },
+        lastUpdated: Date.now(),
+        version: GLOBAL_STATS_CACHE_VERSION,
+      };
+
       // List all project directories
       const projectDirs = await fs.readdir(claudeProjectsDir);
 
-      let totalSessions = 0;
-      let totalMessages = 0;
-      let totalInputTokens = 0;
-      let totalOutputTokens = 0;
-      let totalCacheReadTokens = 0;
-      let totalCacheCreationTokens = 0;
-      let totalSizeBytes = 0;
-      let processedProjects = 0;
+      // Track all current session keys and which need processing
+      const currentSessionKeys = new Set<string>();
+      const sessionsToProcess: { key: string; filePath: string; mtimeMs: number }[] = [];
 
-      // Process each project directory
+      // First pass: identify which sessions need processing
       for (const projectDir of projectDirs) {
         const projectPath = path.join(claudeProjectsDir, projectDir);
 
@@ -2742,84 +3074,113 @@ function setupIpcHandlers() {
           const stat = await fs.stat(projectPath);
           if (!stat.isDirectory()) continue;
 
-          // List all .jsonl files in this project
           const files = await fs.readdir(projectPath);
           const sessionFiles = files.filter(f => f.endsWith('.jsonl'));
-          totalSessions += sessionFiles.length;
 
-          // Process each session file
           for (const filename of sessionFiles) {
+            const sessionKey = `${projectDir}/${filename}`;
+            currentSessionKeys.add(sessionKey);
             const filePath = path.join(projectPath, filename);
 
             try {
               const fileStat = await fs.stat(filePath);
-              totalSizeBytes += fileStat.size;
+              const cached = cache?.sessions[sessionKey];
 
+              if (!cached || cached.fileMtimeMs < fileStat.mtimeMs) {
+                sessionsToProcess.push({ key: sessionKey, filePath, mtimeMs: fileStat.mtimeMs });
+              } else {
+                // Copy cached session
+                newCache.sessions[sessionKey] = cached;
+              }
+            } catch {
+              // Skip files we can't stat
+            }
+          }
+        } catch {
+          // Skip directories we can't read
+        }
+      }
+
+      // If no changes needed, return cached data immediately
+      if (sessionsToProcess.length === 0 && cache && Object.keys(newCache.sessions).length > 0) {
+        const totals = calculateTotals(newCache);
+        logger.info(`Using cached global stats: ${totals.totalSessions} sessions (no changes)`, 'ClaudeSessions');
+        sendUpdate({ ...totals, isComplete: true });
+        return { ...totals, isComplete: true };
+      }
+
+      // Send initial update with cached data
+      if (Object.keys(newCache.sessions).length > 0) {
+        const cachedTotals = calculateTotals(newCache);
+        sendUpdate({ ...cachedTotals, isComplete: false });
+      }
+
+      // Process new/modified sessions
+      let processedCount = 0;
+      const batchSize = 50;
+
+      for (let i = 0; i < sessionsToProcess.length; i += batchSize) {
+        const batch = sessionsToProcess.slice(i, i + batchSize);
+
+        await Promise.all(
+          batch.map(async ({ key, filePath, mtimeMs }) => {
+            try {
+              const fileStat = await fs.stat(filePath);
               const content = await fs.readFile(filePath, 'utf-8');
 
               // Count messages
               const userMessageCount = (content.match(/"type"\s*:\s*"user"/g) || []).length;
               const assistantMessageCount = (content.match(/"type"\s*:\s*"assistant"/g) || []).length;
-              totalMessages += userMessageCount + assistantMessageCount;
+              const messages = userMessageCount + assistantMessageCount;
 
               // Extract tokens
+              let inputTokens = 0, outputTokens = 0, cacheReadTokens = 0, cacheCreationTokens = 0;
+
               const inputMatches = content.matchAll(/"input_tokens"\s*:\s*(\d+)/g);
-              for (const m of inputMatches) totalInputTokens += parseInt(m[1], 10);
+              for (const m of inputMatches) inputTokens += parseInt(m[1], 10);
 
               const outputMatches = content.matchAll(/"output_tokens"\s*:\s*(\d+)/g);
-              for (const m of outputMatches) totalOutputTokens += parseInt(m[1], 10);
+              for (const m of outputMatches) outputTokens += parseInt(m[1], 10);
 
               const cacheReadMatches = content.matchAll(/"cache_read_input_tokens"\s*:\s*(\d+)/g);
-              for (const m of cacheReadMatches) totalCacheReadTokens += parseInt(m[1], 10);
+              for (const m of cacheReadMatches) cacheReadTokens += parseInt(m[1], 10);
 
               const cacheCreationMatches = content.matchAll(/"cache_creation_input_tokens"\s*:\s*(\d+)/g);
-              for (const m of cacheCreationMatches) totalCacheCreationTokens += parseInt(m[1], 10);
-            } catch (err) {
+              for (const m of cacheCreationMatches) cacheCreationTokens += parseInt(m[1], 10);
+
+              newCache.sessions[key] = {
+                messages,
+                inputTokens,
+                outputTokens,
+                cacheReadTokens,
+                cacheCreationTokens,
+                sizeBytes: fileStat.size,
+                fileMtimeMs: mtimeMs,
+              };
+            } catch {
               // Skip files we can't read
             }
-          }
-        } catch (err) {
-          // Skip directories we can't read
-        }
+          })
+        );
 
-        processedProjects++;
+        processedCount += batch.length;
 
-        // Send update after each project (stream progress)
-        const currentCost = calculateCost(totalInputTokens, totalOutputTokens, totalCacheReadTokens, totalCacheCreationTokens);
-        sendUpdate({
-          totalSessions,
-          totalMessages,
-          totalInputTokens,
-          totalOutputTokens,
-          totalCacheReadTokens,
-          totalCacheCreationTokens,
-          totalCostUsd: currentCost,
-          totalSizeBytes,
-          isComplete: false,
-        });
+        // Send progress update
+        const currentTotals = calculateTotals(newCache);
+        sendUpdate({ ...currentTotals, isComplete: processedCount >= sessionsToProcess.length });
       }
 
-      // Calculate final cost
-      const totalCostUsd = calculateCost(totalInputTokens, totalOutputTokens, totalCacheReadTokens, totalCacheCreationTokens);
+      // Calculate final totals
+      const finalTotals = calculateTotals(newCache);
+      newCache.totals = finalTotals;
 
-      logger.info(`Global Claude stats: ${totalSessions} sessions, ${totalMessages} messages, $${totalCostUsd.toFixed(2)}`, 'ClaudeSessions');
+      // Save cache
+      await saveGlobalStatsCache(newCache);
 
-      const finalStats = {
-        totalSessions,
-        totalMessages,
-        totalInputTokens,
-        totalOutputTokens,
-        totalCacheReadTokens,
-        totalCacheCreationTokens,
-        totalCostUsd,
-        totalSizeBytes,
-        isComplete: true,
-      };
+      const cachedCount = Object.keys(newCache.sessions).length - sessionsToProcess.length;
+      logger.info(`Global stats: ${sessionsToProcess.length} new/modified, ${cachedCount} cached, $${finalTotals.totalCostUsd.toFixed(2)}`, 'ClaudeSessions');
 
-      // Send final update with isComplete flag
-      sendUpdate(finalStats);
-
-      return finalStats;
+      return { ...finalTotals, isComplete: true };
     } catch (error) {
       logger.error('Error getting global Claude stats', 'ClaudeSessions', error);
       const errorStats = {
@@ -4141,6 +4502,48 @@ function setupIpcHandlers() {
     }
   );
 
+  // Delete the entire Auto Run Docs folder (for wizard "start fresh" feature)
+  ipcMain.handle(
+    'autorun:deleteFolder',
+    async (_event, projectPath: string) => {
+      try {
+        // Validate input
+        if (!projectPath || typeof projectPath !== 'string') {
+          return { success: false, error: 'Invalid project path' };
+        }
+
+        // Construct the Auto Run Docs folder path
+        const autoRunFolder = path.join(projectPath, 'Auto Run Docs');
+
+        // Verify the folder exists
+        try {
+          const stat = await fs.stat(autoRunFolder);
+          if (!stat.isDirectory()) {
+            return { success: false, error: 'Auto Run Docs path is not a directory' };
+          }
+        } catch {
+          // Folder doesn't exist, nothing to delete
+          return { success: true };
+        }
+
+        // Safety check: ensure we're only deleting "Auto Run Docs" folder
+        const folderName = path.basename(autoRunFolder);
+        if (folderName !== 'Auto Run Docs') {
+          return { success: false, error: 'Safety check failed: not an Auto Run Docs folder' };
+        }
+
+        // Delete the folder recursively
+        await fs.rm(autoRunFolder, { recursive: true, force: true });
+
+        logger.info(`Deleted Auto Run Docs folder: ${autoRunFolder}`, 'AutoRun');
+        return { success: true };
+      } catch (error) {
+        logger.error('Error deleting Auto Run Docs folder', 'AutoRun', error);
+        return { success: false, error: String(error) };
+      }
+    }
+  );
+
   // File watcher for Auto Run folder - detects external changes
   const autoRunWatchers = new Map<string, fsSync.FSWatcher>();
   let autoRunWatchDebounceTimer: NodeJS.Timeout | null = null;
@@ -4152,6 +4555,15 @@ function setupIpcHandlers() {
       if (autoRunWatchers.has(folderPath)) {
         autoRunWatchers.get(folderPath)?.close();
         autoRunWatchers.delete(folderPath);
+      }
+
+      // Create folder if it doesn't exist (agent will create files in it)
+      try {
+        await fs.stat(folderPath);
+      } catch {
+        // Folder doesn't exist, create it
+        await fs.mkdir(folderPath, { recursive: true });
+        logger.info(`Created Auto Run folder for watching: ${folderPath}`, 'AutoRun');
       }
 
       // Validate folder exists

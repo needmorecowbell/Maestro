@@ -363,43 +363,38 @@ describe('HistoryHelpModal', () => {
     });
   });
 
-  describe('24-Hour Activity Graph Section', () => {
-    it('renders the 24-Hour Activity Graph section header', () => {
+  describe('Activity Graph Section', () => {
+    it('renders the Activity Graph section header', () => {
       render(<HistoryHelpModal {...defaultProps} />);
 
-      expect(screen.getByText('24-Hour Activity Graph')).toBeInTheDocument();
+      expect(screen.getByText('Activity Graph')).toBeInTheDocument();
       expect(screen.getByTestId('bar-chart-icon')).toBeInTheDocument();
     });
 
     it('describes the activity graph', () => {
       render(<HistoryHelpModal {...defaultProps} />);
 
-      expect(screen.getByText(/The bar graph in the header shows your activity/)).toBeInTheDocument();
+      expect(screen.getByText(/The bar graph in the header visualizes your activity/)).toBeInTheDocument();
     });
 
-    it('shows legend for Auto entries', () => {
+    it('describes right-click to change lookback period', () => {
       render(<HistoryHelpModal {...defaultProps} />);
 
-      expect(screen.getByText('Auto entries')).toBeInTheDocument();
+      expect(screen.getByText('Right-click the graph')).toBeInTheDocument();
+      expect(screen.getByText(/24 hours, 72 hours, 1 week, 2 weeks, 1 month, 6 months, 1 year, or all time/)).toBeInTheDocument();
     });
 
-    it('shows legend for User entries', () => {
+    it('describes click to filter functionality', () => {
       render(<HistoryHelpModal {...defaultProps} />);
 
-      expect(screen.getByText('User entries')).toBeInTheDocument();
-    });
-
-    it('describes dynamic sliding window feature', () => {
-      render(<HistoryHelpModal {...defaultProps} />);
-
-      expect(screen.getByText('Dynamic sliding window:')).toBeInTheDocument();
-      expect(screen.getByText(/the graph updates to show the 24-hour window/)).toBeInTheDocument();
+      expect(screen.getByText('Click any bar')).toBeInTheDocument();
+      expect(screen.getByText(/to filter the history list/)).toBeInTheDocument();
     });
 
     it('describes hover functionality', () => {
       render(<HistoryHelpModal {...defaultProps} />);
 
-      expect(screen.getByText(/Hover over any bar to see the exact counts/)).toBeInTheDocument();
+      expect(screen.getByText(/Hover over any bar to see the exact count/)).toBeInTheDocument();
     });
   });
 
@@ -598,23 +593,6 @@ describe('HistoryHelpModal', () => {
     });
   });
 
-  describe('Legend Color Boxes', () => {
-    it('renders Auto entries legend with warning color', () => {
-      const { container } = render(<HistoryHelpModal {...defaultProps} />);
-
-      const legendBoxes = container.querySelectorAll('.w-3.h-3.rounded');
-      expect(legendBoxes.length).toBe(2);
-      expect(legendBoxes[0]).toHaveStyle({ backgroundColor: mockTheme.colors.warning });
-    });
-
-    it('renders User entries legend with accent color', () => {
-      const { container } = render(<HistoryHelpModal {...defaultProps} />);
-
-      const legendBoxes = container.querySelectorAll('.w-3.h-3.rounded');
-      expect(legendBoxes.length).toBe(2);
-      expect(legendBoxes[1]).toHaveStyle({ backgroundColor: mockTheme.colors.accent });
-    });
-  });
 
   describe('Scrollable Content', () => {
     it('applies scrollable classes to content area', () => {
@@ -678,7 +656,7 @@ describe('HistoryHelpModal', () => {
         'Viewing Details',
         'Resuming Sessions',
         'Time & Cost Tracking',
-        '24-Hour Activity Graph'
+        'Activity Graph'
       ];
 
       sectionHeaders.forEach(header => {

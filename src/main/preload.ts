@@ -394,6 +394,12 @@ contextBridge.exposeInMainWorld('maestro', {
     // Convenience method for Auto Run workflow logging (cannot be turned off)
     autorun: (message: string, context?: string, data?: unknown) =>
       ipcRenderer.invoke('logger:log', 'autorun', message, context || 'AutoRun', data),
+    // Subscribe to new log entries in real-time
+    onNewLog: (callback: (log: { timestamp: number; level: string; message: string; context?: string; data?: unknown }) => void) => {
+      const handler = (_: any, log: any) => callback(log);
+      ipcRenderer.on('logger:newLog', handler);
+      return () => ipcRenderer.removeListener('logger:newLog', handler);
+    },
   },
 
   // Claude Code sessions API
@@ -406,6 +412,9 @@ contextBridge.exposeInMainWorld('maestro', {
     // Get aggregate stats for all sessions in a project (streams progressive updates)
     getProjectStats: (projectPath: string) =>
       ipcRenderer.invoke('claude:getProjectStats', projectPath),
+    // Get all session timestamps for activity graph (lightweight)
+    getSessionTimestamps: (projectPath: string) =>
+      ipcRenderer.invoke('claude:getSessionTimestamps', projectPath) as Promise<{ timestamps: string[] }>,
     onProjectStatsUpdate: (callback: (stats: {
       projectPath: string;
       totalSessions: number;
@@ -580,6 +589,8 @@ contextBridge.exposeInMainWorld('maestro', {
       ipcRenderer.invoke('autorun:deleteImage', folderPath, relativePath),
     listImages: (folderPath: string, docName: string) =>
       ipcRenderer.invoke('autorun:listImages', folderPath, docName),
+    deleteFolder: (projectPath: string) =>
+      ipcRenderer.invoke('autorun:deleteFolder', projectPath),
     // File watching for live updates
     watchFolder: (folderPath: string) =>
       ipcRenderer.invoke('autorun:watchFolder', folderPath),
@@ -841,6 +852,7 @@ export interface MaestroAPI {
     getLogLevel: () => Promise<string>;
     setMaxLogBuffer: (max: number) => Promise<void>;
     getMaxLogBuffer: () => Promise<number>;
+    onNewLog: (callback: (log: { timestamp: number; level: string; message: string; context?: string; data?: unknown }) => void) => () => void;
   };
   claude: {
     listSessions: (projectPath: string) => Promise<Array<{
@@ -1054,6 +1066,9 @@ export interface MaestroAPI {
       images?: { filename: string; relativePath: string }[];
       error?: string;
     }>;
+    deleteFolder: (
+      projectPath: string
+    ) => Promise<{ success: boolean; error?: string }>;
     watchFolder: (folderPath: string) => Promise<{ success: boolean; error?: string }>;
     unwatchFolder: (folderPath: string) => Promise<{ success: boolean; error?: string }>;
     onFileChanged: (handler: (data: { folderPath: string; filename: string; eventType: string }) => void) => () => void;

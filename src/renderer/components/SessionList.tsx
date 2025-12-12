@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Wand2, Plus, Settings, ChevronRight, ChevronDown, Activity, X, Keyboard,
   Radio, Copy, ExternalLink, PanelLeftClose, PanelLeftOpen, Folder, Info, FileText, GitBranch, Bot, Clock,
-  ScrollText, Cpu, Menu, Bookmark, Trophy, Trash2, Edit3, FolderInput, Download
+  ScrollText, Cpu, Menu, Bookmark, Trophy, Trash2, Edit3, FolderInput, Download, Compass
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import type { Session, Group, Theme, Shortcut, AutoRunStats } from '../types';
@@ -285,6 +285,12 @@ interface SessionListProps {
 
   // Achievement system props
   autoRunStats?: AutoRunStats;
+
+  // Wizard props
+  openWizard?: () => void;
+
+  // Tour props
+  startTour?: () => void;
 }
 
 export function SessionList(props: SessionListProps) {
@@ -303,7 +309,9 @@ export function SessionList(props: SessionListProps) {
     activeBatchSessionIds = [],
     showSessionJumpNumbers = false,
     visibleSessions = [],
-    autoRunStats
+    autoRunStats,
+    openWizard,
+    startTour
   } = props;
 
   const [sessionFilter, setSessionFilter] = useState('');
@@ -474,6 +482,28 @@ export function SessionList(props: SessionListProps) {
       return () => document.removeEventListener('keydown', handleEscKey);
     }
   }, [liveOverlayOpen, menuOpen]);
+
+  // Listen for tour UI actions to control hamburger menu state
+  useEffect(() => {
+    const handleTourAction = (event: Event) => {
+      const customEvent = event as CustomEvent<{ type: string; value?: string }>;
+      const { type } = customEvent.detail;
+
+      switch (type) {
+        case 'openHamburgerMenu':
+          setMenuOpen(true);
+          break;
+        case 'closeHamburgerMenu':
+          setMenuOpen(false);
+          break;
+        default:
+          break;
+      }
+    };
+
+    window.addEventListener('tour:action', handleTourAction);
+    return () => window.removeEventListener('tour:action', handleTourAction);
+  }, []);
 
   // Track git file change counts per session
   const [gitFileCounts, setGitFileCounts] = useState<Map<string, number>>(new Map());
@@ -751,7 +781,7 @@ export function SessionList(props: SessionListProps) {
                   title={isLiveMode ? "Web interface active - Click to show URL" : "Click to enable web interface"}
                 >
                   <Radio className={`w-3 h-3 ${isLiveMode ? 'animate-pulse' : ''}`} />
-                  {isLiveMode ? 'LIVE' : 'OFFLINE'}
+                  {leftSidebarWidthState >= 200 && (isLiveMode ? 'LIVE' : 'OFFLINE')}
                 </button>
 
                 {/* LIVE Overlay with URL and QR Code - Single QR with pill selector */}
@@ -1022,7 +1052,7 @@ export function SessionList(props: SessionListProps) {
               </div>
             </div>
             {/* Hamburger Menu */}
-            <div className="relative" ref={menuRef}>
+            <div className="relative" ref={menuRef} data-tour="hamburger-menu">
               <button
                 onClick={() => setMenuOpen(!menuOpen)}
                 className="p-2 rounded hover:bg-white/10 transition-colors"
@@ -1035,12 +1065,41 @@ export function SessionList(props: SessionListProps) {
               {menuOpen && (
                 <div
                   className="absolute top-full left-0 mt-2 w-72 rounded-lg shadow-2xl z-50 overflow-hidden"
+                  data-tour="hamburger-menu-contents"
                   style={{
                     backgroundColor: theme.colors.bgSidebar,
-                    border: `1px solid ${theme.colors.border}`
+                    border: `1px solid ${theme.colors.border}`,
                   }}
                 >
                   <div className="p-1">
+                    {openWizard && (
+                      <button
+                        onClick={() => { openWizard(); setMenuOpen(false); }}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-white/10 transition-colors text-left"
+                      >
+                        <Wand2 className="w-5 h-5" style={{ color: theme.colors.accent }} />
+                        <div className="flex-1">
+                          <div className="text-sm font-medium" style={{ color: theme.colors.textMain }}>New Agent Wizard</div>
+                          <div className="text-xs" style={{ color: theme.colors.textDim }}>Get started with AI</div>
+                        </div>
+                        <span className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ backgroundColor: theme.colors.bgActivity, color: theme.colors.textDim }}>
+                          {shortcuts.openWizard ? formatShortcutKeys(shortcuts.openWizard.keys) : '⇧⌘N'}
+                        </span>
+                      </button>
+                    )}
+                    {startTour && (
+                      <button
+                        onClick={() => { startTour(); setMenuOpen(false); }}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-white/10 transition-colors text-left"
+                      >
+                        <Compass className="w-5 h-5" style={{ color: theme.colors.accent }} />
+                        <div className="flex-1">
+                          <div className="text-sm font-medium" style={{ color: theme.colors.textMain }}>Introductory Tour</div>
+                          <div className="text-xs" style={{ color: theme.colors.textDim }}>Learn how to use Maestro</div>
+                        </div>
+                      </button>
+                    )}
+                    <div className="my-1 border-t" style={{ borderColor: theme.colors.border }} />
                     <button
                       onClick={() => { setShortcutsHelpOpen(true); setMenuOpen(false); }}
                       className="w-full flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-white/10 transition-colors text-left"
@@ -1138,6 +1197,34 @@ export function SessionList(props: SessionListProps) {
                 }}
               >
                 <div className="p-1">
+                  {openWizard && (
+                    <button
+                      onClick={() => { openWizard(); setMenuOpen(false); }}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-white/10 transition-colors text-left"
+                    >
+                      <Wand2 className="w-5 h-5" style={{ color: theme.colors.accent }} />
+                      <div className="flex-1">
+                        <div className="text-sm font-medium" style={{ color: theme.colors.textMain }}>New Agent Wizard</div>
+                        <div className="text-xs" style={{ color: theme.colors.textDim }}>Get started with AI</div>
+                      </div>
+                      <span className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ backgroundColor: theme.colors.bgActivity, color: theme.colors.textDim }}>
+                        {shortcuts.openWizard ? formatShortcutKeys(shortcuts.openWizard.keys) : '⇧⌘N'}
+                      </span>
+                    </button>
+                  )}
+                  {startTour && (
+                    <button
+                      onClick={() => { startTour(); setMenuOpen(false); }}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-white/10 transition-colors text-left"
+                    >
+                      <Compass className="w-5 h-5" style={{ color: theme.colors.accent }} />
+                      <div className="flex-1">
+                        <div className="text-sm font-medium" style={{ color: theme.colors.textMain }}>Introductory Tour</div>
+                        <div className="text-xs" style={{ color: theme.colors.textDim }}>Learn how to use Maestro</div>
+                      </div>
+                    </button>
+                  )}
+                  <div className="my-1 border-t" style={{ borderColor: theme.colors.border }} />
                   <button
                     onClick={() => { setShortcutsHelpOpen(true); setMenuOpen(false); }}
                     className="w-full flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-white/10 transition-colors text-left"
@@ -1220,7 +1307,7 @@ export function SessionList(props: SessionListProps) {
 
       {/* SIDEBAR CONTENT: EXPANDED */}
       {leftSidebarOpen ? (
-        <div className="flex-1 overflow-y-auto py-2 select-none scrollbar-thin">
+        <div className="flex-1 overflow-y-auto py-2 select-none scrollbar-thin" data-tour="session-list">
           {/* Session Filter */}
           {sessionFilterOpen && (
             <div className="mx-3 mb-3">
@@ -1372,6 +1459,14 @@ export function SessionList(props: SessionListProps) {
                               'Waiting for input'
                             }
                           />
+                          {/* Unread Message Indicator */}
+                          {activeSessionId !== session.id && session.aiTabs?.some(tab => tab.hasUnread) && (
+                            <div
+                              className="w-2 h-2 rounded-full animate-pulse"
+                              style={{ backgroundColor: theme.colors.success }}
+                              title="Unread messages"
+                            />
+                          )}
                         </div>
                       </div>
                     );
@@ -1660,6 +1755,14 @@ export function SessionList(props: SessionListProps) {
                                 'Waiting for input'
                               }
                             />
+                            {/* Unread Message Indicator */}
+                            {activeSessionId !== session.id && session.aiTabs?.some(tab => tab.hasUnread) && (
+                              <div
+                                className="w-2 h-2 rounded-full animate-pulse"
+                                style={{ backgroundColor: theme.colors.success }}
+                                title="Unread messages"
+                              />
+                            )}
                           </div>
                         </div>
                       );
@@ -1895,6 +1998,14 @@ export function SessionList(props: SessionListProps) {
                         }
                         title={session.toolType === 'claude' && !session.claudeSessionId ? 'No active Claude session' : undefined}
                       />
+                      {/* Unread Message Indicator */}
+                      {activeSessionId !== session.id && session.aiTabs?.some(tab => tab.hasUnread) && (
+                        <div
+                          className="w-2 h-2 rounded-full animate-pulse"
+                          style={{ backgroundColor: theme.colors.success }}
+                          title="Unread messages"
+                        />
+                      )}
                     </div>
                   </div>
                 );
@@ -2048,6 +2159,14 @@ export function SessionList(props: SessionListProps) {
                       }
                       title={session.toolType === 'claude' && !session.claudeSessionId ? 'No active Claude session' : undefined}
                     />
+                    {/* Unread Message Indicator */}
+                    {activeSessionId !== session.id && session.aiTabs?.some(tab => tab.hasUnread) && (
+                      <div
+                        className="w-2 h-2 rounded-full animate-pulse"
+                        style={{ backgroundColor: theme.colors.success }}
+                        title="Unread messages"
+                      />
+                    )}
                   </div>
                 </div>
                   );
@@ -2279,16 +2398,32 @@ export function SessionList(props: SessionListProps) {
       {/* SIDEBAR BOTTOM ACTIONS */}
       <div className="p-2 border-t flex gap-2 items-center" style={{ borderColor: theme.colors.border }}>
         <button
-          onClick={() => setLeftSidebarOpen(!leftSidebarOpen)}
-          className="flex items-center justify-center p-2 rounded hover:bg-white/5 transition-colors w-8 h-8 shrink-0"
-          title={`${leftSidebarOpen ? "Collapse" : "Expand"} Sidebar (${formatShortcutKeys(shortcuts.toggleSidebar.keys)})`}
+          onClick={() => {
+            // Only allow collapsing when there are sessions (prevent collapse on empty state)
+            if (sessions.length > 0 || !leftSidebarOpen) {
+              setLeftSidebarOpen(!leftSidebarOpen);
+            }
+          }}
+          className={`flex items-center justify-center p-2 rounded transition-colors w-8 h-8 shrink-0 ${sessions.length === 0 && leftSidebarOpen ? 'opacity-20 cursor-not-allowed' : 'hover:bg-white/5'}`}
+          title={sessions.length === 0 && leftSidebarOpen ? "Add an agent first to collapse sidebar" : `${leftSidebarOpen ? "Collapse" : "Expand"} Sidebar (${formatShortcutKeys(shortcuts.toggleSidebar.keys)})`}
         >
           {leftSidebarOpen ? <PanelLeftClose className="w-4 h-4 opacity-50" /> : <PanelLeftOpen className="w-4 h-4 opacity-50" />}
         </button>
 
         {leftSidebarOpen && (
-          <button onClick={addNewSession} className="flex-1 flex items-center justify-center gap-2 py-2 rounded text-xs font-bold transition-colors" style={{ backgroundColor: theme.colors.accent, color: theme.colors.accentForeground }}>
-            <Plus className="w-3 h-3" /> New Agent
+          <button onClick={addNewSession} className="flex-1 flex items-center justify-center gap-2 py-2 rounded text-xs font-bold transition-colors hover:opacity-90" style={{ backgroundColor: theme.colors.accent, color: theme.colors.accentForeground }}>
+            <Bot className="w-3 h-3" /> New Agent
+          </button>
+        )}
+
+        {leftSidebarOpen && openWizard && (
+          <button
+            onClick={openWizard}
+            className="flex-1 flex items-center justify-center gap-2 py-2 rounded text-xs font-bold transition-colors hover:opacity-90"
+            style={{ backgroundColor: theme.colors.accent, color: theme.colors.accentForeground }}
+            title="Get started with AI wizard"
+          >
+            <Wand2 className="w-3 h-3" /> Wizard
           </button>
         )}
       </div>

@@ -610,7 +610,7 @@ export const InputArea = React.memo(function InputArea(props: InputAreaProps) {
             />
           </div>
 
-          <div className="flex justify-between items-center px-2 pb-2">
+          <div className="flex justify-between items-center px-2 pb-2 pt-1">
             <div className="flex gap-1 items-center">
               {session.inputMode === 'terminal' && (
                 <div className="text-xs font-mono opacity-60 px-2" style={{ color: theme.colors.textDim }}>

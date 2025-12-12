@@ -320,6 +320,7 @@ interface MaestroAPI {
       lastActivityAt?: number;
     }>>;
     deleteMessagePair: (projectPath: string, sessionId: string, userMessageUuid: string, fallbackContent?: string) => Promise<{ success: boolean; linesRemoved?: number; error?: string }>;
+    getSessionTimestamps: (projectPath: string) => Promise<{ timestamps: string[] }>;
   };
   tempfile: {
     write: (content: string, filename?: string) => Promise<{ success: boolean; path?: string; error?: string }>;
@@ -399,6 +400,11 @@ interface MaestroAPI {
     saveImage: (folderPath: string, docName: string, base64Data: string, extension: string) => Promise<{ success: boolean; relativePath?: string; error?: string }>;
     deleteImage: (folderPath: string, relativePath: string) => Promise<{ success: boolean; error?: string }>;
     listImages: (folderPath: string, docName: string) => Promise<{ success: boolean; images?: Array<{ filename: string; relativePath: string }>; error?: string }>;
+    deleteFolder: (projectPath: string) => Promise<{ success: boolean; error?: string }>;
+    // File watching for live updates
+    watchFolder: (folderPath: string) => Promise<{ success: boolean; error?: string }>;
+    unwatchFolder: (folderPath: string) => Promise<{ success: boolean; error?: string }>;
+    onFileChanged: (handler: (data: { folderPath: string; filename: string; eventType: string }) => void) => () => void;
   };
   // Playbooks API (saved batch run configurations)
   playbooks: {

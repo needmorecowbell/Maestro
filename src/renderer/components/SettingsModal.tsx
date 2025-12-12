@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, memo } from 'react';
 import { X, Key, Moon, Sun, Keyboard, Check, Terminal, Bell, Volume2, Square, Cpu, Clock, Settings, Palette, Sparkles, History, Download } from 'lucide-react';
 import type { AgentConfig, Theme, Shortcut, ShellInfo, CustomAICommand } from '../types';
 import { useLayerStack } from '../contexts/LayerStackContext';
@@ -63,9 +63,10 @@ interface SettingsModalProps {
   customAICommands: CustomAICommand[];
   setCustomAICommands: (commands: CustomAICommand[]) => void;
   initialTab?: 'general' | 'llm' | 'shortcuts' | 'theme' | 'notifications' | 'aicommands';
+  hasNoAgents?: boolean;
 }
 
-export function SettingsModal(props: SettingsModalProps) {
+export const SettingsModal = memo(function SettingsModal(props: SettingsModalProps) {
   const { isOpen, onClose, theme, themes, initialTab } = props;
   const [activeTab, setActiveTab] = useState<'general' | 'llm' | 'shortcuts' | 'theme' | 'notifications' | 'aicommands'>('general');
   const [systemFonts, setSystemFonts] = useState<string[]>([]);
@@ -1406,6 +1407,11 @@ export function SettingsModal(props: SettingsModalProps) {
 
             return (
               <div className="flex flex-col" style={{ minHeight: '450px' }}>
+                {props.hasNoAgents && (
+                  <p className="text-xs mb-3 px-2 py-1.5 rounded" style={{ backgroundColor: theme.colors.accent + '20', color: theme.colors.accent }}>
+                    Note: Most functionality is unavailable until you've created your first agent.
+                  </p>
+                )}
                 <div className="flex items-center gap-2 mb-3">
                   <input
                     ref={shortcutsFilterRef}
@@ -1691,4 +1697,11 @@ export function SettingsModal(props: SettingsModalProps) {
       </div>
     </div>
   );
-}
+}, (prevProps, nextProps) => {
+  // Custom comparator: only re-render if key display props change
+  // Callbacks are stable (wrapped in useCallback in App.tsx)
+  return prevProps.isOpen === nextProps.isOpen &&
+         prevProps.theme === nextProps.theme &&
+         prevProps.activeThemeId === nextProps.activeThemeId &&
+         prevProps.initialTab === nextProps.initialTab;
+});

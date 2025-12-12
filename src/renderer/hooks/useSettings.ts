@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import type { LLMProvider, ThemeId, Shortcut, CustomAICommand, GlobalStats, AutoRunStats } from '../types';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import type { LLMProvider, ThemeId, Shortcut, CustomAICommand, GlobalStats, AutoRunStats, OnboardingStats } from '../types';
 import { DEFAULT_SHORTCUTS } from '../constants/shortcuts';
 
 // Default global stats
@@ -24,6 +24,36 @@ const DEFAULT_AUTO_RUN_STATS: AutoRunStats = {
   lastBadgeUnlockLevel: 0,
   lastAcknowledgedBadgeLevel: 0,
   badgeHistory: [],
+};
+
+// Default onboarding stats (all local, no external telemetry)
+const DEFAULT_ONBOARDING_STATS: OnboardingStats = {
+  // Wizard statistics
+  wizardStartCount: 0,
+  wizardCompletionCount: 0,
+  wizardAbandonCount: 0,
+  wizardResumeCount: 0,
+  averageWizardDurationMs: 0,
+  totalWizardDurationMs: 0,
+  lastWizardCompletedAt: 0,
+
+  // Tour statistics
+  tourStartCount: 0,
+  tourCompletionCount: 0,
+  tourSkipCount: 0,
+  tourStepsViewedTotal: 0,
+  averageTourStepsViewed: 0,
+
+  // Conversation statistics
+  totalConversationExchanges: 0,
+  averageConversationExchanges: 0,
+  totalConversationsCompleted: 0,
+
+  // Phase generation statistics
+  totalPhasesGenerated: 0,
+  averagePhasesPerWizard: 0,
+  totalTasksGenerated: 0,
+  averageTasksPerPhase: 0,
 };
 
 // Default AI commands that ship with Maestro
@@ -149,6 +179,31 @@ export interface UseSettingsReturn {
   updateAutoRunProgress: (currentRunElapsedMs: number) => { newBadgeLevel: number | null; isNewRecord: boolean };
   acknowledgeBadge: (level: number) => void;
   getUnacknowledgedBadgeLevel: () => number | null;
+
+  // Onboarding settings
+  wizardCompleted: boolean;
+  setWizardCompleted: (value: boolean) => void;
+  tourCompleted: boolean;
+  setTourCompleted: (value: boolean) => void;
+  firstAutoRunCompleted: boolean;
+  setFirstAutoRunCompleted: (value: boolean) => void;
+
+  // Onboarding Stats (persistent, local-only analytics)
+  onboardingStats: OnboardingStats;
+  setOnboardingStats: (value: OnboardingStats) => void;
+  recordWizardStart: () => void;
+  recordWizardComplete: (durationMs: number, conversationExchanges: number, phasesGenerated: number, tasksGenerated: number) => void;
+  recordWizardAbandon: () => void;
+  recordWizardResume: () => void;
+  recordTourStart: () => void;
+  recordTourComplete: (stepsViewed: number) => void;
+  recordTourSkip: (stepsViewed: number) => void;
+  getOnboardingAnalytics: () => {
+    wizardCompletionRate: number;
+    tourCompletionRate: number;
+    averageConversationExchanges: number;
+    averagePhasesPerWizard: number;
+  };
 }
 
 export function useSettings(): UseSettingsReturn {
@@ -178,7 +233,7 @@ export function useSettings(): UseSettingsReturn {
   const [activeThemeId, setActiveThemeIdState] = useState<ThemeId>('dracula');
   const [enterToSendAI, setEnterToSendAIState] = useState(false); // AI mode defaults to Command+Enter
   const [enterToSendTerminal, setEnterToSendTerminalState] = useState(true); // Terminal defaults to Enter
-  const [defaultSaveToHistory, setDefaultSaveToHistoryState] = useState(false); // History toggle defaults to off
+  const [defaultSaveToHistory, setDefaultSaveToHistoryState] = useState(true); // History toggle defaults to on
   const [leftSidebarWidth, setLeftSidebarWidthState] = useState(256);
   const [rightPanelWidth, setRightPanelWidthState] = useState(384);
   const [markdownRawMode, setMarkdownRawModeState] = useState(false);
@@ -217,154 +272,164 @@ export function useSettings(): UseSettingsReturn {
   // Auto-run Stats (persistent)
   const [autoRunStats, setAutoRunStatsState] = useState<AutoRunStats>(DEFAULT_AUTO_RUN_STATS);
 
+  // Onboarding settings (persistent)
+  const [wizardCompleted, setWizardCompletedState] = useState(false);
+  const [tourCompleted, setTourCompletedState] = useState(false);
+  const [firstAutoRunCompleted, setFirstAutoRunCompletedState] = useState(false);
+
+  // Onboarding Stats (persistent, local-only analytics)
+  const [onboardingStats, setOnboardingStatsState] = useState<OnboardingStats>(DEFAULT_ONBOARDING_STATS);
+
   // Wrapper functions that persist to electron-store
-  const setLlmProvider = (value: LLMProvider) => {
+  // PERF: All wrapped in useCallback to prevent re-renders
+  const setLlmProvider = useCallback((value: LLMProvider) => {
     setLlmProviderState(value);
     window.maestro.settings.set('llmProvider', value);
-  };
+  }, []);
 
-  const setModelSlug = (value: string) => {
+  const setModelSlug = useCallback((value: string) => {
     setModelSlugState(value);
     window.maestro.settings.set('modelSlug', value);
-  };
+  }, []);
 
-  const setApiKey = (value: string) => {
+  const setApiKey = useCallback((value: string) => {
     setApiKeyState(value);
     window.maestro.settings.set('apiKey', value);
-  };
+  }, []);
 
-  const setDefaultAgent = (value: string) => {
+  const setDefaultAgent = useCallback((value: string) => {
     setDefaultAgentState(value);
     window.maestro.settings.set('defaultAgent', value);
-  };
+  }, []);
 
-  const setDefaultShell = (value: string) => {
+  const setDefaultShell = useCallback((value: string) => {
     setDefaultShellState(value);
     window.maestro.settings.set('defaultShell', value);
-  };
+  }, []);
 
-  const setGhPath = (value: string) => {
+  const setGhPath = useCallback((value: string) => {
     setGhPathState(value);
     window.maestro.settings.set('ghPath', value);
-  };
+  }, []);
 
-  const setFontFamily = (value: string) => {
+  const setFontFamily = useCallback((value: string) => {
     setFontFamilyState(value);
     window.maestro.settings.set('fontFamily', value);
-  };
+  }, []);
 
-  const setFontSize = (value: number) => {
+  const setFontSize = useCallback((value: number) => {
     setFontSizeState(value);
     window.maestro.settings.set('fontSize', value);
-  };
+  }, []);
 
-  const setCustomFonts = (value: string[]) => {
+  const setCustomFonts = useCallback((value: string[]) => {
     setCustomFontsState(value);
     window.maestro.settings.set('customFonts', value);
-  };
+  }, []);
 
-  const setActiveThemeId = (value: ThemeId) => {
+  const setActiveThemeId = useCallback((value: ThemeId) => {
     setActiveThemeIdState(value);
     window.maestro.settings.set('activeThemeId', value);
-  };
+  }, []);
 
-  const setEnterToSendAI = (value: boolean) => {
+  const setEnterToSendAI = useCallback((value: boolean) => {
     setEnterToSendAIState(value);
     window.maestro.settings.set('enterToSendAI', value);
-  };
+  }, []);
 
-  const setEnterToSendTerminal = (value: boolean) => {
+  const setEnterToSendTerminal = useCallback((value: boolean) => {
     setEnterToSendTerminalState(value);
     window.maestro.settings.set('enterToSendTerminal', value);
-  };
+  }, []);
 
-  const setDefaultSaveToHistory = (value: boolean) => {
+  const setDefaultSaveToHistory = useCallback((value: boolean) => {
     setDefaultSaveToHistoryState(value);
     window.maestro.settings.set('defaultSaveToHistory', value);
-  };
+  }, []);
 
-  const setLeftSidebarWidth = (width: number) => {
-    setLeftSidebarWidthState(width);
-    window.maestro.settings.set('leftSidebarWidth', width);
-  };
+  const setLeftSidebarWidth = useCallback((width: number) => {
+    const clampedWidth = Math.max(256, Math.min(600, width));
+    setLeftSidebarWidthState(clampedWidth);
+    window.maestro.settings.set('leftSidebarWidth', clampedWidth);
+  }, []);
 
-  const setRightPanelWidth = (width: number) => {
+  const setRightPanelWidth = useCallback((width: number) => {
     setRightPanelWidthState(width);
     window.maestro.settings.set('rightPanelWidth', width);
-  };
+  }, []);
 
-  const setMarkdownRawMode = (value: boolean) => {
+  const setMarkdownRawMode = useCallback((value: boolean) => {
     setMarkdownRawModeState(value);
     window.maestro.settings.set('markdownRawMode', value);
-  };
+  }, []);
 
-  const setShortcuts = (value: Record<string, Shortcut>) => {
+  const setShortcuts = useCallback((value: Record<string, Shortcut>) => {
     setShortcutsState(value);
     window.maestro.settings.set('shortcuts', value);
-  };
+  }, []);
 
-  const setTerminalWidth = (value: number) => {
+  const setTerminalWidth = useCallback((value: number) => {
     setTerminalWidthState(value);
     window.maestro.settings.set('terminalWidth', value);
-  };
+  }, []);
 
-  const setLogLevel = async (value: string) => {
+  const setLogLevel = useCallback(async (value: string) => {
     setLogLevelState(value);
     await window.maestro.logger.setLogLevel(value);
-  };
+  }, []);
 
-  const setMaxLogBuffer = async (value: number) => {
+  const setMaxLogBuffer = useCallback(async (value: number) => {
     setMaxLogBufferState(value);
     await window.maestro.logger.setMaxLogBuffer(value);
-  };
+  }, []);
 
-  const setMaxOutputLines = (value: number) => {
+  const setMaxOutputLines = useCallback((value: number) => {
     setMaxOutputLinesState(value);
     window.maestro.settings.set('maxOutputLines', value);
-  };
+  }, []);
 
-  const setOsNotificationsEnabled = (value: boolean) => {
+  const setOsNotificationsEnabled = useCallback((value: boolean) => {
     setOsNotificationsEnabledState(value);
     window.maestro.settings.set('osNotificationsEnabled', value);
-  };
+  }, []);
 
-  const setAudioFeedbackEnabled = (value: boolean) => {
+  const setAudioFeedbackEnabled = useCallback((value: boolean) => {
     setAudioFeedbackEnabledState(value);
     window.maestro.settings.set('audioFeedbackEnabled', value);
-  };
+  }, []);
 
-  const setAudioFeedbackCommand = (value: string) => {
+  const setAudioFeedbackCommand = useCallback((value: string) => {
     setAudioFeedbackCommandState(value);
     window.maestro.settings.set('audioFeedbackCommand', value);
-  };
+  }, []);
 
-  const setToastDuration = (value: number) => {
+  const setToastDuration = useCallback((value: number) => {
     setToastDurationState(value);
     window.maestro.settings.set('toastDuration', value);
-  };
+  }, []);
 
-  const setCheckForUpdatesOnStartup = (value: boolean) => {
+  const setCheckForUpdatesOnStartup = useCallback((value: boolean) => {
     setCheckForUpdatesOnStartupState(value);
     window.maestro.settings.set('checkForUpdatesOnStartup', value);
-  };
+  }, []);
 
-  const setLogViewerSelectedLevels = (value: string[]) => {
+  const setLogViewerSelectedLevels = useCallback((value: string[]) => {
     setLogViewerSelectedLevelsState(value);
     window.maestro.settings.set('logViewerSelectedLevels', value);
-  };
+  }, []);
 
-  const setCustomAICommands = (value: CustomAICommand[]) => {
+  const setCustomAICommands = useCallback((value: CustomAICommand[]) => {
     setCustomAICommandsState(value);
     window.maestro.settings.set('customAICommands', value);
-  };
+  }, []);
 
-  const setGlobalStats = (value: GlobalStats) => {
+  const setGlobalStats = useCallback((value: GlobalStats) => {
     setGlobalStatsState(value);
     window.maestro.settings.set('globalStats', value);
-  };
+  }, []);
 
   // Update global stats by adding deltas to existing values
-  const updateGlobalStats = (delta: Partial<GlobalStats>) => {
+  const updateGlobalStats = useCallback((delta: Partial<GlobalStats>) => {
     setGlobalStatsState(prev => {
       const updated: GlobalStats = {
         totalSessions: prev.totalSessions + (delta.totalSessions || 0),
@@ -379,12 +444,12 @@ export function useSettings(): UseSettingsReturn {
       window.maestro.settings.set('globalStats', updated);
       return updated;
     });
-  };
+  }, []);
 
-  const setAutoRunStats = (value: AutoRunStats) => {
+  const setAutoRunStats = useCallback((value: AutoRunStats) => {
     setAutoRunStatsState(value);
     window.maestro.settings.set('autoRunStats', value);
-  };
+  }, []);
 
   // Import badge calculation from constants (moved inline to avoid circular dependency)
   const getBadgeLevelForTime = (cumulativeTimeMs: number): number => {
@@ -423,7 +488,7 @@ export function useSettings(): UseSettingsReturn {
   // Record an auto-run completion and check for new badges/records
   // NOTE: Cumulative time is tracked incrementally during the run via updateAutoRunProgress(),
   // so we don't add elapsedTimeMs to cumulative here - only check for longest run record and increment totalRuns
-  const recordAutoRunComplete = (elapsedTimeMs: number): { newBadgeLevel: number | null; isNewRecord: boolean } => {
+  const recordAutoRunComplete = useCallback((elapsedTimeMs: number): { newBadgeLevel: number | null; isNewRecord: boolean } => {
     let newBadgeLevel: number | null = null;
     let isNewRecord = false;
 
@@ -465,13 +530,13 @@ export function useSettings(): UseSettingsReturn {
     });
 
     return { newBadgeLevel, isNewRecord };
-  };
+  }, []);
 
   // Track progress during an active auto-run (called periodically, e.g., every minute)
   // deltaMs is the time elapsed since the last call (NOT total elapsed time)
   // This updates cumulative time and longest run WITHOUT incrementing totalRuns
   // Returns badge/record info so caller can show standing ovation during run
-  const updateAutoRunProgress = (deltaMs: number): { newBadgeLevel: number | null; isNewRecord: boolean } => {
+  const updateAutoRunProgress = useCallback((deltaMs: number): { newBadgeLevel: number | null; isNewRecord: boolean } => {
     let newBadgeLevel: number | null = null;
     let isNewRecord = false;
 
@@ -513,10 +578,10 @@ export function useSettings(): UseSettingsReturn {
     });
 
     return { newBadgeLevel, isNewRecord };
-  };
+  }, []);
 
   // Acknowledge that user has seen the standing ovation for a badge level
-  const acknowledgeBadge = (level: number) => {
+  const acknowledgeBadge = useCallback((level: number) => {
     setAutoRunStatsState(prev => {
       const updated: AutoRunStats = {
         ...prev,
@@ -525,17 +590,194 @@ export function useSettings(): UseSettingsReturn {
       window.maestro.settings.set('autoRunStats', updated);
       return updated;
     });
-  };
+  }, []);
 
   // Get the highest unacknowledged badge level (if any)
-  const getUnacknowledgedBadgeLevel = (): number | null => {
+  const getUnacknowledgedBadgeLevel = useCallback((): number | null => {
     const acknowledged = autoRunStats.lastAcknowledgedBadgeLevel ?? 0;
     const current = autoRunStats.currentBadgeLevel;
     if (current > acknowledged) {
       return current;
     }
     return null;
-  };
+  }, [autoRunStats.lastAcknowledgedBadgeLevel, autoRunStats.currentBadgeLevel]);
+
+  // Onboarding setters
+  const setWizardCompleted = useCallback((value: boolean) => {
+    setWizardCompletedState(value);
+    window.maestro.settings.set('wizardCompleted', value);
+  }, []);
+
+  const setTourCompleted = useCallback((value: boolean) => {
+    setTourCompletedState(value);
+    window.maestro.settings.set('tourCompleted', value);
+  }, []);
+
+  const setFirstAutoRunCompleted = useCallback((value: boolean) => {
+    setFirstAutoRunCompletedState(value);
+    window.maestro.settings.set('firstAutoRunCompleted', value);
+  }, []);
+
+  // Onboarding Stats functions
+  const setOnboardingStats = useCallback((value: OnboardingStats) => {
+    setOnboardingStatsState(value);
+    window.maestro.settings.set('onboardingStats', value);
+  }, []);
+
+  // Record when wizard is started
+  const recordWizardStart = useCallback(() => {
+    setOnboardingStatsState(prev => {
+      const updated: OnboardingStats = {
+        ...prev,
+        wizardStartCount: prev.wizardStartCount + 1,
+      };
+      window.maestro.settings.set('onboardingStats', updated);
+      return updated;
+    });
+  }, []);
+
+  // Record when wizard is completed successfully
+  const recordWizardComplete = useCallback((
+    durationMs: number,
+    conversationExchanges: number,
+    phasesGenerated: number,
+    tasksGenerated: number
+  ) => {
+    setOnboardingStatsState(prev => {
+      const newCompletionCount = prev.wizardCompletionCount + 1;
+      const newTotalDuration = prev.totalWizardDurationMs + durationMs;
+      const newTotalExchanges = prev.totalConversationExchanges + conversationExchanges;
+      const newTotalPhases = prev.totalPhasesGenerated + phasesGenerated;
+      const newTotalTasks = prev.totalTasksGenerated + tasksGenerated;
+
+      const updated: OnboardingStats = {
+        ...prev,
+        wizardCompletionCount: newCompletionCount,
+        totalWizardDurationMs: newTotalDuration,
+        averageWizardDurationMs: Math.round(newTotalDuration / newCompletionCount),
+        lastWizardCompletedAt: Date.now(),
+
+        // Conversation stats
+        totalConversationExchanges: newTotalExchanges,
+        totalConversationsCompleted: prev.totalConversationsCompleted + 1,
+        averageConversationExchanges: newCompletionCount > 0
+          ? Math.round((newTotalExchanges / newCompletionCount) * 10) / 10
+          : 0,
+
+        // Phase generation stats
+        totalPhasesGenerated: newTotalPhases,
+        averagePhasesPerWizard: newCompletionCount > 0
+          ? Math.round((newTotalPhases / newCompletionCount) * 10) / 10
+          : 0,
+        totalTasksGenerated: newTotalTasks,
+        averageTasksPerPhase: newTotalPhases > 0
+          ? Math.round((newTotalTasks / newTotalPhases) * 10) / 10
+          : 0,
+      };
+      window.maestro.settings.set('onboardingStats', updated);
+      return updated;
+    });
+  }, []);
+
+  // Record when wizard is abandoned (closed before completion)
+  const recordWizardAbandon = useCallback(() => {
+    setOnboardingStatsState(prev => {
+      const updated: OnboardingStats = {
+        ...prev,
+        wizardAbandonCount: prev.wizardAbandonCount + 1,
+      };
+      window.maestro.settings.set('onboardingStats', updated);
+      return updated;
+    });
+  }, []);
+
+  // Record when wizard is resumed from saved state
+  const recordWizardResume = useCallback(() => {
+    setOnboardingStatsState(prev => {
+      const updated: OnboardingStats = {
+        ...prev,
+        wizardResumeCount: prev.wizardResumeCount + 1,
+      };
+      window.maestro.settings.set('onboardingStats', updated);
+      return updated;
+    });
+  }, []);
+
+  // Record when tour is started
+  const recordTourStart = useCallback(() => {
+    setOnboardingStatsState(prev => {
+      const updated: OnboardingStats = {
+        ...prev,
+        tourStartCount: prev.tourStartCount + 1,
+      };
+      window.maestro.settings.set('onboardingStats', updated);
+      return updated;
+    });
+  }, []);
+
+  // Record when tour is completed (all steps viewed)
+  const recordTourComplete = useCallback((stepsViewed: number) => {
+    setOnboardingStatsState(prev => {
+      const newCompletionCount = prev.tourCompletionCount + 1;
+      const newTotalStepsViewed = prev.tourStepsViewedTotal + stepsViewed;
+      const totalTours = newCompletionCount + prev.tourSkipCount;
+
+      const updated: OnboardingStats = {
+        ...prev,
+        tourCompletionCount: newCompletionCount,
+        tourStepsViewedTotal: newTotalStepsViewed,
+        averageTourStepsViewed: totalTours > 0
+          ? Math.round((newTotalStepsViewed / totalTours) * 10) / 10
+          : stepsViewed,
+      };
+      window.maestro.settings.set('onboardingStats', updated);
+      return updated;
+    });
+  }, []);
+
+  // Record when tour is skipped before completion
+  const recordTourSkip = useCallback((stepsViewed: number) => {
+    setOnboardingStatsState(prev => {
+      const newSkipCount = prev.tourSkipCount + 1;
+      const newTotalStepsViewed = prev.tourStepsViewedTotal + stepsViewed;
+      const totalTours = prev.tourCompletionCount + newSkipCount;
+
+      const updated: OnboardingStats = {
+        ...prev,
+        tourSkipCount: newSkipCount,
+        tourStepsViewedTotal: newTotalStepsViewed,
+        averageTourStepsViewed: totalTours > 0
+          ? Math.round((newTotalStepsViewed / totalTours) * 10) / 10
+          : stepsViewed,
+      };
+      window.maestro.settings.set('onboardingStats', updated);
+      return updated;
+    });
+  }, []);
+
+  // Get computed analytics for display
+  const getOnboardingAnalytics = useCallback(() => {
+    const totalWizardAttempts = onboardingStats.wizardStartCount;
+    const totalTourAttempts = onboardingStats.tourStartCount;
+
+    return {
+      wizardCompletionRate: totalWizardAttempts > 0
+        ? Math.round((onboardingStats.wizardCompletionCount / totalWizardAttempts) * 100)
+        : 0,
+      tourCompletionRate: totalTourAttempts > 0
+        ? Math.round((onboardingStats.tourCompletionCount / totalTourAttempts) * 100)
+        : 0,
+      averageConversationExchanges: onboardingStats.averageConversationExchanges,
+      averagePhasesPerWizard: onboardingStats.averagePhasesPerWizard,
+    };
+  }, [
+    onboardingStats.wizardStartCount,
+    onboardingStats.tourStartCount,
+    onboardingStats.wizardCompletionCount,
+    onboardingStats.tourCompletionCount,
+    onboardingStats.averageConversationExchanges,
+    onboardingStats.averagePhasesPerWizard,
+  ]);
 
   // Load settings from electron-store on mount
   useEffect(() => {
@@ -571,6 +813,10 @@ export function useSettings(): UseSettingsReturn {
       const savedCustomAICommands = await window.maestro.settings.get('customAICommands');
       const savedGlobalStats = await window.maestro.settings.get('globalStats');
       const savedAutoRunStats = await window.maestro.settings.get('autoRunStats');
+      const savedWizardCompleted = await window.maestro.settings.get('wizardCompleted');
+      const savedTourCompleted = await window.maestro.settings.get('tourCompleted');
+      const savedFirstAutoRunCompleted = await window.maestro.settings.get('firstAutoRunCompleted');
+      const savedOnboardingStats = await window.maestro.settings.get('onboardingStats');
 
       if (savedEnterToSendAI !== undefined) setEnterToSendAIState(savedEnterToSendAI);
       if (savedEnterToSendTerminal !== undefined) setEnterToSendTerminalState(savedEnterToSendTerminal);
@@ -585,7 +831,7 @@ export function useSettings(): UseSettingsReturn {
       if (savedFontSize !== undefined) setFontSizeState(savedFontSize);
       if (savedFontFamily !== undefined) setFontFamilyState(savedFontFamily);
       if (savedCustomFonts !== undefined) setCustomFontsState(savedCustomFonts);
-      if (savedLeftSidebarWidth !== undefined) setLeftSidebarWidthState(savedLeftSidebarWidth);
+      if (savedLeftSidebarWidth !== undefined) setLeftSidebarWidthState(Math.max(256, Math.min(600, savedLeftSidebarWidth)));
       if (savedRightPanelWidth !== undefined) setRightPanelWidthState(savedRightPanelWidth);
       if (savedMarkdownRawMode !== undefined) setMarkdownRawModeState(savedMarkdownRawMode);
       if (savedActiveThemeId !== undefined) setActiveThemeIdState(savedActiveThemeId);
@@ -632,6 +878,16 @@ export function useSettings(): UseSettingsReturn {
         setAutoRunStatsState({ ...DEFAULT_AUTO_RUN_STATS, ...savedAutoRunStats });
       }
 
+      // Load onboarding settings
+      if (savedWizardCompleted !== undefined) setWizardCompletedState(savedWizardCompleted);
+      if (savedTourCompleted !== undefined) setTourCompletedState(savedTourCompleted);
+      if (savedFirstAutoRunCompleted !== undefined) setFirstAutoRunCompletedState(savedFirstAutoRunCompleted);
+
+      // Load onboarding stats
+      if (savedOnboardingStats !== undefined) {
+        setOnboardingStatsState({ ...DEFAULT_ONBOARDING_STATS, ...savedOnboardingStats });
+      }
+
       // Mark settings as loaded
       setSettingsLoaded(true);
     };
@@ -639,11 +895,15 @@ export function useSettings(): UseSettingsReturn {
   }, []);
 
   // Apply font size to HTML root element so rem-based Tailwind classes scale
+  // Only apply after settings are loaded to prevent layout shift from default->saved font size
   useEffect(() => {
-    document.documentElement.style.fontSize = `${fontSize}px`;
-  }, [fontSize]);
+    if (settingsLoaded) {
+      document.documentElement.style.fontSize = `${fontSize}px`;
+    }
+  }, [fontSize, settingsLoaded]);
 
-  return {
+  // PERF: Memoize return object to prevent unnecessary re-renders in consumers
+  return useMemo(() => ({
     settingsLoaded,
     llmProvider,
     modelSlug,
@@ -710,5 +970,106 @@ export function useSettings(): UseSettingsReturn {
     updateAutoRunProgress,
     acknowledgeBadge,
     getUnacknowledgedBadgeLevel,
-  };
+    wizardCompleted,
+    setWizardCompleted,
+    tourCompleted,
+    setTourCompleted,
+    firstAutoRunCompleted,
+    setFirstAutoRunCompleted,
+    onboardingStats,
+    setOnboardingStats,
+    recordWizardStart,
+    recordWizardComplete,
+    recordWizardAbandon,
+    recordWizardResume,
+    recordTourStart,
+    recordTourComplete,
+    recordTourSkip,
+    getOnboardingAnalytics,
+  }), [
+    // State values
+    settingsLoaded,
+    llmProvider,
+    modelSlug,
+    apiKey,
+    defaultAgent,
+    defaultShell,
+    ghPath,
+    fontFamily,
+    fontSize,
+    customFonts,
+    activeThemeId,
+    enterToSendAI,
+    enterToSendTerminal,
+    defaultSaveToHistory,
+    leftSidebarWidth,
+    rightPanelWidth,
+    markdownRawMode,
+    terminalWidth,
+    logLevel,
+    maxLogBuffer,
+    maxOutputLines,
+    osNotificationsEnabled,
+    audioFeedbackEnabled,
+    audioFeedbackCommand,
+    toastDuration,
+    checkForUpdatesOnStartup,
+    logViewerSelectedLevels,
+    shortcuts,
+    customAICommands,
+    globalStats,
+    autoRunStats,
+    wizardCompleted,
+    tourCompleted,
+    firstAutoRunCompleted,
+    onboardingStats,
+    // Setter functions (stable via useCallback)
+    setLlmProvider,
+    setModelSlug,
+    setApiKey,
+    setDefaultAgent,
+    setDefaultShell,
+    setGhPath,
+    setFontFamily,
+    setFontSize,
+    setCustomFonts,
+    setActiveThemeId,
+    setEnterToSendAI,
+    setEnterToSendTerminal,
+    setDefaultSaveToHistory,
+    setLeftSidebarWidth,
+    setRightPanelWidth,
+    setMarkdownRawMode,
+    setTerminalWidth,
+    setLogLevel,
+    setMaxLogBuffer,
+    setMaxOutputLines,
+    setOsNotificationsEnabled,
+    setAudioFeedbackEnabled,
+    setAudioFeedbackCommand,
+    setToastDuration,
+    setCheckForUpdatesOnStartup,
+    setLogViewerSelectedLevels,
+    setShortcuts,
+    setCustomAICommands,
+    setGlobalStats,
+    updateGlobalStats,
+    setAutoRunStats,
+    recordAutoRunComplete,
+    updateAutoRunProgress,
+    acknowledgeBadge,
+    getUnacknowledgedBadgeLevel,
+    setWizardCompleted,
+    setTourCompleted,
+    setFirstAutoRunCompleted,
+    setOnboardingStats,
+    recordWizardStart,
+    recordWizardComplete,
+    recordWizardAbandon,
+    recordWizardResume,
+    recordTourStart,
+    recordTourComplete,
+    recordTourSkip,
+    getOnboardingAnalytics,
+  ]);
 }

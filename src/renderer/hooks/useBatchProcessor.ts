@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import type { BatchRunState, BatchRunConfig, BatchDocumentEntry, Session, HistoryEntry, UsageStats, Group } from '../types';
+import type { BatchRunState, BatchRunConfig, BatchDocumentEntry, Session, HistoryEntry, UsageStats, Group, AutoRunStats } from '../types';
 import { substituteTemplateVariables, TemplateContext } from '../utils/templateVariables';
+import { getBadgeForTime, getNextBadge, formatTimeRemaining } from '../constants/conductorBadges';
 
 // Regex to count unchecked markdown checkboxes: - [ ] task
 const UNCHECKED_TASK_REGEX = /^[\s]*-\s*\[\s*\]\s*.+$/gm;
@@ -67,6 +68,8 @@ interface UseBatchProcessorProps {
   // TTS settings for speaking synopsis after each task
   audioFeedbackEnabled?: boolean;
   audioFeedbackCommand?: string;
+  // Auto Run stats for achievement progress in final summary
+  autoRunStats?: AutoRunStats;
 }
 
 interface UseBatchProcessorReturn {
@@ -238,7 +241,8 @@ export function useBatchProcessor({
   onComplete,
   onPRResult,
   audioFeedbackEnabled,
-  audioFeedbackCommand
+  audioFeedbackCommand,
+  autoRunStats
 }: UseBatchProcessorProps): UseBatchProcessorReturn {
   // Batch states per session
   const [batchRunStates, setBatchRunStates] = useState<Record<string, BatchRunState>>({});
@@ -248,6 +252,10 @@ export function useBatchProcessor({
 
   // Refs for tracking stop requests per session
   const stopRequestedRefs = useRef<Record<string, boolean>>({});
+
+  // Ref to always have access to latest sessions (fixes stale closure in startBatchRun)
+  const sessionsRef = useRef(sessions);
+  sessionsRef.current = sessions;
 
   // Helper to get batch state for a session
   const getBatchState = useCallback((sessionId: string): BatchRunState => {
@@ -319,7 +327,8 @@ ${docList}
   const startBatchRun = useCallback(async (sessionId: string, config: BatchRunConfig, folderPath: string) => {
     console.log('[BatchProcessor] startBatchRun called:', { sessionId, folderPath, config });
 
-    const session = sessions.find(s => s.id === sessionId);
+    // Use sessionsRef to get latest sessions (handles case where session was just created)
+    const session = sessionsRef.current.find(s => s.id === sessionId);
     if (!session) {
       console.error('[BatchProcessor] Session not found for batch processing:', sessionId);
       return;
@@ -501,6 +510,11 @@ ${docList}
     let loopTotalOutputTokens = 0;
     let loopTotalCost = 0;
 
+    // Cumulative tracking for final Auto Run summary (across all loops)
+    let totalInputTokens = 0;
+    let totalOutputTokens = 0;
+    let totalCost = 0;
+
     // Helper to add final loop summary (defined here so it has access to tracking vars)
     const addFinalLoopSummary = (exitReason: string) => {
       // AUTORUN LOG: Exit
@@ -672,11 +686,15 @@ ${docList}
             totalCompletedTasks += tasksCompletedThisRun;
             loopTasksCompleted += tasksCompletedThisRun;
 
-            // Track token usage for loop summary
+            // Track token usage for loop summary and cumulative totals
             if (result.usageStats) {
               loopTotalInputTokens += result.usageStats.inputTokens || 0;
               loopTotalOutputTokens += result.usageStats.outputTokens || 0;
               loopTotalCost += result.usageStats.totalCostUsd || 0;
+              // Also track cumulative totals for final summary
+              totalInputTokens += result.usageStats.inputTokens || 0;
+              totalOutputTokens += result.usageStats.outputTokens || 0;
+              totalCost += result.usageStats.totalCostUsd || 0;
             }
 
             // Track non-reset document completions for loop exit logic
@@ -1019,6 +1037,64 @@ ${docList}
       }
     }
 
+    // Add final Auto Run summary entry (no sessionId - this is a standalone synopsis)
+    const totalElapsedMs = Date.now() - batchStartTime;
+    const loopsCompleted = loopEnabled ? loopIteration + 1 : 1;
+    const statusText = wasStopped ? 'stopped' : 'completed';
+
+    // Calculate achievement progress for the summary
+    // Note: We use the stats BEFORE this run is recorded (the parent will call recordAutoRunComplete after)
+    // So we need to add totalElapsedMs to get the projected cumulative time
+    const projectedCumulativeTime = (autoRunStats?.cumulativeTimeMs || 0) + totalElapsedMs;
+    const currentBadge = getBadgeForTime(projectedCumulativeTime);
+    const nextBadge = getNextBadge(currentBadge);
+    const levelProgressText = nextBadge
+      ? `Level ${currentBadge?.level || 0} → ${nextBadge.level}: ${formatTimeRemaining(projectedCumulativeTime, nextBadge)}`
+      : currentBadge
+        ? `Level ${currentBadge.level} (${currentBadge.name}) - Maximum level achieved!`
+        : 'Level 0 → 1: ' + formatTimeRemaining(0, getBadgeForTime(0) || undefined);
+
+    const finalSummary = `Auto Run ${statusText}: ${totalCompletedTasks} task${totalCompletedTasks !== 1 ? 's' : ''} in ${formatLoopDuration(totalElapsedMs)}`;
+
+    const finalDetails = [
+      `**Auto Run Summary**`,
+      '',
+      `- **Status:** ${wasStopped ? 'Stopped by user' : 'Completed'}`,
+      `- **Tasks Completed:** ${totalCompletedTasks}`,
+      `- **Total Duration:** ${formatLoopDuration(totalElapsedMs)}`,
+      loopEnabled ? `- **Loops Completed:** ${loopsCompleted}` : '',
+      totalInputTokens > 0 || totalOutputTokens > 0
+        ? `- **Total Tokens:** ${(totalInputTokens + totalOutputTokens).toLocaleString()} (${totalInputTokens.toLocaleString()} in / ${totalOutputTokens.toLocaleString()} out)`
+        : '',
+      totalCost > 0 ? `- **Total Cost:** $${totalCost.toFixed(4)}` : '',
+      '',
+      `- **Documents:** ${documents.map(d => d.filename).join(', ')}`,
+      '',
+      `**Achievement Progress**`,
+      `- ${levelProgressText}`,
+    ].filter(line => line !== '').join('\n');
+
+    // This entry has no sessionId - it's a standalone Auto Run synopsis
+    onAddHistoryEntry({
+      type: 'AUTO',
+      timestamp: Date.now(),
+      summary: finalSummary,
+      fullResponse: finalDetails,
+      projectPath: session.cwd,
+      // No sessionId - this is a standalone synopsis entry
+      success: !wasStopped,
+      elapsedTimeMs: totalElapsedMs,
+      usageStats: totalInputTokens > 0 || totalOutputTokens > 0 ? {
+        inputTokens: totalInputTokens,
+        outputTokens: totalOutputTokens,
+        cacheReadInputTokens: 0,
+        cacheCreationInputTokens: 0,
+        totalCostUsd: totalCost,
+        contextWindow: 0
+      } : undefined,
+      achievementAction: 'openAbout'  // Enable clickable link to achievements panel
+    });
+
     // Reset state for this session (clear worktree tracking)
     setBatchRunStates(prev => ({
       ...prev,
@@ -1057,7 +1133,7 @@ ${docList}
         elapsedTimeMs: Date.now() - batchStartTime
       });
     }
-  }, [sessions, onUpdateSession, onSpawnAgent, onSpawnSynopsis, onAddHistoryEntry, onComplete, onPRResult, audioFeedbackEnabled, audioFeedbackCommand]);
+  }, [onUpdateSession, onSpawnAgent, onSpawnSynopsis, onAddHistoryEntry, onComplete, onPRResult, audioFeedbackEnabled, audioFeedbackCommand]);
 
   /**
    * Request to stop the batch run for a specific session after current task completes

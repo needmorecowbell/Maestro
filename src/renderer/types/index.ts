@@ -92,6 +92,7 @@ export interface HistoryEntry {
   success?: boolean; // For AUTO entries: whether the task completed successfully (true) or failed (false)
   elapsedTimeMs?: number; // Time taken to complete this task in milliseconds
   validated?: boolean; // For AUTO entries: whether a human has validated the task completion
+  achievementAction?: 'openAbout'; // If set, this entry has an action button to open the About/achievements panel
 }
 
 // Document entry in the batch run queue (supports duplicates)
@@ -231,6 +232,37 @@ export interface AutoRunStats {
   lastBadgeUnlockLevel: number;   // Last badge level that triggered unlock notification
   lastAcknowledgedBadgeLevel: number; // Last badge level user clicked "Take a Bow" on
   badgeHistory: BadgeUnlockRecord[]; // History of badge unlocks with timestamps
+}
+
+// Onboarding analytics statistics (survives app restarts)
+// These are stored locally only - no data is sent externally
+export interface OnboardingStats {
+  // Wizard statistics
+  wizardStartCount: number;              // Number of times wizard was started
+  wizardCompletionCount: number;         // Number of times wizard was completed
+  wizardAbandonCount: number;            // Number of times wizard was abandoned (exited before completion)
+  wizardResumeCount: number;             // Number of times wizard was resumed from saved state
+  averageWizardDurationMs: number;       // Average time to complete wizard (0 if none completed)
+  totalWizardDurationMs: number;         // Total cumulative wizard duration
+  lastWizardCompletedAt: number;         // Timestamp of last wizard completion (0 if never)
+
+  // Tour statistics
+  tourStartCount: number;                // Number of times tour was started
+  tourCompletionCount: number;           // Number of times tour was completed (all steps)
+  tourSkipCount: number;                 // Number of times tour was skipped before completion
+  tourStepsViewedTotal: number;          // Total tour steps viewed across all tours
+  averageTourStepsViewed: number;        // Average steps viewed per tour (completed + skipped)
+
+  // Conversation statistics
+  totalConversationExchanges: number;    // Total user<->AI exchanges across all wizards
+  averageConversationExchanges: number;  // Average exchanges per completed wizard
+  totalConversationsCompleted: number;   // Number of wizard conversations that reached ready state
+
+  // Auto Run document generation statistics
+  totalPhasesGenerated: number;          // Total Auto Run documents generated
+  averagePhasesPerWizard: number;        // Average documents per completed wizard
+  totalTasksGenerated: number;           // Total tasks generated across all documents
+  averageTasksPerPhase: number;          // Average tasks per document
 }
 
 // AI Tab for multi-tab support within a Maestro session

@@ -83,6 +83,7 @@ interface RightPanelProps {
   onJumpToClaudeSession?: (claudeSessionId: string) => void;
   onResumeSession?: (claudeSessionId: string) => void;
   onOpenSessionAsTab?: (claudeSessionId: string) => void;
+  onOpenAboutModal?: () => void;  // For opening About/achievements panel from history entries
 }
 
 export const RightPanel = forwardRef<RightPanelHandle, RightPanelProps>(function RightPanel(props, ref) {
@@ -97,7 +98,7 @@ export const RightPanel = forwardRef<RightPanelHandle, RightPanelProps>(function
     onAutoRunContentChange, onAutoRunModeChange, onAutoRunStateChange,
     onAutoRunSelectDocument, onAutoRunCreateDocument, onAutoRunRefresh, onAutoRunOpenSetup,
     batchRunState, currentSessionBatchState, onOpenBatchRunner, onStopBatchRun, onJumpToClaudeSession, onResumeSession,
-    onOpenSessionAsTab
+    onOpenSessionAsTab, onOpenAboutModal
   } = props;
 
   const historyPanelRef = useRef<HistoryPanelHandle>(null);
@@ -212,14 +213,6 @@ export const RightPanel = forwardRef<RightPanelHandle, RightPanelProps>(function
 
       {/* Tab Header */}
       <div className="flex border-b h-16" style={{ borderColor: theme.colors.border }}>
-        <button
-          onClick={() => setRightPanelOpen(!rightPanelOpen)}
-          className="flex items-center justify-center p-2 rounded hover:bg-white/5 transition-colors w-12 shrink-0"
-          title={`${rightPanelOpen ? "Collapse" : "Expand"} Right Panel (${formatShortcutKeys(shortcuts.toggleRightPanel.keys)})`}
-        >
-          {rightPanelOpen ? <PanelRightClose className="w-4 h-4 opacity-50" /> : <PanelRightOpen className="w-4 h-4 opacity-50" />}
-        </button>
-
         {['files', 'history', 'autorun'].map(tab => (
           <button
             key={tab}
@@ -229,10 +222,19 @@ export const RightPanel = forwardRef<RightPanelHandle, RightPanelProps>(function
               borderColor: activeRightTab === tab ? theme.colors.accent : 'transparent',
               color: activeRightTab === tab ? theme.colors.textMain : theme.colors.textDim
             }}
+            data-tour={`${tab}-tab`}
           >
             {tab === 'autorun' ? 'Auto Run' : tab.charAt(0).toUpperCase() + tab.slice(1)}
           </button>
         ))}
+
+        <button
+          onClick={() => setRightPanelOpen(!rightPanelOpen)}
+          className="flex items-center justify-center p-2 rounded hover:bg-white/5 transition-colors w-12 shrink-0"
+          title={`${rightPanelOpen ? "Collapse" : "Expand"} Right Panel (${formatShortcutKeys(shortcuts.toggleRightPanel.keys)})`}
+        >
+          {rightPanelOpen ? <PanelRightClose className="w-4 h-4 opacity-50" /> : <PanelRightOpen className="w-4 h-4 opacity-50" />}
+        </button>
       </div>
 
       {/* Tab Content */}
@@ -258,46 +260,52 @@ export const RightPanel = forwardRef<RightPanelHandle, RightPanelProps>(function
         }}
       >
         {activeRightTab === 'files' && (
-          <FileExplorerPanel
-            session={session}
-            theme={theme}
-            fileTreeFilter={fileTreeFilter}
-            setFileTreeFilter={setFileTreeFilter}
-            fileTreeFilterOpen={fileTreeFilterOpen}
-            setFileTreeFilterOpen={setFileTreeFilterOpen}
-            filteredFileTree={filteredFileTree}
-            selectedFileIndex={selectedFileIndex}
-            setSelectedFileIndex={setSelectedFileIndex}
-            activeFocus={activeFocus}
-            activeRightTab={activeRightTab}
-            previewFile={previewFile}
-            setActiveFocus={setActiveFocus}
-            fileTreeContainerRef={fileTreeContainerRef}
-            fileTreeFilterInputRef={fileTreeFilterInputRef}
-            toggleFolder={toggleFolder}
-            handleFileClick={handleFileClick}
-            expandAllFolders={expandAllFolders}
-            collapseAllFolders={collapseAllFolders}
-            updateSessionWorkingDirectory={updateSessionWorkingDirectory}
-            refreshFileTree={refreshFileTree}
-            setSessions={setSessions}
-            onAutoRefreshChange={onAutoRefreshChange}
-            onShowFlash={onShowFlash}
-          />
+          <div data-tour="files-panel" className="h-full">
+            <FileExplorerPanel
+              session={session}
+              theme={theme}
+              fileTreeFilter={fileTreeFilter}
+              setFileTreeFilter={setFileTreeFilter}
+              fileTreeFilterOpen={fileTreeFilterOpen}
+              setFileTreeFilterOpen={setFileTreeFilterOpen}
+              filteredFileTree={filteredFileTree}
+              selectedFileIndex={selectedFileIndex}
+              setSelectedFileIndex={setSelectedFileIndex}
+              activeFocus={activeFocus}
+              activeRightTab={activeRightTab}
+              previewFile={previewFile}
+              setActiveFocus={setActiveFocus}
+              fileTreeContainerRef={fileTreeContainerRef}
+              fileTreeFilterInputRef={fileTreeFilterInputRef}
+              toggleFolder={toggleFolder}
+              handleFileClick={handleFileClick}
+              expandAllFolders={expandAllFolders}
+              collapseAllFolders={collapseAllFolders}
+              updateSessionWorkingDirectory={updateSessionWorkingDirectory}
+              refreshFileTree={refreshFileTree}
+              setSessions={setSessions}
+              onAutoRefreshChange={onAutoRefreshChange}
+              onShowFlash={onShowFlash}
+            />
+          </div>
         )}
 
         {activeRightTab === 'history' && (
-          <HistoryPanel
-            ref={historyPanelRef}
-            session={session}
-            theme={theme}
-            onJumpToClaudeSession={onJumpToClaudeSession}
-            onResumeSession={onResumeSession}
-            onOpenSessionAsTab={onOpenSessionAsTab}
-          />
+          <div data-tour="history-panel" className="h-full">
+            <HistoryPanel
+              ref={historyPanelRef}
+              session={session}
+              theme={theme}
+              onJumpToClaudeSession={onJumpToClaudeSession}
+              onResumeSession={onResumeSession}
+              onOpenSessionAsTab={onOpenSessionAsTab}
+              onOpenAboutModal={onOpenAboutModal}
+            />
+          </div>
         )}
 
         {activeRightTab === 'autorun' && (
+          <div data-tour="autorun-panel" className="h-full">
           <AutoRun
             ref={autoRunRef}
             theme={theme}
@@ -326,6 +334,7 @@ export const RightPanel = forwardRef<RightPanelHandle, RightPanelProps>(function
             sessionState={session.state}
             onExpand={handleExpandAutoRun}
           />
+          </div>
         )}
       </div>
 

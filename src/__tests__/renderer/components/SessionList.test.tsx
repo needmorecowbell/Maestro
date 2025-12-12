@@ -258,7 +258,13 @@ describe('SessionList', () => {
 
     it('toggles sidebar open/closed', () => {
       const setLeftSidebarOpen = vi.fn();
-      const props = createDefaultProps({ leftSidebarOpen: true, setLeftSidebarOpen });
+      const session = createMockSession();
+      const props = createDefaultProps({
+        leftSidebarOpen: true,
+        setLeftSidebarOpen,
+        sessions: [session],
+        sortedSessions: [session],
+      });
       render(<SessionList {...props} />);
 
       // Find collapse button by its title

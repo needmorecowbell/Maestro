@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback, useImperativeHandle, forwardRef, useMemo } from 'react';
-import { Bot, User, ExternalLink, Check, X, Clock, HelpCircle } from 'lucide-react';
+import { Bot, User, ExternalLink, Check, X, Clock, HelpCircle, Award } from 'lucide-react';
 import type { Session, Theme, HistoryEntry, HistoryEntryType } from '../types';
 import { HistoryDetailModal } from './HistoryDetailModal';
 import { HistoryHelpModal } from './HistoryHelpModal';
+import { useThrottledCallback } from '../hooks/useThrottle';
 
 // Double checkmark SVG component for validated entries
 const DoubleCheck = ({ className, style }: { className?: string; style?: React.CSSProperties }) => (
@@ -408,6 +409,7 @@ interface HistoryPanelProps {
   onJumpToClaudeSession?: (claudeSessionId: string) => void;
   onResumeSession?: (claudeSessionId: string) => void;
   onOpenSessionAsTab?: (claudeSessionId: string) => void;
+  onOpenAboutModal?: () => void;  // For opening About/achievements panel from history entries
 }
 
 export interface HistoryPanelHandle {
@@ -423,7 +425,7 @@ const LOAD_MORE_COUNT = 50;         // Entries to add when scrolling
 // Module-level storage for scroll positions (persists across session switches)
 const scrollPositionCache = new Map<string, number>();
 
-export const HistoryPanel = React.memo(forwardRef<HistoryPanelHandle, HistoryPanelProps>(function HistoryPanel({ session, theme, onJumpToClaudeSession, onResumeSession, onOpenSessionAsTab }, ref) {
+export const HistoryPanel = React.memo(forwardRef<HistoryPanelHandle, HistoryPanelProps>(function HistoryPanel({ session, theme, onJumpToClaudeSession, onResumeSession, onOpenSessionAsTab, onOpenAboutModal }, ref) {
   const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
   const [activeFilters, setActiveFilters] = useState<Set<HistoryEntryType>>(new Set(['AUTO', 'USER']));
   const [isLoading, setIsLoading] = useState(true);
@@ -618,9 +620,15 @@ export const HistoryPanel = React.memo(forwardRef<HistoryPanelHandle, HistoryPan
     }
   }, [historyEntries, allFilteredEntries, displayCount]);
 
+  // PERF: Store scroll target ref for throttled handler
+  const scrollTargetRef = useRef<HTMLDivElement | null>(null);
+
   // Handle scroll to load more entries AND update graph reference time
-  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    const target = e.currentTarget;
+  // PERF: Inner handler contains the actual logic
+  const handleScrollInner = useCallback(() => {
+    const target = scrollTargetRef.current;
+    if (!target) return;
+
     const scrollBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
 
     // Save scroll position to module-level cache (persists across session switches)
@@ -656,6 +664,15 @@ export const HistoryPanel = React.memo(forwardRef<HistoryPanelHandle, HistoryPan
       setGraphReferenceTime(topmostVisibleEntry.timestamp);
     }
   }, [session.id, hasMore, allFilteredEntries.length, filteredEntries]);
+
+  // PERF: Throttle scroll handler to 16ms (~60fps) to reduce layout thrashing
+  const throttledScrollHandler = useThrottledCallback(handleScrollInner, 16);
+
+  // Wrapper to capture scroll target and call throttled handler
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    scrollTargetRef.current = e.currentTarget;
+    throttledScrollHandler();
+  }, [throttledScrollHandler]);
 
   // Restore scroll position when loading completes (switching sessions or initial load)
   useEffect(() => {
@@ -848,11 +865,14 @@ export const HistoryPanel = React.memo(forwardRef<HistoryPanelHandle, HistoryPan
         {/* Help button */}
         <button
           onClick={() => setHelpModalOpen(true)}
-          className="flex-shrink-0 p-1.5 rounded-full transition-colors hover:bg-white/10"
-          style={{ color: theme.colors.textDim }}
+          className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded transition-colors hover:bg-white/10"
+          style={{
+            color: theme.colors.textDim,
+            border: `1px solid ${theme.colors.border}`
+          }}
           title="History panel help"
         >
-          <HelpCircle className="w-4 h-4" />
+          <HelpCircle className="w-3.5 h-3.5" />
         </button>
       </div>
 
@@ -983,16 +1003,18 @@ export const HistoryPanel = React.memo(forwardRef<HistoryPanelHandle, HistoryPan
                           e.stopPropagation();
                           onOpenSessionAsTab?.(entry.claudeSessionId!);
                         }}
-                        className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition-colors hover:opacity-80 ${entry.sessionName ? '' : 'font-mono uppercase'}`}
+                        className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition-colors hover:opacity-80 min-w-0 ${entry.sessionName ? '' : 'font-mono uppercase'}`}
                         style={{
                           backgroundColor: theme.colors.accent + '20',
                           color: theme.colors.accent,
-                          border: `1px solid ${theme.colors.accent}40`
+                          border: `1px solid ${theme.colors.accent}40`,
                         }}
                         title={`Open session ${entry.sessionName || entry.claudeSessionId.split('-')[0]} as new tab`}
                       >
-                        {entry.sessionName || entry.claudeSessionId.split('-')[0].toUpperCase()}
-                        <ExternalLink className="w-2.5 h-2.5" />
+                        <span className="truncate">
+                          {entry.sessionName || entry.claudeSessionId.split('-')[0].toUpperCase()}
+                        </span>
+                        <ExternalLink className="w-2.5 h-2.5 flex-shrink-0" />
                       </button>
                     )}
                   </div>
@@ -1016,8 +1038,8 @@ export const HistoryPanel = React.memo(forwardRef<HistoryPanelHandle, HistoryPan
                   {entry.summary || 'No summary available'}
                 </p>
 
-                {/* Footer Row - Time and Cost */}
-                {(entry.elapsedTimeMs !== undefined || (entry.usageStats && entry.usageStats.totalCostUsd > 0)) && (
+                {/* Footer Row - Time, Cost, and Achievement Action */}
+                {(entry.elapsedTimeMs !== undefined || (entry.usageStats && entry.usageStats.totalCostUsd > 0) || entry.achievementAction) && (
                   <div className="flex items-center gap-3 mt-2 pt-2 border-t" style={{ borderColor: theme.colors.border }}>
                     {/* Elapsed Time */}
                     {entry.elapsedTimeMs !== undefined && (
@@ -1040,6 +1062,25 @@ export const HistoryPanel = React.memo(forwardRef<HistoryPanelHandle, HistoryPan
                       >
                         ${entry.usageStats.totalCostUsd.toFixed(2)}
                       </span>
+                    )}
+                    {/* Achievement Action Button */}
+                    {entry.achievementAction === 'openAbout' && onOpenAboutModal && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenAboutModal();
+                        }}
+                        className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition-colors hover:opacity-80 ml-auto"
+                        style={{
+                          backgroundColor: theme.colors.warning + '20',
+                          color: theme.colors.warning,
+                          border: `1px solid ${theme.colors.warning}40`
+                        }}
+                        title="View achievements"
+                      >
+                        <Award className="w-3 h-3" />
+                        View Achievements
+                      </button>
                     )}
                   </div>
                 )}

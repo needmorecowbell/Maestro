@@ -302,10 +302,11 @@ describe('ToastContext', () => {
         });
       });
 
-      // Should build title as "Group > Session"
+      // Title is project field or fallback to toast title
+      // Body is [Group > ] [TabName: ] First sentence of message
       expect(window.maestro.notification.show).toHaveBeenCalledWith(
-        'MyGroup > MyTab',
-        'Done'
+        'Notification Test',
+        'MyGroup > MyTab: OS notification message'
       );
     });
 
@@ -327,10 +328,11 @@ describe('ToastContext', () => {
         });
       });
 
-      // Should use first 8 chars of claudeSessionId
+      // Title is project field or fallback to toast title
+      // Body uses first 8 chars of claudeSessionId when no tabName
       expect(window.maestro.notification.show).toHaveBeenCalledWith(
-        'ErrorGroup > 12345678',
-        'Error'
+        'Session ID Test',
+        'ErrorGroup > 12345678: Error message'
       );
     });
 
@@ -351,9 +353,11 @@ describe('ToastContext', () => {
         });
       });
 
+      // Title is project field or fallback to toast title
+      // Body is [Group: ] First sentence of message
       expect(window.maestro.notification.show).toHaveBeenCalledWith(
-        'OnlyGroup',
-        'Attention'
+        'Group Only Test',
+        'OnlyGroup: Warning message'
       );
     });
 
@@ -373,9 +377,11 @@ describe('ToastContext', () => {
         });
       });
 
+      // Title is project field or fallback to toast title
+      // Body is just the first sentence when no group/tab
       expect(window.maestro.notification.show).toHaveBeenCalledWith(
         'Fallback Title',
-        'Ready'
+        'Info message'
       );
     });
 
@@ -919,10 +925,11 @@ describe('ToastContext', () => {
         });
       });
 
-      // Without group, should use tabName as title
+      // Title is project field or fallback to toast title
+      // Body is [TabName: ] First sentence of message
       expect(window.maestro.notification.show).toHaveBeenCalledWith(
-        'OnlyTabName',
-        'Done'
+        'Tab Only',
+        'OnlyTabName: Message'
       );
     });
   });

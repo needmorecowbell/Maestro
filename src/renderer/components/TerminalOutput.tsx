@@ -10,6 +10,7 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useLayerStack } from '../contexts/LayerStackContext';
 import { MODAL_PRIORITIES } from '../constants/modalPriorities';
 import { getActiveTab } from '../utils/tabHelpers';
+import { useDebouncedValue, useThrottledCallback } from '../hooks/useThrottle';
 
 // ============================================================================
 // CodeBlockWithCopy - Code block with copy button overlay
@@ -126,6 +127,45 @@ const filterTextByLinesHelper = (text: string, query: string, mode: 'include' | 
     return filteredLines.join('\n');
   }
 };
+
+// ============================================================================
+// PERF: ANSI conversion cache - stores converted HTML by content hash
+// ============================================================================
+// LRU-style cache for ANSI to HTML conversions to avoid re-converting on every render
+// Cache key is hash of (text content + theme ID), value is sanitized HTML
+const ANSI_CACHE_MAX_SIZE = 500;
+const ansiCache = new Map<string, string>();
+
+/**
+ * Get cached ANSI-to-HTML conversion or compute and cache it
+ * @param text - Raw text with ANSI codes
+ * @param themeId - Theme identifier (ANSI colors depend on theme)
+ * @param converter - The ANSI converter instance
+ * @returns Sanitized HTML string
+ */
+function getCachedAnsiHtml(text: string, themeId: string, converter: Convert): string {
+  // Create a simple hash key from text and theme
+  // For performance, use a substring-based key for long texts
+  const textKey = text.length > 200 ? `${text.slice(0, 100)}|${text.length}|${text.slice(-100)}` : text;
+  const cacheKey = `${themeId}:${textKey}`;
+
+  const cached = ansiCache.get(cacheKey);
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  // Convert and sanitize
+  const html = DOMPurify.sanitize(converter.toHtml(text));
+
+  // LRU eviction: remove oldest entries if cache is full
+  if (ansiCache.size >= ANSI_CACHE_MAX_SIZE) {
+    const firstKey = ansiCache.keys().next().value;
+    if (firstKey) ansiCache.delete(firstKey);
+  }
+
+  ansiCache.set(cacheKey, html);
+  return html;
+}
 
 // Strip markdown formatting to show plain text
 const stripMarkdown = (text: string): string => {
@@ -387,9 +427,12 @@ const LogItemComponent = memo(({
     ? addHighlightMarkers(contentToDisplay, outputSearchQuery)
     : contentToDisplay;
 
-  // Convert ANSI codes to HTML for terminal output and sanitize with DOMPurify
+  // PERF: Convert ANSI codes to HTML, using cache when no search highlighting is applied
+  // When search is active, highlighting markers change the text so we can't use cache
   const htmlContent = isTerminal && log.source !== 'user'
-    ? DOMPurify.sanitize(ansiConverter.toHtml(contentWithHighlights))
+    ? (outputSearchQuery
+        ? DOMPurify.sanitize(ansiConverter.toHtml(contentWithHighlights))
+        : getCachedAnsiHtml(contentToDisplay, theme.id, ansiConverter))
     : contentToDisplay;
 
   const filteredText = contentToDisplay;
@@ -408,9 +451,11 @@ const LogItemComponent = memo(({
     ? addHighlightMarkers(displayText, outputSearchQuery)
     : displayText;
 
-  // Sanitize with DOMPurify before rendering
+  // PERF: Sanitize with DOMPurify, using cache when no search highlighting
   const displayHtmlContent = shouldCollapse && !isExpanded && isTerminal && log.source !== 'user'
-    ? DOMPurify.sanitize(ansiConverter.toHtml(displayTextWithHighlights))
+    ? (outputSearchQuery
+        ? DOMPurify.sanitize(ansiConverter.toHtml(displayTextWithHighlights))
+        : getCachedAnsiHtml(displayText, theme.id, ansiConverter))
     : htmlContent;
 
   const isUserMessage = log.source === 'user';
@@ -1343,16 +1388,22 @@ export const TerminalOutput = forwardRef<HTMLDivElement, TerminalOutputProps>((p
     return result;
   }, [activeLogs, session.inputMode]);
 
-  // Filter logs based on search query - memoized for performance
-  const filteredLogs = useMemo(() => {
-    if (!outputSearchQuery) return collapsedLogs;
-    return collapsedLogs.filter(log =>
-      log.text.toLowerCase().includes(outputSearchQuery.toLowerCase())
-    );
-  }, [collapsedLogs, outputSearchQuery]);
+  // PERF: Debounce search query to avoid filtering on every keystroke
+  const debouncedSearchQuery = useDebouncedValue(outputSearchQuery, 150);
 
-  // Handle scroll to detect if user is at bottom and save scroll position (throttled)
-  const handleScroll = useCallback(() => {
+  // Filter logs based on search query - memoized for performance
+  // Uses debounced query to reduce CPU usage during rapid typing
+  const filteredLogs = useMemo(() => {
+    if (!debouncedSearchQuery) return collapsedLogs;
+    const lowerQuery = debouncedSearchQuery.toLowerCase();
+    return collapsedLogs.filter(log =>
+      log.text.toLowerCase().includes(lowerQuery)
+    );
+  }, [collapsedLogs, debouncedSearchQuery]);
+
+  // PERF: Throttle scroll handler to reduce state updates (16ms = ~60fps)
+  // The actual logic is in handleScrollInner, wrapped with useThrottledCallback
+  const handleScrollInner = useCallback(() => {
     if (!scrollContainerRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
     // Consider "at bottom" if within 50px of the bottom
@@ -1379,6 +1430,8 @@ export const TerminalOutput = forwardRef<HTMLDivElement, TerminalOutputProps>((p
       }, 200);
     }
   }, [activeTabId, filteredLogs.length, onScrollPositionChange]);
+
+  const handleScroll = useThrottledCallback(handleScrollInner, 16);
 
   // Restore read state when switching tabs
   useEffect(() => {

@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Folder, X, RefreshCw } from 'lucide-react';
-import type { AgentConfig } from '../types';
+import type { AgentConfig, Session, ToolType } from '../types';
 import { useLayerStack } from '../contexts/LayerStackContext';
 import { MODAL_PRIORITIES } from '../constants/modalPriorities';
+import { validateNewSession } from '../utils/sessionValidation';
 
 interface AgentDebugInfo {
   agentId: string;
@@ -22,9 +23,10 @@ interface NewInstanceModalProps {
   onCreate: (agentId: string, workingDir: string, name: string) => void;
   theme: any;
   defaultAgent: string;
+  existingSessions: Session[];
 }
 
-export function NewInstanceModal({ isOpen, onClose, onCreate, theme, defaultAgent }: NewInstanceModalProps) {
+export function NewInstanceModal({ isOpen, onClose, onCreate, theme, defaultAgent, existingSessions }: NewInstanceModalProps) {
   const [agents, setAgents] = useState<AgentConfig[]>([]);
   const [selectedAgent, setSelectedAgent] = useState(defaultAgent);
   const [workingDir, setWorkingDir] = useState('');
@@ -53,6 +55,16 @@ export function NewInstanceModal({ isOpen, onClose, onCreate, theme, defaultAgen
     if (path.startsWith('~/')) return homeDir + path.slice(1);
     return path;
   };
+
+  // Validate session uniqueness
+  const validation = useMemo(() => {
+    const name = instanceName.trim();
+    const expandedDir = expandTilde(workingDir.trim());
+    if (!name || !expandedDir || !selectedAgent) {
+      return { valid: true }; // Don't show errors until fields are filled
+    }
+    return validateNewSession(name, expandedDir, selectedAgent as ToolType, existingSessions);
+  }, [instanceName, workingDir, selectedAgent, existingSessions, homeDir]);
 
   // Define handlers first before they're used in effects
   const loadAgents = async () => {
@@ -109,13 +121,18 @@ export function NewInstanceModal({ isOpen, onClose, onCreate, theme, defaultAgen
     if (!name) return; // Name is required
     // Expand tilde before passing to callback
     const expandedWorkingDir = expandTilde(workingDir.trim());
+
+    // Validate before creating
+    const result = validateNewSession(name, expandedWorkingDir, selectedAgent as ToolType, existingSessions);
+    if (!result.valid) return;
+
     onCreate(selectedAgent, expandedWorkingDir, name);
     onClose();
 
     // Reset
     setInstanceName('');
     setWorkingDir('');
-  }, [instanceName, selectedAgent, workingDir, onCreate, onClose, expandTilde]);
+  }, [instanceName, selectedAgent, workingDir, onCreate, onClose, expandTilde, existingSessions]);
 
   // Effects
   useEffect(() => {
@@ -183,7 +200,7 @@ export function NewInstanceModal({ isOpen, onClose, onCreate, theme, defaultAgen
         if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
           e.preventDefault();
           e.stopPropagation();
-          if (selectedAgent && agents.find(a => a.id === selectedAgent)?.available && workingDir.trim() && instanceName.trim()) {
+          if (selectedAgent && agents.find(a => a.id === selectedAgent)?.available && workingDir.trim() && instanceName.trim() && validation.valid) {
             handleCreate();
           }
           return;
@@ -210,24 +227,33 @@ export function NewInstanceModal({ isOpen, onClose, onCreate, theme, defaultAgen
         <div className="p-6 space-y-5">
           {/* Agent Name */}
           <div>
-            <label className="block text-xs font-bold opacity-70 uppercase mb-2" style={{ color: theme.colors.textMain }}>
+            <label htmlFor="agent-name-input" className="block text-xs font-bold opacity-70 uppercase mb-2" style={{ color: theme.colors.textMain }}>
               Agent Name
             </label>
             <input
+              id="agent-name-input"
               ref={nameInputRef}
               type="text"
               value={instanceName}
               onChange={(e) => setInstanceName(e.target.value)}
-              placeholder="My Project Session"
+              placeholder=""
               className="w-full p-2 rounded border bg-transparent outline-none"
-              style={{ borderColor: theme.colors.border, color: theme.colors.textMain }}
+              style={{
+                borderColor: validation.errorField === 'name' ? theme.colors.error : theme.colors.border,
+                color: theme.colors.textMain
+              }}
             />
+            {validation.errorField === 'name' && (
+              <p className="mt-1 text-xs" style={{ color: theme.colors.error }}>
+                {validation.error}
+              </p>
+            )}
           </div>
 
           {/* Agent Selection */}
           <div>
             <label className="block text-xs font-bold opacity-70 uppercase mb-2" style={{ color: theme.colors.textMain }}>
-              AI Agent / Tool
+              Agent Provider
             </label>
             {loading ? (
               <div className="text-sm opacity-50">Loading agents...</div>
@@ -395,7 +421,10 @@ export function NewInstanceModal({ isOpen, onClose, onCreate, theme, defaultAgen
                 onChange={(e) => setWorkingDir(e.target.value)}
                 placeholder="Select directory..."
                 className="flex-1 p-2 rounded border bg-transparent outline-none font-mono text-sm"
-                style={{ borderColor: theme.colors.border, color: theme.colors.textMain }}
+                style={{
+                  borderColor: validation.errorField === 'directory' ? theme.colors.error : theme.colors.border,
+                  color: theme.colors.textMain
+                }}
               />
               <button
                 onClick={handleSelectFolder}
@@ -406,6 +435,11 @@ export function NewInstanceModal({ isOpen, onClose, onCreate, theme, defaultAgen
                 <Folder className="w-5 h-5" />
               </button>
             </div>
+            {validation.errorField === 'directory' && (
+              <p className="mt-1 text-xs" style={{ color: theme.colors.error }}>
+                {validation.error}
+              </p>
+            )}
           </div>
         </div>
 
@@ -420,7 +454,7 @@ export function NewInstanceModal({ isOpen, onClose, onCreate, theme, defaultAgen
           </button>
           <button
             onClick={handleCreate}
-            disabled={!selectedAgent || !agents.find(a => a.id === selectedAgent)?.available || !workingDir.trim() || !instanceName.trim()}
+            disabled={!selectedAgent || !agents.find(a => a.id === selectedAgent)?.available || !workingDir.trim() || !instanceName.trim() || !validation.valid}
             className="px-4 py-2 rounded disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ backgroundColor: theme.colors.accent, color: theme.colors.accentForeground }}
           >

@@ -5,6 +5,7 @@ import { useLayerStack } from '../contexts/LayerStackContext';
 import { MODAL_PRIORITIES } from '../constants/modalPriorities';
 import { gitService } from '../services/git';
 import { formatShortcutKeys } from '../utils/shortcutFormatter';
+import type { WizardStep } from './Wizard/WizardContext';
 
 interface QuickAction {
   id: string;
@@ -61,6 +62,10 @@ interface QuickActionsModalProps {
   markdownRawMode?: boolean;
   onToggleMarkdownRawMode?: () => void;
   setUpdateCheckModalOpen?: (open: boolean) => void;
+  openWizard?: () => void;
+  wizardGoToStep?: (step: WizardStep) => void;
+  setDebugWizardModalOpen?: (open: boolean) => void;
+  startTour?: () => void;
 }
 
 export function QuickActionsModal(props: QuickActionsModalProps) {
@@ -75,7 +80,7 @@ export function QuickActionsModal(props: QuickActionsModalProps) {
     setShortcutsHelpOpen, setAboutModalOpen, setLogViewerOpen, setProcessMonitorOpen,
     setAgentSessionsOpen, setActiveClaudeSessionId, setGitDiffPreview, setGitLogOpen,
     onRenameTab, onToggleReadOnlyMode, onOpenTabSwitcher, tabShortcuts, isAiMode, setPlaygroundOpen, onRefreshGitFileState,
-    onDebugReleaseQueuedItem, markdownRawMode, onToggleMarkdownRawMode, setUpdateCheckModalOpen
+    onDebugReleaseQueuedItem, markdownRawMode, onToggleMarkdownRawMode, setUpdateCheckModalOpen, openWizard, wizardGoToStep, setDebugWizardModalOpen, startTour
   } = props;
 
   const [search, setSearch] = useState('');
@@ -192,6 +197,7 @@ export function QuickActionsModal(props: QuickActionsModalProps) {
   const mainActions: QuickAction[] = [
     ...sessionActions,
     { id: 'new', label: 'Create New Agent', shortcut: shortcuts.newInstance, action: addNewSession },
+    ...(openWizard ? [{ id: 'wizard', label: 'New Agent Wizard', shortcut: shortcuts.openWizard, action: () => { openWizard(); setQuickActionOpen(false); } }] : []),
     ...(activeSession ? [{ id: 'rename', label: `Rename Agent: ${activeSession.name}`, action: () => {
       setRenameInstanceValue(activeSession.name);
       setRenameInstanceModalOpen(true);
@@ -224,6 +230,7 @@ export function QuickActionsModal(props: QuickActionsModalProps) {
     { id: 'settings', label: 'Settings', shortcut: shortcuts.settings, action: () => { setSettingsModalOpen(true); setQuickActionOpen(false); } },
     { id: 'theme', label: 'Change Theme', action: () => { setSettingsModalOpen(true); setSettingsTab('theme'); setQuickActionOpen(false); } },
     { id: 'shortcuts', label: 'View Shortcuts', shortcut: shortcuts.help, action: () => { setShortcutsHelpOpen(true); setQuickActionOpen(false); } },
+    ...(startTour ? [{ id: 'tour', label: 'Start Introductory Tour', subtext: 'Take a guided tour of the interface', action: () => { startTour(); setQuickActionOpen(false); } }] : []),
     { id: 'logs', label: 'View System Logs', shortcut: shortcuts.systemLogs, action: () => { setLogViewerOpen(true); setQuickActionOpen(false); } },
     { id: 'processes', label: 'View System Processes', shortcut: shortcuts.processMonitor, action: () => { setProcessMonitorOpen(true); setQuickActionOpen(false); } },
     ...(activeSession ? [{ id: 'agentSessions', label: `View Agent Sessions for ${activeSession.name}`, shortcut: shortcuts.agentSessions, action: () => { setActiveClaudeSessionId(null); setAgentSessionsOpen(true); setQuickActionOpen(false); } }] : []),
@@ -314,6 +321,15 @@ export function QuickActionsModal(props: QuickActionsModalProps) {
       subtext: `Process next item from queue (${activeSession.executionQueue.length} queued)`,
       action: () => {
         onDebugReleaseQueuedItem();
+        setQuickActionOpen(false);
+      }
+    }] : []),
+    ...(setDebugWizardModalOpen ? [{
+      id: 'debugWizardPhaseReview',
+      label: 'Debug: Wizard → Review Action Plans',
+      subtext: 'Jump directly to Phase Review step (requires existing Auto Run docs)',
+      action: () => {
+        setDebugWizardModalOpen(true);
         setQuickActionOpen(false);
       }
     }] : []),

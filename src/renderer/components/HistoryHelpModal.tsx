@@ -256,33 +256,24 @@ export function HistoryHelpModal({ theme, onClose }: HistoryHelpModalProps) {
           <section>
             <div className="flex items-center gap-2 mb-3">
               <BarChart2 className="w-5 h-5" style={{ color: theme.colors.accent }} />
-              <h3 className="font-bold">24-Hour Activity Graph</h3>
+              <h3 className="font-bold">Activity Graph</h3>
             </div>
             <div
               className="text-sm space-y-2 pl-7"
               style={{ color: theme.colors.textDim }}
             >
               <p>
-                The bar graph in the header shows your activity over the past 24 hours:
+                The bar graph in the header visualizes your activity over a configurable time period.
               </p>
-              <div className="flex items-center gap-4 mt-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded" style={{ backgroundColor: theme.colors.warning }} />
-                  <span>Auto entries</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded" style={{ backgroundColor: theme.colors.accent }} />
-                  <span>User entries</span>
-                </div>
-              </div>
               <p className="mt-2">
-                <strong style={{ color: theme.colors.textMain }}>Dynamic sliding window:</strong>{' '}
-                As you scroll through the history list, the graph updates to show the 24-hour
-                window relative to the topmost visible entry. This helps you visualize activity
-                patterns around specific points in time.
+                <strong style={{ color: theme.colors.textMain }}>Right-click the graph</strong> to choose from multiple lookback periods:
+                24 hours, 72 hours, 1 week, 2 weeks, 1 month, 6 months, 1 year, or all time.
               </p>
               <p>
-                Hover over any bar to see the exact counts for that hour.
+                <strong style={{ color: theme.colors.textMain }}>Click any bar</strong> to filter the history list to entries within that time bucket.
+              </p>
+              <p>
+                Hover over any bar to see the exact count and time range.
               </p>
             </div>
           </section>

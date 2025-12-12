@@ -205,7 +205,7 @@ export function MainPanel(props: MainPanelProps) {
     return Math.min(Math.round((contextTokens / contextWindow) * 100), 100);
   }, [activeTab?.usageStats]);
 
-  // Track panel width for responsive widget hiding
+  // PERF: Track panel width for responsive widget hiding with throttled updates
   useEffect(() => {
     const header = headerRef.current;
     if (!header) return;
@@ -213,14 +213,32 @@ export function MainPanel(props: MainPanelProps) {
     // Get initial width immediately
     setPanelWidth(header.offsetWidth);
 
+    // Throttle resize updates to avoid layout thrashing during animations
+    let rafId: number | null = null;
+    let pendingWidth: number | null = null;
+
     const resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        setPanelWidth(entry.contentRect.width);
+        pendingWidth = entry.contentRect.width;
+      }
+      // Use requestAnimationFrame to batch updates
+      if (rafId === null && pendingWidth !== null) {
+        rafId = requestAnimationFrame(() => {
+          if (pendingWidth !== null) {
+            setPanelWidth(pendingWidth);
+          }
+          rafId = null;
+        });
       }
     });
 
     resizeObserver.observe(header);
-    return () => resizeObserver.disconnect();
+    return () => {
+      resizeObserver.disconnect();
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+      }
+    };
   }, []);
 
   // Responsive breakpoints for hiding widgets
@@ -356,19 +374,13 @@ export function MainPanel(props: MainPanelProps) {
   // Show empty state when no active session
   if (!activeSession) {
     return (
-      <>
-        <div
-          className="flex-1 flex flex-col items-center justify-center min-w-0 relative opacity-30"
-          style={{ backgroundColor: theme.colors.bgMain }}
-        >
-          <Wand2 className="w-16 h-16 mb-4" style={{ color: theme.colors.textDim }} />
-          <p className="text-sm" style={{ color: theme.colors.textDim }}>No agents. Create one to get started.</p>
-        </div>
-        <div
-          className="w-96 border-l opacity-30"
-          style={{ backgroundColor: theme.colors.bgSidebar, borderColor: theme.colors.border }}
-        />
-      </>
+      <div
+        className="flex-1 flex flex-col items-center justify-center min-w-0 relative opacity-30"
+        style={{ backgroundColor: theme.colors.bgMain }}
+      >
+        <Wand2 className="w-16 h-16 mb-4" style={{ color: theme.colors.textDim }} />
+        <p className="text-sm" style={{ color: theme.colors.textDim }}>No agents. Create one to get started.</p>
+      </div>
     );
   }
 
@@ -383,7 +395,7 @@ export function MainPanel(props: MainPanelProps) {
         >
           {/* Top Bar (hidden in mobile landscape for focused reading) */}
           {!isMobileLandscape && (
-          <div ref={headerRef} className="h-16 border-b flex items-center justify-between px-6 shrink-0" style={{ borderColor: theme.colors.border, backgroundColor: theme.colors.bgSidebar }}>
+          <div ref={headerRef} className="h-16 border-b flex items-center justify-between px-6 shrink-0" style={{ borderColor: theme.colors.border, backgroundColor: theme.colors.bgSidebar }} data-tour="header-controls">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2 text-sm font-medium">
                 {activeSession.name}
@@ -802,6 +814,7 @@ export function MainPanel(props: MainPanelProps) {
           ) : (
             <>
               {/* Logs Area */}
+              <div className="flex-1 overflow-hidden flex flex-col" data-tour="main-terminal">
               <TerminalOutput
                 key={`${activeSession.id}-${activeSession.activeTabId}`}
                 ref={terminalOutputRef}
@@ -831,9 +844,11 @@ export function MainPanel(props: MainPanelProps) {
                 markdownRawMode={markdownRawMode}
                 setMarkdownRawMode={setMarkdownRawMode}
               />
+              </div>
 
               {/* Input Area (hidden in mobile landscape for focused reading) */}
               {!isMobileLandscape && (
+              <div data-tour="input-area">
               <InputArea
                 session={activeSession}
                 theme={theme}
@@ -892,6 +907,7 @@ export function MainPanel(props: MainPanelProps) {
                 onToggleTabSaveToHistory={props.onToggleTabSaveToHistory}
                 onOpenPromptComposer={props.onOpenPromptComposer}
               />
+              </div>
               )}
             </>
           )}

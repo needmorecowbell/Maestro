@@ -43,6 +43,9 @@
         z-index: 9999;
         background-color: #1a1a2e;
         transition: opacity 0.5s ease-out;
+        /* Account for 40px title bar (pt-10) so content aligns with app layout */
+        padding-top: 40px;
+        box-sizing: border-box;
       }
 
       #initial-splash.hidden {
@@ -160,8 +163,8 @@
           if (progressBar) progressBar.style.width = '100%';
           if (progressText) progressText.textContent = 'Ready';
 
-          // Fade out after a brief moment
-          setTimeout(function() {
+          // Helper to fade out the splash
+          function fadeOut() {
             var splash = document.getElementById('initial-splash');
             if (splash) {
               splash.classList.add('hidden');
@@ -172,7 +175,18 @@
                 }
               }, 500);
             }
-          }, 200);
+          }
+
+          // Wait for fonts to be loaded to prevent layout shift from font swap
+          if (document.fonts && document.fonts.ready) {
+            document.fonts.ready.then(function() {
+              // Small delay after fonts ready for any final layout settling
+              setTimeout(fadeOut, 50);
+            });
+          } else {
+            // Fallback for browsers without Font Loading API
+            setTimeout(fadeOut, 200);
+          }
         };
       })();
     </script>

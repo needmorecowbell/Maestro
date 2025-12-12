@@ -67,6 +67,13 @@ const AGENT_DEFINITIONS: Omit<AgentConfig, 'available' | 'path'>[] = [
     command: 'qwen3-coder',
     args: [],
   },
+  {
+    id: 'opencode',
+    name: 'OpenCode',
+    binaryName: 'opencode',
+    command: 'opencode',
+    args: [],
+  },
 ];
 
 export class AgentDetector {

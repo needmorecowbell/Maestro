@@ -19,14 +19,19 @@ import { MainPanel } from './components/MainPanel';
 import { ProcessMonitor } from './components/ProcessMonitor';
 import { GitDiffViewer } from './components/GitDiffViewer';
 import { GitLogViewer } from './components/GitLogViewer';
-import { BatchRunnerModal } from './components/BatchRunnerModal';
+import { BatchRunnerModal, DEFAULT_BATCH_PROMPT } from './components/BatchRunnerModal';
 import { TabSwitcherModal } from './components/TabSwitcherModal';
 import { PromptComposerModal } from './components/PromptComposerModal';
 import { ExecutionQueueBrowser } from './components/ExecutionQueueBrowser';
 import { StandingOvationOverlay } from './components/StandingOvationOverlay';
+import { FirstRunCelebration } from './components/FirstRunCelebration';
 import { PlaygroundPanel } from './components/PlaygroundPanel';
 import { AutoRunSetupModal } from './components/AutoRunSetupModal';
+import { DebugWizardModal } from './components/DebugWizardModal';
+import { MaestroWizard, useWizard, WizardResumeModal, SerializableWizardState, AUTO_RUN_FOLDER_NAME } from './components/Wizard';
+import { TourOverlay } from './components/Wizard/tour';
 import { CONDUCTOR_BADGES } from './constants/conductorBadges';
+import { EmptyStateView } from './components/EmptyStateView';
 
 // Import custom hooks
 import { useBatchProcessor } from './hooks/useBatchProcessor';
@@ -55,6 +60,7 @@ import { setActiveTab, createTab, closeTab, reopenClosedTab, getActiveTab, getWr
 import { TAB_SHORTCUTS } from './constants/shortcuts';
 import { shouldOpenExternally, loadFileTree, getAllFolderPaths, flattenTree, compareFileTrees, FileTreeChanges } from './utils/fileExplorer';
 import { substituteTemplateVariables } from './utils/templateVariables';
+import { validateNewSession } from './utils/sessionValidation';
 
 // Strip leading emojis from a string for alphabetical sorting
 // Matches common emoji patterns at the start of the string
@@ -105,6 +111,10 @@ const getSlashCommandDescription = (cmd: string): string => {
   return 'Claude Code command';
 };
 
+// Default prompt to use when user sends only an image without text
+// This instructs the AI to analyze the image and infer the user's intent from context
+const DEFAULT_IMAGE_ONLY_PROMPT = 'Examine the attached picture and best determine based on available and existing context, what the user wants done next.';
+
 export default function MaestroConsole() {
   // --- LAYER STACK (for blocking shortcuts when modals are open) ---
   const { hasOpenLayers, hasOpenModal } = useLayerStack();
@@ -121,6 +131,18 @@ export default function MaestroConsole() {
     navigateBack,
     navigateForward,
   } = useNavigationHistory();
+
+  // --- WIZARD (onboarding wizard for new users) ---
+  const {
+    state: wizardState,
+    openWizard: openWizardModal,
+    restoreState: restoreWizardState,
+    loadResumeState,
+    clearResumeState,
+    completeWizard,
+    closeWizard: closeWizardModal,
+    goToStep: wizardGoToStep,
+  } = useWizard();
 
   // --- SETTINGS (from useSettings hook) ---
   const settings = useSettings();
@@ -155,6 +177,10 @@ export default function MaestroConsole() {
     customAICommands, setCustomAICommands,
     globalStats, updateGlobalStats,
     autoRunStats, recordAutoRunComplete, updateAutoRunProgress, acknowledgeBadge, getUnacknowledgedBadgeLevel,
+    tourCompleted, setTourCompleted,
+    firstAutoRunCompleted, setFirstAutoRunCompleted,
+    recordWizardStart, recordWizardComplete, recordWizardAbandon, recordWizardResume,
+    recordTourStart, recordTourComplete, recordTourSkip,
   } = settings;
 
   // --- STATE ---
@@ -205,6 +231,15 @@ export default function MaestroConsole() {
   // Git Diff State
   const [gitDiffPreview, setGitDiffPreview] = useState<string | null>(null);
 
+  // Stable callbacks for memoized modals (prevents re-renders from callback reference changes)
+  const handleCloseGitDiff = useCallback(() => setGitDiffPreview(null), []);
+  const handleCloseGitLog = useCallback(() => setGitLogOpen(false), []);
+  const handleCloseSettings = useCallback(() => setSettingsModalOpen(false), []);
+
+  // Tour Overlay State
+  const [tourOpen, setTourOpen] = useState(false);
+  const [tourFromWizard, setTourFromWizard] = useState(false);
+
   // Git Log Viewer State
   const [gitLogOpen, setGitLogOpen] = useState(false);
 
@@ -232,9 +267,15 @@ export default function MaestroConsole() {
     isNewRecord: boolean;
     recordTimeMs?: number;
   } | null>(null);
+  const [firstRunCelebrationData, setFirstRunCelebrationData] = useState<{
+    elapsedTimeMs: number;
+    completedTasks: number;
+    totalTasks: number;
+  } | null>(null);
   const [logViewerOpen, setLogViewerOpen] = useState(false);
   const [processMonitorOpen, setProcessMonitorOpen] = useState(false);
   const [playgroundOpen, setPlaygroundOpen] = useState(false);
+  const [debugWizardModalOpen, setDebugWizardModalOpen] = useState(false);
   const [createGroupModalOpen, setCreateGroupModalOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupEmoji, setNewGroupEmoji] = useState('📂');
@@ -274,6 +315,10 @@ export default function MaestroConsole() {
 
   // Auto Run Setup Modal State
   const [autoRunSetupModalOpen, setAutoRunSetupModalOpen] = useState(false);
+
+  // Wizard Resume Modal State
+  const [wizardResumeModalOpen, setWizardResumeModalOpen] = useState(false);
+  const [wizardResumeState, setWizardResumeState] = useState<SerializableWizardState | null>(null);
 
   // Tab Switcher Modal State
   const [tabSwitcherOpen, setTabSwitcherOpen] = useState(false);
@@ -556,9 +601,18 @@ export default function MaestroConsole() {
         // Mark sessions as loaded for splash screen coordination
         setSessionsLoaded(true);
 
-        // If no sessions were loaded, automatically open the new agent modal
+        // If no sessions were loaded, check for wizard resume state or open wizard
         if (!hasSessionsLoaded) {
-          setNewInstanceModalOpen(true);
+          // Check if there's a saved wizard state to resume
+          const savedResumeState = await loadResumeState();
+          if (savedResumeState) {
+            // Show resume dialog instead of opening wizard directly
+            setWizardResumeState(savedResumeState);
+            setWizardResumeModalOpen(true);
+          } else {
+            // No resume state, start fresh wizard
+            openWizardModal();
+          }
         }
       }
     };
@@ -574,6 +628,15 @@ export default function MaestroConsole() {
       }
     }
   }, [settingsLoaded, sessionsLoaded]);
+
+  // Expose debug helpers to window for console access
+  // No dependency array - always keep functions fresh
+  (window as any).__maestroDebug = {
+    openDebugWizard: () => setDebugWizardModalOpen(true),
+    openCommandK: () => setQuickActionOpen(true),
+    openWizard: () => openWizardModal(),
+    openSettings: () => setSettingsModalOpen(true),
+  };
 
   // Check for unacknowledged badges on startup (show missed standing ovations)
   useEffect(() => {
@@ -1522,6 +1585,26 @@ export default function MaestroConsole() {
   );
   const theme = THEMES[activeThemeId];
 
+  // Memoized cwd for git viewers (prevents re-renders from inline computation)
+  const gitViewerCwd = useMemo(() =>
+    activeSession
+      ? (activeSession.inputMode === 'terminal'
+          ? (activeSession.shellCwd || activeSession.cwd)
+          : activeSession.cwd)
+      : '',
+    [activeSession?.inputMode, activeSession?.shellCwd, activeSession?.cwd]
+  );
+
+  // PERF: Memoize sessions for NewInstanceModal validation (only recompute when modal is open)
+  // This prevents re-renders of the modal's validation logic on every session state change
+  const sessionsForValidation = useMemo(() =>
+    newInstanceModalOpen ? sessions : [],
+    [newInstanceModalOpen, sessions]
+  );
+
+  // PERF: Memoize hasNoAgents check for SettingsModal (only depends on session count)
+  const hasNoAgents = useMemo(() => sessions.length === 0, [sessions.length]);
+
   // Tab completion hook for terminal mode
   const { getSuggestions: getTabCompletionSuggestions } = useTabCompletion(activeSession);
 
@@ -2116,7 +2199,8 @@ export default function MaestroConsole() {
   // Helper to spawn a Claude agent and wait for completion (for a specific session)
   // cwdOverride allows running in a different directory (e.g., for worktree mode)
   const spawnAgentForSession = useCallback(async (sessionId: string, prompt: string, cwdOverride?: string): Promise<{ success: boolean; response?: string; claudeSessionId?: string; usageStats?: UsageStats }> => {
-    const session = sessions.find(s => s.id === sessionId);
+    // Use sessionsRef to get latest sessions (fixes stale closure when called right after session creation)
+    const session = sessionsRef.current.find(s => s.id === sessionId);
     if (!session) return { success: false };
 
     // Use override cwd if provided (worktree mode), otherwise use session's cwd
@@ -2329,7 +2413,7 @@ export default function MaestroConsole() {
       console.error('Error spawning agent:', error);
       return { success: false };
     }
-  }, [sessions]);
+  }, []); // Uses sessionsRef for latest sessions, no closure dependencies needed
 
   // Wrapper for slash commands that need to spawn an agent with just a prompt
   const spawnAgentWithPrompt = useCallback(async (prompt: string) => {
@@ -2548,6 +2632,8 @@ export default function MaestroConsole() {
     // TTS settings for speaking synopsis after each auto-run task
     audioFeedbackEnabled,
     audioFeedbackCommand,
+    // Pass autoRunStats for achievement progress in final summary
+    autoRunStats,
     onComplete: (info) => {
       // Find group name for the session
       const session = sessions.find(s => s.id === info.sessionId);
@@ -2582,8 +2668,21 @@ export default function MaestroConsole() {
       if (info.elapsedTimeMs > 0) {
         const { newBadgeLevel, isNewRecord } = recordAutoRunComplete(info.elapsedTimeMs);
 
-        // Show Standing Ovation overlay for new badges or records
-        if (newBadgeLevel !== null || isNewRecord) {
+        // Check for first Auto Run celebration (takes priority over standing ovation)
+        if (!firstAutoRunCompleted) {
+          // This is the user's first Auto Run completion!
+          setFirstAutoRunCompleted(true);
+          // Small delay to let the toast appear first
+          setTimeout(() => {
+            setFirstRunCelebrationData({
+              elapsedTimeMs: info.elapsedTimeMs,
+              completedTasks: info.completedTasks,
+              totalTasks: info.totalTasks,
+            });
+          }, 500);
+        }
+        // Show Standing Ovation overlay for new badges or records (only if not showing first run)
+        else if (newBadgeLevel !== null || isNewRecord) {
           const badge = newBadgeLevel !== null
             ? CONDUCTOR_BADGES.find(b => b.level === newBadgeLevel)
             : CONDUCTOR_BADGES.find(b => b.level === autoRunStats.currentBadgeLevel);
@@ -2834,17 +2933,14 @@ export default function MaestroConsole() {
       // Use provided messages or fetch them
       let messages: LogEntry[];
       if (providedMessages && providedMessages.length > 0) {
-        console.log('[handleResumeSession] Using provided messages:', providedMessages.length);
         messages = providedMessages;
       } else {
-        console.log('[handleResumeSession] Loading messages for:', claudeSessionId, 'cwd:', activeSession.cwd);
         // Load the session messages
         const result = await window.maestro.claude.readSessionMessages(
           activeSession.cwd,
           claudeSessionId,
           { offset: 0, limit: 100 }
         );
-        console.log('[handleResumeSession] Loaded result:', result);
 
         // Convert to log entries
         messages = result.messages.map((msg: { type: string; content: string; timestamp: string; uuid: string }) => ({
@@ -2853,7 +2949,6 @@ export default function MaestroConsole() {
           source: msg.type === 'user' ? 'user' as const : 'stdout' as const,
           text: msg.content || ''
         }));
-        console.log('[handleResumeSession] Converted to', messages.length, 'log entries');
       }
 
       // Look up starred status and session name from stores if not provided
@@ -2880,12 +2975,11 @@ export default function MaestroConsole() {
 
       // Update the session and switch to AI mode
       // IMPORTANT: Use functional update to get fresh session state and avoid race conditions
-      console.log('[handleResumeSession] Creating tab with', messages.length, 'logs, name:', name, 'starred:', isStarred);
       setSessions(prev => prev.map(s => {
         if (s.id !== activeSession.id) return s;
 
         // Create tab from the CURRENT session state (not stale closure value)
-        const { session: updatedSession, tab: newTab } = createTab(s, {
+        const { session: updatedSession } = createTab(s, {
           claudeSessionId,
           logs: messages,
           name,
@@ -2893,7 +2987,6 @@ export default function MaestroConsole() {
           saveToHistory: defaultSaveToHistory
         });
 
-        console.log('[handleResumeSession] Created tab:', newTab.id, 'with', newTab.logs.length, 'logs, activeTabId:', updatedSession.activeTabId);
         return { ...updatedSession, inputMode: 'ai' };
       }));
       setActiveClaudeSessionId(claudeSessionId);
@@ -3068,6 +3161,13 @@ export default function MaestroConsole() {
     };
     if (shiftNumberMap[key] === mainKey) return true;
 
+    // For Alt+Meta shortcuts on macOS, e.key produces special characters (e.g., Alt+p = π, Alt+l = ¬)
+    // Use e.code to get the physical key pressed instead
+    if (altPressed && e.code) {
+      const codeKey = e.code.replace('Key', '').toLowerCase();
+      return codeKey === mainKey;
+    }
+
     return key === mainKey;
   };
 
@@ -3152,9 +3252,12 @@ export default function MaestroConsole() {
         // Allow jumpToBottom (Cmd+Shift+J) from anywhere - always scroll main panel to bottom
         const isJumpToBottomShortcut = (e.metaKey || e.ctrlKey) && e.shiftKey && keyLower === 'j';
         // Allow system utility shortcuts (Alt+Cmd+L for logs, Alt+Cmd+P for processes) even when modals are open
-        const isSystemUtilShortcut = e.altKey && (e.metaKey || e.ctrlKey) && (keyLower === 'l' || keyLower === 'p');
+        // NOTE: Must use e.code for Alt key combos on macOS because e.key produces special characters (e.g., Alt+P = π)
+        const codeKeyLower = e.code?.replace('Key', '').toLowerCase() || '';
+        const isSystemUtilShortcut = e.altKey && (e.metaKey || e.ctrlKey) && (codeKeyLower === 'l' || codeKeyLower === 'p');
         // Allow session jump shortcuts (Alt+Cmd+NUMBER) even when modals are open
-        const isSessionJumpShortcut = e.altKey && (e.metaKey || e.ctrlKey) && /^[0-9]$/.test(e.key);
+        // NOTE: Must use e.code for Alt key combos on macOS because e.key produces special characters
+        const isSessionJumpShortcut = e.altKey && (e.metaKey || e.ctrlKey) && /^Digit[0-9]$/.test(e.code || '');
 
         if (ctx.hasOpenModal()) {
           // TRUE MODAL is open - block most shortcuts from App.tsx
@@ -3425,7 +3528,12 @@ export default function MaestroConsole() {
 
 
       // General shortcuts
-      if (ctx.isShortcut(e, 'toggleSidebar')) ctx.setLeftSidebarOpen(p => !p);
+      // Only allow collapsing left sidebar when there are sessions (prevent collapse on empty state)
+      if (ctx.isShortcut(e, 'toggleSidebar')) {
+        if (ctx.sessions.length > 0 || !ctx.leftSidebarOpen) {
+          ctx.setLeftSidebarOpen(p => !p);
+        }
+      }
       else if (ctx.isShortcut(e, 'toggleRightPanel')) ctx.setRightPanelOpen(p => !p);
       else if (ctx.isShortcut(e, 'newInstance')) ctx.addNewSession();
       else if (ctx.isShortcut(e, 'killInstance')) ctx.deleteSession(ctx.activeSessionId);
@@ -3455,8 +3563,11 @@ export default function MaestroConsole() {
       }
       else if (ctx.isShortcut(e, 'toggleMode')) ctx.toggleInputMode();
       else if (ctx.isShortcut(e, 'quickAction')) {
-        ctx.setQuickActionInitialMode('main');
-        ctx.setQuickActionOpen(true);
+        // Only open quick actions if there are agents
+        if (ctx.sessions.length > 0) {
+          ctx.setQuickActionInitialMode('main');
+          ctx.setQuickActionOpen(true);
+        }
       }
       else if (ctx.isShortcut(e, 'help')) ctx.setShortcutsHelpOpen(true);
       else if (ctx.isShortcut(e, 'settings')) { ctx.setSettingsModalOpen(true); ctx.setSettingsTab('general'); }
@@ -3479,6 +3590,10 @@ export default function MaestroConsole() {
         if (ctx.activeSession?.inputMode === 'ai') {
           ctx.setPromptComposerOpen(true);
         }
+      }
+      else if (ctx.isShortcut(e, 'openWizard')) {
+        e.preventDefault();
+        ctx.openWizardModal();
       }
       else if (ctx.isShortcut(e, 'focusInput')) {
         e.preventDefault();
@@ -3958,6 +4073,14 @@ export default function MaestroConsole() {
   };
 
   const createNewSession = async (agentId: string, workingDir: string, name: string) => {
+    // Validate uniqueness before creating
+    const validation = validateNewSession(name, workingDir, agentId as ToolType, sessions);
+    if (!validation.valid) {
+      console.error(`Session validation failed: ${validation.error}`);
+      showToast(validation.error || 'Cannot create duplicate session', 'error');
+      return;
+    }
+
     const newId = generateId();
 
     // Get agent definition to get correct command
@@ -4042,6 +4165,7 @@ export default function MaestroConsole() {
         fileTree: [],
         fileExplorerExpanded: [],
         fileExplorerScrollPos: 0,
+        fileTreeAutoRefreshInterval: 180, // Default: auto-refresh every 3 minutes
         shellCwd: workingDir,
         aiCommandHistory: [],
         shellCommandHistory: [],
@@ -4065,6 +4189,186 @@ export default function MaestroConsole() {
       // TODO: Show error to user
     }
   };
+
+  /**
+   * Handle wizard completion - create session with Auto Run configured
+   * Called when user clicks "I'm Ready to Go" or "Walk Me Through the Interface"
+   */
+  const handleWizardLaunchSession = useCallback(async (wantsTour: boolean) => {
+    // Get wizard state
+    const { selectedAgent, directoryPath, agentName, generatedDocuments } = wizardState;
+
+    if (!selectedAgent || !directoryPath) {
+      console.error('Wizard launch failed: missing agent or directory');
+      throw new Error('Missing required wizard data');
+    }
+
+    // Create the session
+    const newId = generateId();
+    const sessionName = agentName || `${selectedAgent} Session`;
+
+    // Validate uniqueness before creating
+    const validation = validateNewSession(sessionName, directoryPath, selectedAgent as ToolType, sessions);
+    if (!validation.valid) {
+      console.error(`Wizard session validation failed: ${validation.error}`);
+      showToast(validation.error || 'Cannot create duplicate session', 'error');
+      throw new Error(validation.error || 'Session validation failed');
+    }
+
+    // Get agent definition
+    const agent = await window.maestro.agents.get(selectedAgent);
+    if (!agent) {
+      throw new Error(`Agent not found: ${selectedAgent}`);
+    }
+
+    // Spawn AI process
+    const aiSpawnResult = await window.maestro.process.spawn({
+      sessionId: `${newId}-ai`,
+      toolType: selectedAgent,
+      cwd: directoryPath,
+      command: agent.path || agent.command,
+      args: agent.args || []
+    });
+
+    if (!aiSpawnResult.success || aiSpawnResult.pid <= 0) {
+      throw new Error('Failed to spawn AI agent process');
+    }
+
+    // Check git repo status
+    const isGitRepo = await gitService.isRepo(directoryPath);
+    let gitBranches: string[] | undefined;
+    let gitTags: string[] | undefined;
+    let gitRefsCacheTime: number | undefined;
+    if (isGitRepo) {
+      [gitBranches, gitTags] = await Promise.all([
+        gitService.getBranches(directoryPath),
+        gitService.getTags(directoryPath)
+      ]);
+      gitRefsCacheTime = Date.now();
+    }
+
+    // Create initial tab
+    const initialTabId = generateId();
+    const initialTab: AITab = {
+      id: initialTabId,
+      claudeSessionId: null,
+      name: null,
+      starred: false,
+      logs: [],
+      inputValue: '',
+      stagedImages: [],
+      createdAt: Date.now(),
+      state: 'idle',
+      saveToHistory: defaultSaveToHistory
+    };
+
+    // Build Auto Run folder path
+    const autoRunFolderPath = `${directoryPath}/${AUTO_RUN_FOLDER_NAME}`;
+    const firstDoc = generatedDocuments[0];
+    const autoRunSelectedFile = firstDoc ? firstDoc.filename.replace(/\.md$/, '') : undefined;
+
+    // Create the session with Auto Run configured
+    const newSession: Session = {
+      id: newId,
+      name: sessionName,
+      toolType: selectedAgent as ToolType,
+      state: 'idle',
+      cwd: directoryPath,
+      fullPath: directoryPath,
+      projectRoot: directoryPath,
+      isGitRepo,
+      gitBranches,
+      gitTags,
+      gitRefsCacheTime,
+      aiLogs: [],
+      shellLogs: [{ id: generateId(), timestamp: Date.now(), source: 'system', text: 'Shell Session Ready.' }],
+      workLog: [],
+      contextUsage: 0,
+      inputMode: 'ai',
+      aiPid: aiSpawnResult.pid,
+      terminalPid: 0,
+      port: 3000 + Math.floor(Math.random() * 100),
+      isLive: false,
+      changedFiles: [],
+      fileTree: [],
+      fileExplorerExpanded: [],
+      fileExplorerScrollPos: 0,
+      fileTreeAutoRefreshInterval: 180,
+      shellCwd: directoryPath,
+      aiCommandHistory: [],
+      shellCommandHistory: [],
+      executionQueue: [],
+      activeTimeMs: 0,
+      aiTabs: [initialTab],
+      activeTabId: initialTabId,
+      closedTabHistory: [],
+      // Auto Run configuration from wizard
+      autoRunFolderPath,
+      autoRunSelectedFile,
+    };
+
+    // Add session and make it active
+    setSessions(prev => [...prev, newSession]);
+    setActiveSessionId(newId);
+    updateGlobalStats({ totalSessions: 1 });
+
+    // Clear wizard resume state since we completed successfully
+    clearResumeState();
+
+    // Complete and close the wizard
+    completeWizard(newId);
+
+    // Switch to Auto Run tab so user sees their generated docs
+    setActiveRightTab('autorun');
+
+    // Start tour if requested
+    if (wantsTour) {
+      // Small delay to let the UI settle before starting tour
+      setTimeout(() => {
+        setTourFromWizard(true);
+        setTourOpen(true);
+      }, 300);
+    }
+
+    // Focus input
+    setActiveFocus('main');
+    setTimeout(() => inputRef.current?.focus(), 100);
+
+    // Auto-start the batch run with the first document that has tasks
+    // This is the core purpose of the onboarding wizard - get the user's first Auto Run going
+    const firstDocWithTasks = generatedDocuments.find(doc => doc.taskCount > 0);
+    if (firstDocWithTasks && autoRunFolderPath) {
+      // Create batch config for single document run
+      const batchConfig: BatchRunConfig = {
+        documents: [{
+          id: generateId(),
+          filename: firstDocWithTasks.filename.replace(/\.md$/, ''),
+          resetOnCompletion: false,
+          isDuplicate: false,
+        }],
+        prompt: DEFAULT_BATCH_PROMPT,
+        loopEnabled: false,
+      };
+
+      // Small delay to ensure session state is fully propagated before starting batch
+      setTimeout(() => {
+        console.log('[Wizard] Auto-starting batch run with first document:', firstDocWithTasks.filename);
+        startBatchRun(newId, batchConfig, autoRunFolderPath);
+      }, 500);
+    }
+  }, [
+    wizardState,
+    defaultSaveToHistory,
+    setSessions,
+    setActiveSessionId,
+    updateGlobalStats,
+    clearResumeState,
+    completeWizard,
+    setActiveRightTab,
+    setTourOpen,
+    setActiveFocus,
+    startBatchRun,
+  ]);
 
   const toggleInputMode = () => {
     setSessions(prev => prev.map(s => {
@@ -4224,7 +4528,7 @@ export default function MaestroConsole() {
     setRenameTabModalOpen, navigateToNextTab, navigateToPrevTab, navigateToTabByIndex, navigateToLastTab,
     setFileTreeFilterOpen, isShortcut, isTabShortcut, handleNavBack, handleNavForward, toggleUnreadFilter,
     setTabSwitcherOpen, showUnreadOnly, stagedImages, handleSetLightboxImage, setMarkdownRawMode,
-    toggleTabStar, setPromptComposerOpen
+    toggleTabStar, setPromptComposerOpen, openWizardModal
   };
 
   const toggleGroup = (groupId: string) => {
@@ -4862,14 +5166,20 @@ export default function MaestroConsole() {
           // If images are present, they will be passed via stream-json input format
           // Use agent.path (full path) if available, otherwise fall back to agent.command
           const commandToUse = agent.path || agent.command;
+
+          // If user sends only an image without text, inject the default image-only prompt
+          const hasImages = capturedImages.length > 0;
+          const hasNoText = !capturedInputValue.trim();
+          const effectivePrompt = (hasImages && hasNoText) ? DEFAULT_IMAGE_ONLY_PROMPT : capturedInputValue;
+
           await window.maestro.process.spawn({
             sessionId: targetSessionId,
             toolType: 'claude-code',
             cwd: freshSession.cwd,
             command: commandToUse,
             args: spawnArgs,
-            prompt: capturedInputValue,
-            images: capturedImages.length > 0 ? capturedImages : undefined
+            prompt: effectivePrompt,
+            images: hasImages ? capturedImages : undefined
           });
         } catch (error) {
           console.error('Failed to spawn Claude batch process:', error);
@@ -5236,6 +5546,34 @@ export default function MaestroConsole() {
     return () => window.removeEventListener('maestro:remoteCommand', handleRemoteCommand);
   }, []);
 
+  // Listen for tour UI actions to control right panel state
+  useEffect(() => {
+    const handleTourAction = (event: Event) => {
+      const customEvent = event as CustomEvent<{ type: string; value?: string }>;
+      const { type, value } = customEvent.detail;
+
+      switch (type) {
+        case 'setRightTab':
+          if (value === 'files' || value === 'history' || value === 'autorun') {
+            setActiveRightTab(value as RightPanelTab);
+          }
+          break;
+        case 'openRightPanel':
+          setRightPanelOpen(true);
+          break;
+        case 'closeRightPanel':
+          setRightPanelOpen(false);
+          break;
+        // hamburger menu actions are handled by SessionList.tsx
+        default:
+          break;
+      }
+    };
+
+    window.addEventListener('tour:action', handleTourAction);
+    return () => window.removeEventListener('tour:action', handleTourAction);
+  }, []);
+
   // Process a queued item (called from onExit when queue has items)
   // Handles both 'message' and 'command' types
   const processQueuedItem = async (sessionId: string, item: QueuedItem) => {
@@ -5279,16 +5617,24 @@ export default function MaestroConsole() {
 
       const commandToUse = agent.path || agent.command;
 
-      if (item.type === 'message' && item.text) {
+      // Check if this is a message with images but no text
+      const hasImages = item.images && item.images.length > 0;
+      const hasText = item.text && item.text.trim();
+      const isImageOnlyMessage = item.type === 'message' && hasImages && !hasText;
+
+      if (item.type === 'message' && (hasText || isImageOnlyMessage)) {
         // Process a message - spawn Claude with the message text
+        // If user sends only an image without text, inject the default image-only prompt
+        const effectivePrompt = isImageOnlyMessage ? DEFAULT_IMAGE_ONLY_PROMPT : item.text!;
+
         await window.maestro.process.spawn({
           sessionId: targetSessionId,
           toolType: 'claude-code',
           cwd: session.cwd,
           command: commandToUse,
           args: spawnArgs,
-          prompt: item.text,
-          images: item.images && item.images.length > 0 ? item.images : undefined
+          prompt: effectivePrompt,
+          images: hasImages ? item.images : undefined
         });
       } else if (item.type === 'command' && item.command) {
         // Process a slash command - find the matching custom AI command
@@ -5411,9 +5757,79 @@ export default function MaestroConsole() {
       // Send interrupt signal (Ctrl+C)
       await window.maestro.process.interrupt(targetSessionId);
 
-      // Set state to idle with full cleanup
+      // Check if there are queued items to process after interrupt
+      const currentSession = sessionsRef.current.find(s => s.id === activeSession.id);
+      let queuedItemToProcess: { sessionId: string; item: QueuedItem } | null = null;
+
+      if (currentSession && currentSession.executionQueue.length > 0) {
+        queuedItemToProcess = {
+          sessionId: activeSession.id,
+          item: currentSession.executionQueue[0]
+        };
+      }
+
+      // Set state to idle with full cleanup, or process next queued item
       setSessions(prev => prev.map(s => {
         if (s.id !== activeSession.id) return s;
+
+        // If there are queued items, start processing the next one
+        if (s.executionQueue.length > 0) {
+          const [nextItem, ...remainingQueue] = s.executionQueue;
+          const targetTab = s.aiTabs.find(tab => tab.id === nextItem.tabId) || getActiveTab(s);
+
+          if (!targetTab) {
+            return {
+              ...s,
+              state: 'busy' as SessionState,
+              busySource: 'ai',
+              executionQueue: remainingQueue,
+              thinkingStartTime: Date.now(),
+              currentCycleTokens: 0,
+              currentCycleBytes: 0
+            };
+          }
+
+          // Set the interrupted tab to idle, and the target tab for queued item to busy
+          let updatedAiTabs = s.aiTabs.map(tab => {
+            if (tab.id === targetTab.id) {
+              return { ...tab, state: 'busy' as const, thinkingStartTime: Date.now() };
+            }
+            // Set any other busy tabs to idle (they were interrupted)
+            if (tab.state === 'busy') {
+              return { ...tab, state: 'idle' as const, thinkingStartTime: undefined };
+            }
+            return tab;
+          });
+
+          // For message items, add a log entry to the target tab
+          if (nextItem.type === 'message' && nextItem.text) {
+            const logEntry: LogEntry = {
+              id: generateId(),
+              timestamp: Date.now(),
+              source: 'user',
+              text: nextItem.text,
+              images: nextItem.images
+            };
+            updatedAiTabs = updatedAiTabs.map(tab =>
+              tab.id === targetTab.id
+                ? { ...tab, logs: [...tab.logs, logEntry] }
+                : tab
+            );
+          }
+
+          return {
+            ...s,
+            state: 'busy' as SessionState,
+            busySource: 'ai',
+            aiTabs: updatedAiTabs,
+            executionQueue: remainingQueue,
+            thinkingStartTime: Date.now(),
+            currentCycleTokens: 0,
+            currentCycleBytes: 0
+          };
+        }
+
+        // No queued items, just go to idle
         return {
           ...s,
           state: 'idle',
@@ -5421,6 +5837,13 @@ export default function MaestroConsole() {
           thinkingStartTime: undefined
         };
       }));
+
+      // Process the queued item after state update
+      if (queuedItemToProcess) {
+        setTimeout(() => {
+          processQueuedItem(queuedItemToProcess!.sessionId, queuedItemToProcess!.item);
+        }, 0);
+      }
     } catch (error) {
       console.error('Failed to interrupt process:', error);
 
@@ -5440,23 +5863,113 @@ export default function MaestroConsole() {
             source: 'system',
             text: 'Process forcefully terminated'
           };
+
+          // Check if there are queued items to process after kill
+          const currentSessionForKill = sessionsRef.current.find(s => s.id === activeSession.id);
+          let queuedItemAfterKill: { sessionId: string; item: QueuedItem } | null = null;
+
+          if (currentSessionForKill && currentSessionForKill.executionQueue.length > 0) {
+            queuedItemAfterKill = {
+              sessionId: activeSession.id,
+              item: currentSessionForKill.executionQueue[0]
+            };
+          }
+
           setSessions(prev => prev.map(s => {
             if (s.id !== activeSession.id) return s;
+
+            // Add kill log to the appropriate place
+            let updatedSession = { ...s };
             if (currentMode === 'ai') {
               const tab = getActiveTab(s);
-              if (!tab) return { ...s, state: 'idle', busySource: undefined, thinkingStartTime: undefined };
+              if (tab) {
+                updatedSession.aiTabs = s.aiTabs.map(t =>
+                  t.id === tab.id ? { ...t, logs: [...t.logs, killLog] } : t
+                );
+              }
+            } else {
+              updatedSession.shellLogs = [...s.shellLogs, killLog];
+            }
+
+            // If there are queued items, start processing the next one
+            if (s.executionQueue.length > 0) {
+              const [nextItem, ...remainingQueue] = s.executionQueue;
+              const targetTab = s.aiTabs.find(tab => tab.id === nextItem.tabId) || getActiveTab(s);
+
+              if (!targetTab) {
+                return {
+                  ...updatedSession,
+                  state: 'busy' as SessionState,
+                  busySource: 'ai',
+                  executionQueue: remainingQueue,
+                  thinkingStartTime: Date.now(),
+                  currentCycleTokens: 0,
+                  currentCycleBytes: 0
+                };
+              }
+
+              // Set tabs appropriately
+              let updatedAiTabs = updatedSession.aiTabs.map(tab => {
+                if (tab.id === targetTab.id) {
+                  return { ...tab, state: 'busy' as const, thinkingStartTime: Date.now() };
+                }
+                if (tab.state === 'busy') {
+                  return { ...tab, state: 'idle' as const, thinkingStartTime: undefined };
+                }
+                return tab;
+              });
+
+              // For message items, add a log entry to the target tab
+              if (nextItem.type === 'message' && nextItem.text) {
+                const logEntry: LogEntry = {
+                  id: generateId(),
+                  timestamp: Date.now(),
+                  source: 'user',
+                  text: nextItem.text,
+                  images: nextItem.images
+                };
+                updatedAiTabs = updatedAiTabs.map(tab =>
+                  tab.id === targetTab.id
+                    ? { ...tab, logs: [...tab.logs, logEntry] }
+                    : tab
+                );
+              }
+
               return {
-                ...s,
+                ...updatedSession,
+                state: 'busy' as SessionState,
+                busySource: 'ai',
+                aiTabs: updatedAiTabs,
+                executionQueue: remainingQueue,
+                thinkingStartTime: Date.now(),
+                currentCycleTokens: 0,
+                currentCycleBytes: 0
+              };
+            }
+
+            // No queued items, just go to idle
+            if (currentMode === 'ai') {
+              const tab = getActiveTab(s);
+              if (!tab) return { ...updatedSession, state: 'idle', busySource: undefined, thinkingStartTime: undefined };
+              return {
+                ...updatedSession,
                 state: 'idle',
                 busySource: undefined,
                 thinkingStartTime: undefined,
-                aiTabs: s.aiTabs.map(t =>
-                  t.id === tab.id ? { ...t, state: 'idle' as const, thinkingStartTime: undefined, logs: [...t.logs, killLog] } : t
+                aiTabs: updatedSession.aiTabs.map(t =>
+                  t.id === tab.id ? { ...t, state: 'idle' as const, thinkingStartTime: undefined } : t
                 )
               };
             }
-            return { ...s, shellLogs: [...s.shellLogs, killLog], state: 'idle', busySource: undefined, thinkingStartTime: undefined };
+            return { ...updatedSession, state: 'idle', busySource: undefined, thinkingStartTime: undefined };
           }));
+
+          // Process the queued item after state update
+          if (queuedItemAfterKill) {
+            setTimeout(() => {
+              processQueuedItem(queuedItemAfterKill!.sessionId, queuedItemAfterKill!.item);
+            }, 0);
+          }
         } catch (killError) {
           console.error('Failed to kill process:', killError);
           const errorLog: LogEntry = {
@@ -6224,6 +6737,13 @@ export default function MaestroConsole() {
           markdownRawMode={markdownRawMode}
           onToggleMarkdownRawMode={() => setMarkdownRawMode(!markdownRawMode)}
           setUpdateCheckModalOpen={setUpdateCheckModalOpen}
+          openWizard={openWizardModal}
+          wizardGoToStep={wizardGoToStep}
+          setDebugWizardModalOpen={setDebugWizardModalOpen}
+          startTour={() => {
+            setTourFromWizard(false);
+            setTourOpen(true);
+          }}
         />
       )}
       {lightboxImage && (
@@ -6244,18 +6764,18 @@ export default function MaestroConsole() {
       {gitDiffPreview && activeSession && (
         <GitDiffViewer
           diffText={gitDiffPreview}
-          cwd={activeSession.inputMode === 'terminal' ? (activeSession.shellCwd || activeSession.cwd) : activeSession.cwd}
+          cwd={gitViewerCwd}
           theme={theme}
-          onClose={() => setGitDiffPreview(null)}
+          onClose={handleCloseGitDiff}
         />
       )}
 
       {/* --- GIT LOG VIEWER --- */}
       {gitLogOpen && activeSession && (
         <GitLogViewer
-          cwd={activeSession.inputMode === 'terminal' ? (activeSession.shellCwd || activeSession.cwd) : activeSession.cwd}
+          cwd={gitViewerCwd}
           theme={theme}
-          onClose={() => setGitLogOpen(false)}
+          onClose={handleCloseGitLog}
         />
       )}
 
@@ -6265,6 +6785,7 @@ export default function MaestroConsole() {
           theme={theme}
           shortcuts={shortcuts}
           onClose={() => setShortcutsHelpOpen(false)}
+          hasNoAgents={hasNoAgents}
         />
       )}
 
@@ -6283,6 +6804,17 @@ export default function MaestroConsole() {
         <UpdateCheckModal
           theme={theme}
           onClose={() => setUpdateCheckModalOpen(false)}
+        />
+      )}
+
+      {/* --- FIRST RUN CELEBRATION OVERLAY --- */}
+      {firstRunCelebrationData && (
+        <FirstRunCelebration
+          theme={theme}
+          elapsedTimeMs={firstRunCelebrationData.elapsedTimeMs}
+          completedTasks={firstRunCelebrationData.completedTasks}
+          totalTasks={firstRunCelebrationData.totalTasks}
+          onClose={() => setFirstRunCelebrationData(null)}
         />
       )}
 
@@ -6330,6 +6862,13 @@ export default function MaestroConsole() {
           onClose={() => setPlaygroundOpen(false)}
         />
       )}
+
+      {/* --- DEBUG WIZARD MODAL --- */}
+      <DebugWizardModal
+        theme={theme}
+        isOpen={debugWizardModalOpen}
+        onClose={() => setDebugWizardModalOpen(false)}
+      />
 
       {/* --- CREATE GROUP MODAL --- */}
       {createGroupModalOpen && (
@@ -6426,8 +6965,23 @@ export default function MaestroConsole() {
         />
       )}
 
-      {/* --- LEFT SIDEBAR (hidden in mobile landscape) --- */}
-      {!isMobileLandscape && (
+      {/* --- EMPTY STATE VIEW (when no sessions) --- */}
+      {sessions.length === 0 && !isMobileLandscape ? (
+        <EmptyStateView
+          theme={theme}
+          shortcuts={shortcuts}
+          onNewAgent={addNewSession}
+          onOpenWizard={openWizardModal}
+          onOpenSettings={() => { setSettingsModalOpen(true); setSettingsTab('general'); }}
+          onOpenShortcutsHelp={() => setShortcutsHelpOpen(true)}
+          onOpenAbout={() => setAboutModalOpen(true)}
+          onCheckForUpdates={() => setUpdateCheckModalOpen(true)}
+          // Don't show tour option when no agents exist - nothing to tour
+        />
+      ) : null}
+
+      {/* --- LEFT SIDEBAR (hidden in mobile landscape and when no sessions) --- */}
+      {!isMobileLandscape && sessions.length > 0 && (
         <ErrorBoundary>
           <SessionList
             theme={theme}
@@ -6480,11 +7034,17 @@ export default function MaestroConsole() {
             showSessionJumpNumbers={showSessionJumpNumbers}
             visibleSessions={visibleSessions}
             autoRunStats={autoRunStats}
+            openWizard={openWizardModal}
+            startTour={() => {
+              setTourFromWizard(false);
+              setTourOpen(true);
+            }}
           />
         </ErrorBoundary>
       )}
 
-      {/* --- CENTER WORKSPACE --- */}
+      {/* --- CENTER WORKSPACE (hidden when no sessions) --- */}
+      {sessions.length > 0 && (
       <MainPanel
         logViewerOpen={logViewerOpen}
         agentSessionsOpen={agentSessionsOpen}
@@ -6523,7 +7083,6 @@ export default function MaestroConsole() {
         setActiveClaudeSessionId={setActiveClaudeSessionId}
         onResumeClaudeSession={(claudeSessionId: string, messages: LogEntry[], sessionName?: string, starred?: boolean) => {
           // Opens the Claude session as a new tab (or switches to existing tab if duplicate)
-          console.log('[onResumeClaudeSession] Called with:', claudeSessionId, 'messages:', messages.length, 'name:', sessionName, 'starred:', starred);
           handleResumeSession(claudeSessionId, messages, sessionName, starred);
         }}
         onNewClaudeSession={() => {
@@ -6894,9 +7453,10 @@ export default function MaestroConsole() {
         }}
         onOpenPromptComposer={() => setPromptComposerOpen(true)}
       />
+      )}
 
-      {/* --- RIGHT PANEL (hidden in mobile landscape) --- */}
-      {!isMobileLandscape && (
+      {/* --- RIGHT PANEL (hidden in mobile landscape and when no sessions) --- */}
+      {!isMobileLandscape && sessions.length > 0 && (
         <ErrorBoundary>
           <RightPanel
             ref={rightPanelRef}
@@ -6949,6 +7509,7 @@ export default function MaestroConsole() {
             onJumpToClaudeSession={handleJumpToClaudeSession}
             onResumeSession={handleResumeSession}
             onOpenSessionAsTab={handleResumeSession}
+            onOpenAboutModal={() => setAboutModalOpen(true)}
           />
         </ErrorBoundary>
       )}
@@ -7005,7 +7566,6 @@ export default function MaestroConsole() {
           }}
           onNamedSessionSelect={(claudeSessionId, _projectPath, sessionName, starred) => {
             // Open a closed named session as a new tab - use handleResumeSession to properly load messages
-            console.log('[onNamedSessionSelect] Opening session:', claudeSessionId, 'name:', sessionName, 'starred:', starred);
             handleResumeSession(claudeSessionId, [], sessionName, starred);
             // Focus input so user can start interacting immediately
             setActiveFocus('main');
@@ -7090,6 +7650,15 @@ export default function MaestroConsole() {
         onSwitchSession={(sessionId) => {
           setActiveSessionId(sessionId);
         }}
+        onReorderItems={(sessionId, fromIndex, toIndex) => {
+          setSessions(prev => prev.map(s => {
+            if (s.id !== sessionId) return s;
+            const queue = [...s.executionQueue];
+            const [removed] = queue.splice(fromIndex, 1);
+            queue.splice(toIndex, 0, removed);
+            return { ...s, executionQueue: queue };
+          }));
+        }}
       />
 
       {/* Old settings modal removed - using new SettingsModal component below */}
@@ -7101,12 +7670,13 @@ export default function MaestroConsole() {
         onCreate={createNewSession}
         theme={theme}
         defaultAgent={defaultAgent}
+        existingSessions={sessionsForValidation}
       />
 
       {/* --- SETTINGS MODAL (New Component) --- */}
       <SettingsModal
         isOpen={settingsModalOpen}
-        onClose={() => setSettingsModalOpen(false)}
+        onClose={handleCloseSettings}
         theme={theme}
         themes={THEMES}
         activeThemeId={activeThemeId}
@@ -7156,7 +7726,100 @@ export default function MaestroConsole() {
         customAICommands={customAICommands}
         setCustomAICommands={setCustomAICommands}
         initialTab={settingsTab}
+        hasNoAgents={hasNoAgents}
       />
+
+      {/* --- WIZARD RESUME MODAL (asks if user wants to resume incomplete wizard) --- */}
+      {wizardResumeModalOpen && wizardResumeState && (
+        <WizardResumeModal
+          theme={theme}
+          resumeState={wizardResumeState}
+          onResume={(options?: { directoryInvalid?: boolean; agentInvalid?: boolean }) => {
+            // Close the resume modal
+            setWizardResumeModalOpen(false);
+
+            const { directoryInvalid = false, agentInvalid = false } = options || {};
+
+            // If agent is invalid, redirect to agent selection step with error
+            // This takes priority since it's the first step
+            if (agentInvalid) {
+              const modifiedState = {
+                ...wizardResumeState,
+                currentStep: 'agent-selection' as const,
+                // Clear the agent selection so user must select a new one
+                selectedAgent: null,
+                // Keep other state for resume after agent selection
+              };
+              restoreWizardState(modifiedState);
+            } else if (directoryInvalid) {
+              // If directory is invalid, redirect to directory selection step with error
+              const modifiedState = {
+                ...wizardResumeState,
+                currentStep: 'directory-selection' as const,
+                directoryError: 'The previously selected directory no longer exists. Please choose a new location.',
+                // Clear the directory path so user must select a new one
+                directoryPath: '',
+                isGitRepo: false,
+              };
+              restoreWizardState(modifiedState);
+            } else {
+              // Restore the saved wizard state as-is
+              restoreWizardState(wizardResumeState);
+            }
+
+            // Open the wizard at the restored step
+            openWizardModal();
+            // Clear the resume state holder
+            setWizardResumeState(null);
+          }}
+          onStartFresh={() => {
+            // Close the resume modal
+            setWizardResumeModalOpen(false);
+            // Clear any saved resume state
+            clearResumeState();
+            // Open a fresh wizard
+            openWizardModal();
+            // Clear the resume state holder
+            setWizardResumeState(null);
+          }}
+          onClose={() => {
+            // Just close the modal without doing anything
+            // The user can open the wizard manually later if they want
+            setWizardResumeModalOpen(false);
+            setWizardResumeState(null);
+          }}
+        />
+      )}
+
+      {/* --- MAESTRO WIZARD (onboarding wizard for new users) --- */}
+      {/* PERF: Only mount wizard component when open to avoid running hooks/effects */}
+      {wizardState.isOpen && (
+        <MaestroWizard
+          theme={theme}
+          onLaunchSession={handleWizardLaunchSession}
+          onWizardStart={recordWizardStart}
+          onWizardResume={recordWizardResume}
+          onWizardAbandon={recordWizardAbandon}
+          onWizardComplete={recordWizardComplete}
+        />
+      )}
+
+      {/* --- TOUR OVERLAY (onboarding tour for interface guidance) --- */}
+      {/* PERF: Only mount tour component when open to avoid running hooks/effects */}
+      {tourOpen && (
+        <TourOverlay
+          theme={theme}
+          isOpen={tourOpen}
+          fromWizard={tourFromWizard}
+          onClose={() => {
+            setTourOpen(false);
+            setTourCompleted(true);
+          }}
+          onTourStart={recordTourStart}
+          onTourComplete={recordTourComplete}
+          onTourSkip={recordTourSkip}
+        />
+      )}
 
       {/* --- FLASH NOTIFICATION (centered, auto-dismiss) --- */}
       {flashNotification && (

@@ -90,34 +90,33 @@ export function ToastProvider({ children, defaultDuration: initialDuration = 20 
       });
     }
 
-    // Show OS notification if enabled (compact format for small notification area)
+    // Show OS notification if enabled
     if (osNotificationsRef.current.enabled) {
-      // Build title: [Group >] SessionName [> TabLabel]
-      // - project = Maestro session name (the agent name shown in Left Bar)
+      // Title: Agent/session name (project field) or fallback to toast title
+      const notifTitle = toast.project || toast.title;
+
+      // Body: [Group > ] [TabName: ] First sentence of message
       // - group = Maestro group name
       // - tabName = tab label or short Claude session UUID
       const tabLabel = toast.tabName || (toast.claudeSessionId ? toast.claudeSessionId.slice(0, 8) : null);
 
-      // Build title parts
-      const parts: string[] = [];
+      // Extract first sentence from message (up to first . ! or ? followed by space/end)
+      const firstSentenceMatch = toast.message.match(/^[^.!?]*[.!?]?/);
+      const firstSentence = firstSentenceMatch ? firstSentenceMatch[0].trim() : toast.message.slice(0, 80);
+
+      // Build body parts
+      const bodyParts: string[] = [];
       if (toast.group) {
-        parts.push(toast.group);
-      }
-      if (toast.project) {
-        parts.push(toast.project);
+        bodyParts.push(toast.group);
       }
       if (tabLabel) {
-        parts.push(tabLabel);
+        bodyParts.push(tabLabel);
       }
 
-      // Join with " > " or fallback to toast title
-      const notifTitle = parts.length > 0 ? parts.join(' > ') : toast.title;
+      // Combine: "Group > Tab: First sentence" or just "First sentence"
+      const prefix = bodyParts.length > 0 ? `${bodyParts.join(' > ')}: ` : '';
+      const notifBody = prefix + firstSentence;
 
-      // Body is just a one-word status derived from toast type
-      const notifBody = toast.type === 'success' ? 'Done'
-        : toast.type === 'error' ? 'Error'
-        : toast.type === 'warning' ? 'Attention'
-        : 'Ready';
       window.maestro.notification.show(notifTitle, notifBody).catch(err => {
         console.error('[ToastContext] Failed to show OS notification:', err);
       });

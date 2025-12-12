@@ -67,9 +67,12 @@ function createMockAITab(overrides: Partial<AITab> = {}): AITab {
     id: 'tab-1',
     name: 'Tab 1',
     state: 'idle',
-    claudeSessionId: undefined,
+    claudeSessionId: null,
+    starred: false,
     logs: [],
-    unreadCount: 0,
+    inputValue: '',
+    stagedImages: [],
+    createdAt: Date.now(),
     ...overrides,
   };
 }
@@ -144,8 +147,9 @@ describe('ThinkingStatusPill', () => {
           theme={mockTheme}
         />
       );
-      // Should show the session name
-      expect(screen.getByText('Test Session')).toBeInTheDocument();
+      // Should show the session name (appears in both label span and Claude ID button)
+      const sessionNameElements = screen.getAllByText('Test Session');
+      expect(sessionNameElements.length).toBeGreaterThanOrEqual(1);
     });
   });
 
@@ -320,13 +324,14 @@ describe('ThinkingStatusPill', () => {
       expect(screen.getByText('My Tab Name')).toBeInTheDocument();
     });
 
-    it('falls back to UUID octet when no tab name', () => {
+    it('falls back to session name when no tab name', () => {
       const tab = createMockAITab({
         state: 'busy',
         name: '', // Empty name
         claudeSessionId: 'xyz98765-abc',
       });
       const session = createThinkingSession({
+        name: 'My Session',
         aiTabs: [tab],
         claudeSessionId: undefined,
       });
@@ -336,12 +341,15 @@ describe('ThinkingStatusPill', () => {
           theme={mockTheme}
         />
       );
-      // Should show first 8 chars of claudeSessionId, uppercased
-      expect(screen.getByText('XYZ98765')).toBeInTheDocument();
+      // Claude ID button should show session name when tab name is empty
+      // (priority: namedSessions > tab name > session name > UUID octet)
+      const buttons = screen.getAllByText('My Session');
+      expect(buttons.length).toBeGreaterThanOrEqual(1);
     });
 
-    it('uses session claudeSessionId when tab has none', () => {
+    it('uses session name when tab has no claudeSessionId', () => {
       const session = createThinkingSession({
+        name: 'Session Name',
         claudeSessionId: 'sess1234-5678',
         aiTabs: undefined,
       });
@@ -351,7 +359,10 @@ describe('ThinkingStatusPill', () => {
           theme={mockTheme}
         />
       );
-      expect(screen.getByText('SESS1234')).toBeInTheDocument();
+      // Priority: namedSessions > tab name > session name > UUID octet
+      // Without namedSessions or tabs, falls back to session name
+      const buttons = screen.getAllByText('Session Name');
+      expect(buttons.length).toBeGreaterThanOrEqual(1);
     });
   });
 
@@ -364,7 +375,9 @@ describe('ThinkingStatusPill', () => {
           theme={mockTheme}
         />
       );
-      expect(screen.getByText('Primary Session')).toBeInTheDocument();
+      // Session name appears multiple times: in the label span and in the Claude ID button
+      const nameElements = screen.getAllByText('Primary Session');
+      expect(nameElements.length).toBeGreaterThanOrEqual(1);
     });
 
     it('shows pulsing indicator dot', () => {
@@ -413,17 +426,20 @@ describe('ThinkingStatusPill', () => {
           theme={mockTheme}
         />
       );
-      const nameElement = screen.getByText('Test Name');
-      expect(nameElement).toHaveAttribute('title', expect.stringContaining('Test Name'));
-      expect(nameElement).toHaveAttribute('title', expect.stringContaining('Claude: abc12345'));
+      // Session name appears in the non-clickable span with tooltip
+      const nameElements = screen.getAllByText('Test Name');
+      const elementWithTooltip = nameElements.find(el => el.getAttribute('title'));
+      expect(elementWithTooltip).toHaveAttribute('title', expect.stringContaining('Test Name'));
+      expect(elementWithTooltip).toHaveAttribute('title', expect.stringContaining('Claude: abc12345'));
     });
   });
 
   describe('Claude session ID click handler', () => {
-    it('calls onSessionClick when Claude ID is clicked', () => {
+    it('calls onSessionClick when Claude ID button is clicked', () => {
       const onSessionClick = vi.fn();
       const session = createThinkingSession({
         id: 'session-123',
+        name: 'Click Test Session',
         claudeSessionId: 'claude-456',
       });
       render(
@@ -434,8 +450,12 @@ describe('ThinkingStatusPill', () => {
         />
       );
 
-      const claudeIdButton = screen.getByText('CLAUDE-4');
-      fireEvent.click(claudeIdButton);
+      // The clickable button shows session name (priority: namedSessions > tab name > session name > UUID)
+      const buttons = screen.getAllByText('Click Test Session');
+      // Find the button element (the clickable one with accent color)
+      const clickableButton = buttons.find(el => el.tagName === 'BUTTON');
+      expect(clickableButton).toBeDefined();
+      fireEvent.click(clickableButton!);
 
       expect(onSessionClick).toHaveBeenCalledWith('session-123', undefined);
     });
@@ -445,13 +465,14 @@ describe('ThinkingStatusPill', () => {
       const tab = createMockAITab({
         id: 'tab-999',
         state: 'busy',
-        name: '', // Empty name so it falls back to claudeSessionId
+        name: 'Active Tab',
         claudeSessionId: 'tab-claude-id',
       });
       const session = createThinkingSession({
         id: 'session-abc',
+        name: 'Tab Test Session',
         aiTabs: [tab],
-        claudeSessionId: undefined, // No session-level claudeSessionId
+        claudeSessionId: undefined,
       });
       render(
         <ThinkingStatusPill
@@ -461,8 +482,8 @@ describe('ThinkingStatusPill', () => {
         />
       );
 
-      // With empty tab name and claudeSessionId, it shows UUID octet uppercased
-      const claudeIdButton = screen.getByText('TAB-CLAU');
+      // With tab name available, button shows tab name
+      const claudeIdButton = screen.getByText('Active Tab');
       fireEvent.click(claudeIdButton);
 
       expect(onSessionClick).toHaveBeenCalledWith('session-abc', 'tab-999');
@@ -1018,14 +1039,16 @@ describe('ThinkingStatusPill', () => {
     });
 
     it('applies accent color to Claude ID button', () => {
-      const session = createThinkingSession({ claudeSessionId: 'test-id' });
+      const session = createThinkingSession({ name: 'Accent Test', claudeSessionId: 'test-id' });
       render(
         <ThinkingStatusPill
           sessions={[session]}
           theme={mockTheme}
         />
       );
-      const claudeButton = screen.getByText('TEST-ID');
+      // Claude ID button shows session name (priority: namedSessions > tab > session name > UUID)
+      const buttons = screen.getAllByText('Accent Test');
+      const claudeButton = buttons.find(el => el.tagName === 'BUTTON');
       expect(claudeButton).toHaveStyle({ color: mockTheme.colors.accent });
     });
   });
@@ -1107,7 +1130,7 @@ describe('ThinkingStatusPill', () => {
     });
 
     it('re-renders when theme changes', () => {
-      const session = createThinkingSession();
+      const session = createThinkingSession({ name: 'Theme Test' });
       const newTheme = {
         ...mockTheme,
         colors: { ...mockTheme.colors, accent: '#ff0000' },
@@ -1128,12 +1151,15 @@ describe('ThinkingStatusPill', () => {
       );
 
       // Component should have re-rendered with new theme
-      const claudeButton = screen.getByText(/[A-Z0-9]{8}/);
+      // Claude button shows session name
+      const buttons = screen.getAllByText('Theme Test');
+      const claudeButton = buttons.find(el => el.tagName === 'BUTTON');
       expect(claudeButton).toHaveStyle({ color: '#ff0000' });
     });
 
     it('re-renders when namedSessions changes for thinking session', () => {
       const session = createThinkingSession({
+        name: 'Named Test Session',
         claudeSessionId: 'abc12345',
       });
 
@@ -1145,7 +1171,9 @@ describe('ThinkingStatusPill', () => {
         />
       );
 
-      expect(screen.getByText('ABC12345')).toBeInTheDocument();
+      // Initially shows session name (no namedSessions match)
+      const initialButtons = screen.getAllByText('Named Test Session');
+      expect(initialButtons.length).toBeGreaterThanOrEqual(1);
 
       rerender(
         <ThinkingStatusPill
@@ -1155,6 +1183,7 @@ describe('ThinkingStatusPill', () => {
         />
       );
 
+      // After rerender, should show custom name from namedSessions
       expect(screen.getByText('Custom Name')).toBeInTheDocument();
     });
   });
@@ -1162,6 +1191,7 @@ describe('ThinkingStatusPill', () => {
   describe('edge cases', () => {
     it('handles session with no claudeSessionId', () => {
       const session = createThinkingSession({
+        name: 'No Claude ID Session',
         claudeSessionId: undefined,
         aiTabs: undefined,
       });
@@ -1171,12 +1201,14 @@ describe('ThinkingStatusPill', () => {
           theme={mockTheme}
         />
       );
-      // Should still render, just without Claude ID
-      expect(screen.getByText('Test Session')).toBeInTheDocument();
+      // Should still render with session name (appears in both places when no claudeSessionId)
+      const elements = screen.getAllByText('No Claude ID Session');
+      expect(elements.length).toBeGreaterThanOrEqual(1);
     });
 
     it('handles session with no thinkingStartTime', () => {
       const session = createThinkingSession({
+        name: 'No Time Session',
         thinkingStartTime: undefined,
       });
       render(
@@ -1186,7 +1218,8 @@ describe('ThinkingStatusPill', () => {
         />
       );
       // Should still render, just without elapsed time
-      expect(screen.getByText('Test Session')).toBeInTheDocument();
+      const elements = screen.getAllByText('No Time Session');
+      expect(elements.length).toBeGreaterThanOrEqual(1);
       expect(screen.queryByText('Elapsed:')).not.toBeInTheDocument();
     });
 
@@ -1200,8 +1233,9 @@ describe('ThinkingStatusPill', () => {
           theme={mockTheme}
         />
       );
-      // Should display safely escaped
-      expect(screen.getByText('<script>alert("xss")</script>')).toBeInTheDocument();
+      // Should display safely escaped (appears in multiple places)
+      const elements = screen.getAllByText('<script>alert("xss")</script>');
+      expect(elements.length).toBeGreaterThanOrEqual(1);
     });
 
     it('handles unicode in session names', () => {
@@ -1212,7 +1246,8 @@ describe('ThinkingStatusPill', () => {
           theme={mockTheme}
         />
       );
-      expect(screen.getByText('🎼 Maestro Session')).toBeInTheDocument();
+      const elements = screen.getAllByText('🎼 Maestro Session');
+      expect(elements.length).toBeGreaterThanOrEqual(1);
     });
 
     it('handles very long session names', () => {
@@ -1225,7 +1260,8 @@ describe('ThinkingStatusPill', () => {
           theme={mockTheme}
         />
       );
-      expect(screen.getByText('This is a very long session name that might cause layout issues')).toBeInTheDocument();
+      const elements = screen.getAllByText('This is a very long session name that might cause layout issues');
+      expect(elements.length).toBeGreaterThanOrEqual(1);
     });
 
     it('handles large token counts', () => {
@@ -1240,15 +1276,16 @@ describe('ThinkingStatusPill', () => {
     });
 
     it('handles session with empty aiTabs array', () => {
-      const session = createThinkingSession({ aiTabs: [] });
+      const session = createThinkingSession({ name: 'Empty Tabs Session', aiTabs: [] });
       render(
         <ThinkingStatusPill
           sessions={[session]}
           theme={mockTheme}
         />
       );
-      // Should still render, using session's claudeSessionId
-      expect(screen.getByText('Test Session')).toBeInTheDocument();
+      // Should still render, using session's name (appears in both places)
+      const elements = screen.getAllByText('Empty Tabs Session');
+      expect(elements.length).toBeGreaterThanOrEqual(1);
     });
 
     it('handles mixed busy and idle sessions', () => {
@@ -1265,7 +1302,9 @@ describe('ThinkingStatusPill', () => {
         />
       );
       // Should show primary (Busy 1) and +1 indicator (Busy 2)
-      expect(screen.getByText('Busy 1')).toBeInTheDocument();
+      // Busy 1 appears multiple times: in session name span AND in Claude ID button
+      const busy1Elements = screen.getAllByText('Busy 1');
+      expect(busy1Elements.length).toBeGreaterThanOrEqual(1);
       expect(screen.getByText('+1')).toBeInTheDocument();
     });
 

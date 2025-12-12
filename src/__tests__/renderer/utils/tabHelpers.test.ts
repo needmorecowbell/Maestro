@@ -142,7 +142,7 @@ describe('tabHelpers', () => {
         inputValue: '',
         stagedImages: [],
         state: 'idle',
-        saveToHistory: false,
+        saveToHistory: true,
       });
       expect(result.tab.createdAt).toBeDefined();
       expect(result.session.aiTabs).toHaveLength(1);

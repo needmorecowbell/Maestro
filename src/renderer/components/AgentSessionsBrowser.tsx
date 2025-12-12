@@ -3,6 +3,7 @@ import { Search, Clock, MessageSquare, HardDrive, Play, ChevronLeft, Loader2, Pl
 import type { Theme, Session, LogEntry } from '../types';
 import { useLayerStack } from '../contexts/LayerStackContext';
 import { MODAL_PRIORITIES } from '../constants/modalPriorities';
+import { SessionActivityGraph, type ActivityEntry } from './SessionActivityGraph';
 
 type SearchMode = 'title' | 'user' | 'assistant' | 'all';
 
@@ -79,6 +80,10 @@ export function AgentSessionsBrowser({
   const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
 
+  // Activity graph vs search toggle state - default to search since graph needs data to load first
+  const [showSearchPanel, setShowSearchPanel] = useState(true);
+  const [graphLookbackHours, setGraphLookbackHours] = useState<number | null>(null); // null = all time (default)
+
   // Pagination state for sessions list
   const [hasMoreSessions, setHasMoreSessions] = useState(false);
   const [isLoadingMoreSessions, setIsLoadingMoreSessions] = useState(false);
@@ -108,6 +113,8 @@ export function AgentSessionsBrowser({
   onCloseRef.current = onClose;
   const viewingSessionRef = useRef(viewingSession);
   viewingSessionRef.current = viewingSession;
+  const showSearchPanelRef = useRef(showSearchPanel);
+  showSearchPanelRef.current = showSearchPanel;
   const autoJumpedRef = useRef<string | null>(null); // Track which session we've auto-jumped to
 
   const { registerLayer, unregisterLayer, updateLayerHandler } = useLayerStack();
@@ -131,6 +138,9 @@ export function AgentSessionsBrowser({
         if (viewingSessionRef.current) {
           setViewingSession(null);
           setMessages([]);
+        } else if (showSearchPanelRef.current) {
+          // If in search panel, switch back to graph first
+          setShowSearchPanel(false);
         } else {
           onCloseRef.current();
         }
@@ -144,19 +154,22 @@ export function AgentSessionsBrowser({
     };
   }, [registerLayer, unregisterLayer]);
 
-  // Update handler when viewingSession changes
+  // Update handler when viewingSession or showSearchPanel changes
   useEffect(() => {
     if (layerIdRef.current) {
       updateLayerHandler(layerIdRef.current, () => {
         if (viewingSessionRef.current) {
           setViewingSession(null);
           setMessages([]);
+        } else if (showSearchPanelRef.current) {
+          // If in search panel, switch back to graph first
+          setShowSearchPanel(false);
         } else {
           onCloseRef.current();
         }
       });
     }
-  }, [viewingSession, updateLayerHandler]);
+  }, [viewingSession, showSearchPanel, updateLayerHandler]);
 
   // Restore focus and scroll position when returning from detail view to list view
   const prevViewingSessionRef = useRef<ClaudeSession | null>(null);
@@ -661,7 +674,6 @@ export function AgentSessionsBrowser({
 
   // Handle resuming a session
   const handleResume = useCallback(() => {
-    console.log('[AgentSessionsBrowser.handleResume] Called, viewingSession:', viewingSession?.sessionId, 'messages:', messages.length);
     if (viewingSession) {
       // Convert messages to LogEntry format for AI terminal
       const logEntries: LogEntry[] = messages.map((msg, idx) => ({
@@ -670,7 +682,6 @@ export function AgentSessionsBrowser({
         source: msg.type === 'user' ? 'user' as const : 'stdout' as const,
         text: msg.content || (msg.toolUse ? `[Tool: ${msg.toolUse[0]?.name || 'unknown'}]` : '[No content]'),
       }));
-      console.log('[AgentSessionsBrowser.handleResume] Converted to', logEntries.length, 'logEntries, calling onResumeSession');
       // Pass session name and starred status for the new tab
       const isStarred = starredSessions.has(viewingSession.sessionId);
       onResumeSession(viewingSession.sessionId, logEntries, viewingSession.sessionName, isStarred);
@@ -719,6 +730,71 @@ export function AgentSessionsBrowser({
     if (diffDays < 7) return `${diffDays}d ago`;
     return date.toLocaleDateString();
   };
+
+  // Activity entries for the graph - cached in state to prevent re-renders during pagination
+  // Only updates when: switching TO graph view, or filters change while graph is visible
+  const [activityEntries, setActivityEntries] = useState<ActivityEntry[]>([]);
+  const prevFiltersRef = useRef({ namedOnly, showAllSessions, showSearchPanel });
+
+  useEffect(() => {
+    const filtersChanged =
+      prevFiltersRef.current.namedOnly !== namedOnly ||
+      prevFiltersRef.current.showAllSessions !== showAllSessions;
+    const switchingToGraph = prevFiltersRef.current.showSearchPanel && !showSearchPanel;
+
+    prevFiltersRef.current = { namedOnly, showAllSessions, showSearchPanel };
+
+    // Update graph entries when:
+    // 1. Switching TO graph view (from search panel)
+    // 2. Filters change while graph is visible
+    // 3. Initial load when graph is visible and we have data
+    const shouldUpdate =
+      (switchingToGraph && filteredSessions.length > 0) ||
+      (filtersChanged && !showSearchPanel && filteredSessions.length > 0) ||
+      (!showSearchPanel && activityEntries.length === 0 && filteredSessions.length > 0);
+
+    if (shouldUpdate) {
+      setActivityEntries(filteredSessions.map(s => ({ timestamp: s.modifiedAt })));
+    }
+  }, [showSearchPanel, namedOnly, showAllSessions, filteredSessions, activityEntries.length]);
+
+  // Handle activity graph bar click - scroll to first session in that time range
+  const handleGraphBarClick = useCallback((bucketStart: number, bucketEnd: number) => {
+    // Find the first session in this time bucket (sessions are sorted by modifiedAt desc)
+    const sessionInBucket = filteredSessions.find(s => {
+      const timestamp = new Date(s.modifiedAt).getTime();
+      return timestamp >= bucketStart && timestamp < bucketEnd;
+    });
+
+    if (sessionInBucket) {
+      // Find its index and scroll to it
+      const index = filteredSessions.findIndex(s => s.sessionId === sessionInBucket.sessionId);
+      if (index !== -1) {
+        setSelectedIndex(index);
+        // Scroll the item into view after state update
+        setTimeout(() => {
+          selectedItemRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        }, 50);
+      }
+    }
+  }, [filteredSessions]);
+
+  // Handle Cmd+F to open search panel
+  const handleGlobalKeyDown = useCallback((e: KeyboardEvent) => {
+    // Only handle when not viewing a session and search panel is not already open
+    if (!viewingSession && !showSearchPanel && (e.metaKey || e.ctrlKey) && e.key === 'f') {
+      e.preventDefault();
+      setShowSearchPanel(true);
+      // Focus the search input after state update
+      setTimeout(() => inputRef.current?.focus(), 50);
+    }
+  }, [viewingSession, showSearchPanel]);
+
+  // Add global keyboard listener for Cmd+F
+  useEffect(() => {
+    document.addEventListener('keydown', handleGlobalKeyDown);
+    return () => document.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [handleGlobalKeyDown]);
 
   return (
     <div className="flex-1 flex flex-col h-full" style={{ backgroundColor: theme.colors.bgMain }}>
@@ -1156,37 +1232,86 @@ export function AgentSessionsBrowser({
             </div>
           )}
 
-          {/* Search bar */}
-          <div className="p-4 border-b" style={{ borderColor: theme.colors.border }}>
+          {/* Search bar / Activity Graph toggle area */}
+          <div className="px-4 py-3 border-b" style={{ borderColor: theme.colors.border }}>
             <div
               className="flex items-center gap-3 px-4 py-2.5 rounded-lg"
               style={{ backgroundColor: theme.colors.bgActivity }}
             >
-              <Search className="w-4 h-4" style={{ color: theme.colors.textDim }} />
-              <input
-                ref={inputRef}
-                className="flex-1 bg-transparent outline-none text-sm"
-                placeholder={`Search ${searchMode === 'title' ? 'titles' : searchMode === 'user' ? 'your messages' : searchMode === 'assistant' ? 'AI responses' : 'all content'}...`}
-                style={{ color: theme.colors.textMain }}
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                onKeyDown={handleKeyDown}
-              />
-              {isSearching && (
-                <Loader2 className="w-4 h-4 animate-spin" style={{ color: theme.colors.textDim }} />
-              )}
-              {search && !isSearching && (
-                <button
-                  onClick={() => setSearch('')}
-                  className="p-0.5 rounded hover:bg-white/10"
-                  style={{ color: theme.colors.textDim }}
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              )}
-              {/* Named Only checkbox */}
+              {/* Toggle button: Search icon when showing graph, BarChart icon when showing search */}
+              <button
+                onClick={() => {
+                  setShowSearchPanel(!showSearchPanel);
+                  if (!showSearchPanel) {
+                    // Switching to search - focus input after state update
+                    setTimeout(() => inputRef.current?.focus(), 50);
+                  } else {
+                    // Switching to graph - clear search
+                    setSearch('');
+                  }
+                }}
+                className="p-1.5 rounded hover:bg-white/10 transition-colors shrink-0"
+                style={{ color: theme.colors.textDim }}
+                title={showSearchPanel ? 'Show activity graph' : 'Search sessions (⌘F)'}
+              >
+                {showSearchPanel ? (
+                  <BarChart3 className="w-4 h-4" />
+                ) : (
+                  <Search className="w-4 h-4" />
+                )}
+              </button>
+
+              {/* Conditional: Search input OR Activity Graph - fixed height container to prevent layout shift */}
+              <div className="flex-1 min-w-0 flex items-center" style={{ height: '38px' }}>
+                {showSearchPanel ? (
+                  /* Search input */
+                  <div className="flex-1 flex items-center gap-2">
+                    <input
+                      ref={inputRef}
+                      className="flex-1 bg-transparent outline-none text-sm"
+                      placeholder={`Search ${searchMode === 'title' ? 'titles' : searchMode === 'user' ? 'your messages' : searchMode === 'assistant' ? 'AI responses' : 'all content'}...`}
+                      style={{ color: theme.colors.textMain }}
+                      value={search}
+                      onChange={e => setSearch(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setShowSearchPanel(false);
+                          setSearch('');
+                        } else {
+                          handleKeyDown(e);
+                        }
+                      }}
+                    />
+                    {isSearching && (
+                      <Loader2 className="w-4 h-4 animate-spin" style={{ color: theme.colors.textDim }} />
+                    )}
+                    {search && !isSearching && (
+                      <button
+                        onClick={() => setSearch('')}
+                        className="p-0.5 rounded hover:bg-white/10"
+                        style={{ color: theme.colors.textDim }}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  /* Activity Graph */
+                  <SessionActivityGraph
+                    entries={activityEntries}
+                    theme={theme}
+                    onBarClick={handleGraphBarClick}
+                    lookbackHours={graphLookbackHours}
+                    onLookbackChange={setGraphLookbackHours}
+                  />
+                )}
+              </div>
+
+              {/* Filter controls - always visible */}
               <label
-                className="flex items-center gap-1.5 text-xs cursor-pointer select-none"
+                className="flex items-center gap-1.5 text-xs cursor-pointer select-none shrink-0"
                 style={{ color: namedOnly ? theme.colors.accent : theme.colors.textDim }}
                 title="Only show sessions with custom names"
               >
@@ -1199,10 +1324,10 @@ export function AgentSessionsBrowser({
                 />
                 <span>Named</span>
               </label>
-              {/* Show All checkbox */}
               <label
-                className="flex items-center gap-1.5 text-xs cursor-pointer select-none"
-                style={{ color: theme.colors.textDim }}
+                className="flex items-center gap-1.5 text-xs cursor-pointer select-none shrink-0"
+                style={{ color: showAllSessions ? theme.colors.accent : theme.colors.textDim }}
+                title="Show sessions from all projects"
               >
                 <input
                   type="checkbox"
@@ -1213,8 +1338,8 @@ export function AgentSessionsBrowser({
                 />
                 <span>Show All</span>
               </label>
-              {/* Search mode dropdown */}
-              <div className="relative" ref={searchModeDropdownRef}>
+              {/* Search mode dropdown - always visible */}
+              <div className="relative shrink-0" ref={searchModeDropdownRef}>
                 <button
                   onClick={() => setSearchModeDropdownOpen(!searchModeDropdownOpen)}
                   className="flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium hover:bg-white/10 transition-colors"

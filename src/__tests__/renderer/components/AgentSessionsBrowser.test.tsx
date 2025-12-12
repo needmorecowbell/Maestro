@@ -1501,9 +1501,33 @@ describe('AgentSessionsBrowser', () => {
         await vi.runAllTimersAsync();
       });
 
-      // Escape should close modal
+      // Flush all pending effects and timers to ensure layer is registered
       await act(async () => {
-        fireEvent.keyDown(window, { key: 'Escape' });
+        await vi.runAllTimersAsync();
+      });
+
+      // First Escape closes search panel (component defaults to search panel view)
+      await act(async () => {
+        const escapeEvent1 = new KeyboardEvent('keydown', {
+          key: 'Escape',
+          bubbles: true,
+          cancelable: true,
+        });
+        window.dispatchEvent(escapeEvent1);
+        await vi.runAllTimersAsync();
+      });
+
+      // First Escape should NOT close modal (closes search panel instead)
+      expect(onClose).not.toHaveBeenCalled();
+
+      // Second Escape should close modal
+      await act(async () => {
+        const escapeEvent2 = new KeyboardEvent('keydown', {
+          key: 'Escape',
+          bubbles: true,
+          cancelable: true,
+        });
+        window.dispatchEvent(escapeEvent2);
         await vi.runAllTimersAsync();
       });
 

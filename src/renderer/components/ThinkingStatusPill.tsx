@@ -321,12 +321,12 @@ function ThinkingStatusPillInner({ sessions, theme, onSessionClick, namedSession
   // Use tab's claudeSessionId if available, fallback to session's (legacy)
   const claudeSessionId = writeModeTab?.claudeSessionId || primarySession.claudeSessionId;
 
-  // Priority: 1. namedSessions lookup, 2. tab's name, 3. UUID octet
+  // Priority: 1. namedSessions lookup, 2. tab's name, 3. session name, 4. UUID octet
   const customName = claudeSessionId ? namedSessions?.[claudeSessionId] : undefined;
   const tabName = writeModeTab?.name;
 
-  // Display name: prefer namedSessions, then tab name, then UUID octet
-  const displayClaudeId = customName || tabName || (claudeSessionId ? claudeSessionId.substring(0, 8).toUpperCase() : null);
+  // Display name: prefer namedSessions, then tab name, then session name, then UUID octet
+  const displayClaudeId = customName || tabName || maestroSessionName || (claudeSessionId ? claudeSessionId.substring(0, 8).toUpperCase() : null);
 
   // For tooltip, show all available info
   const tooltipParts = [maestroSessionName];

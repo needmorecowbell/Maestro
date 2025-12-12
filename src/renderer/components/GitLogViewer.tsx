@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback, memo } from 'react';
 import { GitCommit, GitBranch, Tag } from 'lucide-react';
 import type { Theme } from '../types';
 import { useLayerStack } from '../contexts/LayerStackContext';
@@ -24,7 +24,7 @@ interface GitLogViewerProps {
   onClose: () => void;
 }
 
-export function GitLogViewer({ cwd, theme, onClose }: GitLogViewerProps) {
+export const GitLogViewer = memo(function GitLogViewer({ cwd, theme, onClose }: GitLogViewerProps) {
   const [entries, setEntries] = useState<GitLogEntry[]>([]);
   const [totalCommits, setTotalCommits] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -573,4 +573,4 @@ export function GitLogViewer({ cwd, theme, onClose }: GitLogViewerProps) {
       </div>
     </div>
   );
-}
+});

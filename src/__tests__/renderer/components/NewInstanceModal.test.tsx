@@ -7,7 +7,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { NewInstanceModal } from '../../../renderer/components/NewInstanceModal';
-import type { Theme } from '../../../renderer/types';
+import type { Theme, Session } from '../../../renderer/types';
 import type { AgentConfig } from '../../../renderer/types';
 
 // Mock lucide-react icons
@@ -112,6 +112,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
       // Wait for any pending promises to resolve
@@ -129,6 +130,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -146,6 +148,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -161,6 +164,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -181,6 +185,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -202,6 +207,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -222,6 +228,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -243,6 +250,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -264,6 +272,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -286,6 +295,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -308,6 +318,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="unavailable-agent"
+        existingSessions={[]}
         />
       );
 
@@ -332,6 +343,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent=""
+        existingSessions={[]}
         />
       );
 
@@ -356,6 +368,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent=""
+        existingSessions={[]}
         />
       );
 
@@ -382,6 +395,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -414,6 +428,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -455,6 +470,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -500,6 +516,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -537,14 +554,15 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
       await waitFor(() => {
-        expect(screen.getByPlaceholderText('My Project Session')).toBeInTheDocument();
+        expect(screen.getByLabelText('Agent Name')).toBeInTheDocument();
       });
 
-      const nameInput = screen.getByPlaceholderText('My Project Session');
+      const nameInput = screen.getByLabelText('Agent Name');
       fireEvent.change(nameInput, { target: { value: 'My Custom Session' } });
       expect(nameInput).toHaveValue('My Custom Session');
     });
@@ -561,6 +579,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -585,11 +604,12 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
       await waitFor(() => {
-        const nameInput = screen.getByPlaceholderText('My Project Session');
+        const nameInput = screen.getByLabelText('Agent Name');
         expect(document.activeElement).toBe(nameInput);
       });
     });
@@ -609,6 +629,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -641,6 +662,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -674,6 +696,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -681,7 +704,7 @@ describe('NewInstanceModal', () => {
         expect(screen.getByPlaceholderText('Select directory...')).toBeInTheDocument();
       });
 
-      const nameInput = screen.getByPlaceholderText('My Project Session');
+      const nameInput = screen.getByLabelText('Agent Name');
       fireEvent.change(nameInput, { target: { value: 'My Session' } });
 
       const dirInput = screen.getByPlaceholderText('Select directory...');
@@ -708,6 +731,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -715,7 +739,7 @@ describe('NewInstanceModal', () => {
         expect(screen.getByPlaceholderText('Select directory...')).toBeInTheDocument();
       });
 
-      const nameInput = screen.getByPlaceholderText('My Project Session');
+      const nameInput = screen.getByLabelText('Agent Name');
       fireEvent.change(nameInput, { target: { value: 'Home Session' } });
 
       const dirInput = screen.getByPlaceholderText('Select directory...');
@@ -742,6 +766,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -749,7 +774,7 @@ describe('NewInstanceModal', () => {
         expect(screen.getByPlaceholderText('Select directory...')).toBeInTheDocument();
       });
 
-      const nameInput = screen.getByPlaceholderText('My Project Session');
+      const nameInput = screen.getByLabelText('Agent Name');
       fireEvent.change(nameInput, { target: { value: 'Tilde Test' } });
 
       const dirInput = screen.getByPlaceholderText('Select directory...');
@@ -777,14 +802,15 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
       await waitFor(() => {
-        expect(screen.getByPlaceholderText('My Project Session')).toBeInTheDocument();
+        expect(screen.getByLabelText('Agent Name')).toBeInTheDocument();
       });
 
-      const nameInput = screen.getByPlaceholderText('My Project Session');
+      const nameInput = screen.getByLabelText('Agent Name');
       fireEvent.change(nameInput, { target: { value: 'My Session' } });
 
       const dirInput = screen.getByPlaceholderText('Select directory...');
@@ -811,6 +837,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -838,6 +865,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -861,6 +889,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -887,14 +916,15 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
       await waitFor(() => {
-        expect(screen.getByPlaceholderText('My Project Session')).toBeInTheDocument();
+        expect(screen.getByLabelText('Agent Name')).toBeInTheDocument();
       });
 
-      const nameInput = screen.getByPlaceholderText('My Project Session');
+      const nameInput = screen.getByLabelText('Agent Name');
       fireEvent.change(nameInput, { target: { value: 'Test Session' } });
 
       const dirInput = screen.getByPlaceholderText('Select directory...');
@@ -913,11 +943,12 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
       await waitFor(() => {
-        expect(screen.getByPlaceholderText('My Project Session')).toHaveValue('');
+        expect(screen.getByLabelText('Agent Name')).toHaveValue('');
         expect(screen.getByPlaceholderText('Select directory...')).toHaveValue('');
       });
     });
@@ -936,6 +967,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -959,6 +991,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -985,6 +1018,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -1013,6 +1047,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -1040,6 +1075,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -1047,7 +1083,7 @@ describe('NewInstanceModal', () => {
         expect(screen.getByPlaceholderText('Select directory...')).toBeInTheDocument();
       });
 
-      const nameInput = screen.getByPlaceholderText('My Project Session');
+      const nameInput = screen.getByLabelText('Agent Name');
       fireEvent.change(nameInput, { target: { value: 'Test Session' } });
 
       const dirInput = screen.getByPlaceholderText('Select directory...');
@@ -1073,6 +1109,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -1100,6 +1137,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -1133,6 +1171,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -1159,6 +1198,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -1171,6 +1211,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -1189,6 +1230,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -1200,6 +1242,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -1220,6 +1263,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -1244,6 +1288,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -1265,6 +1310,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -1297,6 +1343,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -1323,6 +1370,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -1357,6 +1405,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -1381,6 +1430,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -1414,6 +1464,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -1435,6 +1486,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -1456,6 +1508,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -1479,6 +1532,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -1499,6 +1553,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -1520,6 +1575,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -1539,6 +1595,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -1560,6 +1617,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -1585,6 +1643,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -1608,6 +1667,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 
@@ -1645,6 +1705,7 @@ describe('NewInstanceModal', () => {
           onCreate={onCreate}
           theme={theme}
           defaultAgent="claude-code"
+        existingSessions={[]}
         />
       );
 

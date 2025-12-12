@@ -87,6 +87,8 @@ src/
 | Add CLI command | `src/cli/commands/`, `src/cli/index.ts` |
 | Configure agent | `src/main/agent-detector.ts` |
 | Add playbook feature | `src/cli/services/playbooks.ts` |
+| Modify wizard flow | `src/renderer/components/Wizard/` (see Onboarding Wizard section) |
+| Add tour step | `src/renderer/components/Wizard/tour/tourSteps.ts` |
 
 ## Core Patterns
 
@@ -362,6 +364,115 @@ The `window.maestro` API exposes:
 | `qwen3-coder` | Qwen3 Coder | Planned | Coming soon |
 
 Additional `ToolType` values (`aider`, `opencode`, `claude`) are defined in types but not yet implemented in `agent-detector.ts`.
+
+## Onboarding Wizard
+
+The wizard (`src/renderer/components/Wizard/`) guides new users through first-run setup, creating AI sessions with Auto Run documents.
+
+### Wizard Architecture
+
+```
+src/renderer/components/Wizard/
+├── MaestroWizard.tsx           # Main orchestrator, screen transitions
+├── WizardContext.tsx           # State management (useReducer pattern)
+├── WizardResumeModal.tsx       # Resume incomplete wizard dialog
+├── WizardExitConfirmModal.tsx  # Exit confirmation dialog
+├── ScreenReaderAnnouncement.tsx # Accessibility announcements
+├── screens/                    # Individual wizard steps
+│   ├── AgentSelectionScreen.tsx    # Step 1: Choose AI agent
+│   ├── DirectorySelectionScreen.tsx # Step 2: Select project folder
+│   ├── ConversationScreen.tsx      # Step 3: AI project discovery
+│   └── PhaseReviewScreen.tsx       # Step 4: Review generated plan
+├── services/                   # Business logic
+│   ├── wizardPrompts.ts           # System prompts, response parser
+│   ├── conversationManager.ts     # AI conversation handling
+│   └── phaseGenerator.ts          # Document generation
+└── tour/                       # Post-setup walkthrough
+    ├── TourOverlay.tsx            # Spotlight overlay
+    ├── TourStep.tsx               # Step tooltip
+    ├── tourSteps.ts               # Step definitions
+    └── useTour.tsx                # Tour state management
+```
+
+### Wizard Flow
+
+1. **Agent Selection** → Select available AI (Claude Code, etc.) and project name
+2. **Directory Selection** → Choose project folder, validates Git repo status
+3. **Conversation** → AI asks clarifying questions, builds confidence score (0-100)
+4. **Phase Review** → View/edit generated Phase 1 document, choose to start tour
+
+When confidence reaches 80+ and agent signals "ready", user proceeds to Phase Review where Auto Run documents are generated and saved to `Auto Run Docs/`.
+
+### Triggering the Wizard
+
+```typescript
+// From anywhere with useWizard hook
+const { openWizard } = useWizard();
+openWizard();
+
+// Keyboard shortcut (default)
+Cmd+Shift+N  // Opens wizard
+
+// Also available in:
+// - Command K menu: "New Agent Wizard"
+// - Hamburger menu: "New Agent Wizard"
+```
+
+### State Persistence (Resume)
+
+Wizard state persists to `wizardResumeState` in settings when user advances past step 1. On next app launch, if incomplete state exists, `WizardResumeModal` offers "Resume" or "Start Fresh".
+
+```typescript
+// Check for saved state
+const hasState = await hasResumeState();
+
+// Load saved state
+const savedState = await loadResumeState();
+
+// Clear saved state
+clearResumeState();
+```
+
+### Tour System
+
+The tour highlights UI elements with spotlight cutouts:
+
+```typescript
+// Add data-tour attribute to spotlight elements
+<div data-tour="autorun-panel">...</div>
+
+// Tour steps defined in tourSteps.ts
+{
+  id: 'autorun-panel',
+  title: 'Auto Run in Action',
+  description: '...',
+  selector: '[data-tour="autorun-panel"]',
+  position: 'left',  // tooltip position
+  uiActions: [       // UI state changes before spotlight
+    { type: 'setRightTab', value: 'autorun' },
+  ],
+}
+```
+
+### Customization Points
+
+| What | Where |
+|------|-------|
+| Add wizard step | `WizardContext.tsx` (WIZARD_TOTAL_STEPS, WizardStep type, STEP_INDEX) |
+| Modify AI prompts | `services/wizardPrompts.ts` |
+| Change confidence threshold | `READY_CONFIDENCE_THRESHOLD` in wizardPrompts.ts (default: 80) |
+| Add tour step | `tour/tourSteps.ts` array |
+| Modify Auto Run document format | `services/phaseGenerator.ts` |
+| Change wizard keyboard shortcut | `shortcuts.ts` → `openWizard` |
+
+### Related Settings
+
+```typescript
+// In useSettings.ts
+wizardCompleted: boolean    // First wizard completion
+tourCompleted: boolean      // First tour completion
+firstAutoRunCompleted: boolean  // Triggers celebration modal
+```
 
 ## Debugging
 
