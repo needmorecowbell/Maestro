@@ -2743,6 +2743,39 @@ export default function MaestroConsole() {
                 lastSubmissionAt: Date.now(),
                 emailConfirmed: !result.requiresConfirmation,
               });
+
+              // Show ranking notification if available
+              if (result.ranking) {
+                const { cumulative, longestRun } = result.ranking;
+                let message = '';
+
+                // Build cumulative ranking message
+                if (cumulative.previousRank === null) {
+                  // New entry
+                  message = `You're ranked #${cumulative.rank} of ${cumulative.total}!`;
+                } else if (cumulative.improved) {
+                  // Moved up
+                  const spotsUp = cumulative.previousRank - cumulative.rank;
+                  message = `You moved up ${spotsUp} spot${spotsUp > 1 ? 's' : ''}! Now #${cumulative.rank} (was #${cumulative.previousRank})`;
+                } else if (cumulative.rank === cumulative.previousRank) {
+                  // Holding steady
+                  message = `You're holding steady at #${cumulative.rank}`;
+                } else {
+                  // Dropped (shouldn't happen often, but handle it)
+                  message = `You're now #${cumulative.rank} of ${cumulative.total}`;
+                }
+
+                // Add longest run info if it's a new record or improved
+                if (longestRun && isNewRecord) {
+                  message += ` | New personal best! #${longestRun.rank} on longest runs!`;
+                }
+
+                addToastRef.current({
+                  type: 'success',
+                  title: 'Leaderboard Updated',
+                  message,
+                });
+              }
             }
             // Silent failure - don't bother the user if submission fails
           }).catch(() => {

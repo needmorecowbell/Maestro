@@ -466,6 +466,14 @@ export interface LeaderboardRegistration {
   lastSubmissionAt?: number;     // Last successful submission timestamp
 }
 
+// Ranking info for a single leaderboard category
+export interface LeaderboardRankingInfo {
+  rank: number;           // User's position (1 = first place)
+  total: number;          // Total entries on leaderboard
+  previousRank: number | null;  // Previous position (null if new entry)
+  improved: boolean;      // Did they move up?
+}
+
 // Response from leaderboard submission API
 export interface LeaderboardSubmitResponse {
   success: boolean;
@@ -473,5 +481,9 @@ export interface LeaderboardSubmitResponse {
   requiresConfirmation?: boolean;
   confirmationUrl?: string;
   error?: string;
+  ranking?: {
+    cumulative: LeaderboardRankingInfo;
+    longestRun: LeaderboardRankingInfo | null;  // null if no longestRunMs submitted
+  };
 }
 

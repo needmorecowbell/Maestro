@@ -586,22 +586,46 @@ async function main() {
     uniqueUsers.join('\n')
   );
 
-  // Optionally fetch user details
+  // Optionally fetch user details (with caching)
   let userDetails = null;
   if (fetchDetails) {
-    console.log(`\nFetching details for ${uniqueUsers.length} users (this may take a while)...`);
-    userDetails = {};
-    for (let i = 0; i < uniqueUsers.length; i++) {
-      const username = uniqueUsers[i];
-      process.stdout.write(`  [${i + 1}/${uniqueUsers.length}] ${username}...`);
-      userDetails[username] = fetchUserDetails(username);
-      console.log(' done');
-
-      // Rate limiting - GitHub allows 5000 requests/hour for authenticated users
-      if (i > 0 && i % 50 === 0) {
-        console.log('  Pausing for rate limiting...');
-        await new Promise(r => setTimeout(r, 2000));
+    // Load existing cached user details
+    const cacheFile = path.join(OUTPUT_DIR, 'user_details.json');
+    let cachedDetails = {};
+    if (fs.existsSync(cacheFile)) {
+      try {
+        cachedDetails = JSON.parse(fs.readFileSync(cacheFile, 'utf-8'));
+        console.log(`\nLoaded ${Object.keys(cachedDetails).length} cached user profiles`);
+      } catch (e) {
+        console.log('\nCould not load cache, starting fresh');
       }
+    }
+
+    // Determine which users need fetching
+    const usersToFetch = uniqueUsers.filter(u => !cachedDetails[u]);
+    const cachedUsers = uniqueUsers.filter(u => cachedDetails[u]);
+
+    console.log(`  ${cachedUsers.length} users already cached`);
+    console.log(`  ${usersToFetch.length} users need fetching`);
+
+    userDetails = { ...cachedDetails };
+
+    if (usersToFetch.length > 0) {
+      console.log(`\nFetching details for ${usersToFetch.length} new users...`);
+      for (let i = 0; i < usersToFetch.length; i++) {
+        const username = usersToFetch[i];
+        process.stdout.write(`  [${i + 1}/${usersToFetch.length}] ${username}...`);
+        userDetails[username] = fetchUserDetails(username);
+        console.log(' done');
+
+        // Rate limiting - GitHub allows 5000 requests/hour for authenticated users
+        if (i > 0 && i % 50 === 0) {
+          console.log('  Pausing for rate limiting...');
+          await new Promise(r => setTimeout(r, 2000));
+        }
+      }
+    } else {
+      console.log('\nAll user details already cached, no API calls needed');
     }
 
     fs.writeFileSync(

@@ -286,7 +286,7 @@ export function LeaderboardRegistrationModal({
                 </p>
               )}
               <p className="text-xs mt-1" style={{ color: theme.colors.textDim }}>
-                You&apos;ll receive a confirmation email to verify your registration
+                Your email is kept private and will not be displayed on the leaderboard
               </p>
             </div>
 

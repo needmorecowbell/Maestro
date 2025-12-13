@@ -164,7 +164,11 @@ function MarkdownImage({
   const isRemoteUrl = src?.startsWith('http://') || src?.startsWith('https://');
 
   useEffect(() => {
+    // Reset state when src or showRemoteImages changes
+    setError(null);
+
     if (!src) {
+      setDataUrl(null);
       setLoading(false);
       return;
     }
@@ -181,11 +185,15 @@ function MarkdownImage({
       if (showRemoteImages) {
         setDataUrl(src);
       } else {
+        // Explicitly clear the dataUrl when hiding remote images
         setDataUrl(null);
       }
       setLoading(false);
       return;
     }
+
+    // For local files, we need to load them
+    setLoading(true);
 
     // Resolve the path relative to the markdown file
     const resolvedPath = resolveImagePath(src, markdownFilePath);
@@ -253,7 +261,7 @@ function MarkdownImage({
     <img
       src={dataUrl}
       alt={alt || ''}
-      className="max-w-full rounded my-2"
+      className="max-w-full rounded my-2 block"
       style={{ border: `1px solid ${theme.colors.border}` }}
     />
   );
@@ -1053,6 +1061,7 @@ export function FilePreview({ file, onClose, theme, markdownEditMode, setMarkdow
               .prose th { background-color: ${theme.colors.bgActivity}; font-weight: bold; }
               .prose strong { font-weight: bold; }
               .prose em { font-style: italic; }
+              .prose img { display: block; max-width: 100%; height: auto; }
             `}</style>
             <ReactMarkdown
               remarkPlugins={[remarkGfm, remarkHighlight]}
@@ -1169,7 +1178,8 @@ export function FilePreview({ file, onClose, theme, markdownEditMode, setMarkdow
             top: `${hoveredLink.y + 5}px`,
             backgroundColor: theme.colors.bgActivity,
             color: theme.colors.textDim,
-            border: `1px solid ${theme.colors.border}`
+            border: `1px solid ${theme.colors.border}`,
+            pointerEvents: 'none'
           }}
         >
           {hoveredLink.url}

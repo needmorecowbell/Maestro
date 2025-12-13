@@ -257,6 +257,7 @@ export function QuickActionsModal(props: QuickActionsModalProps) {
     } }] : []),
     { id: 'devtools', label: 'Toggle JavaScript Console', action: () => { window.maestro.devtools.toggle(); setQuickActionOpen(false); } },
     { id: 'about', label: 'About Maestro', action: () => { setAboutModalOpen(true); setQuickActionOpen(false); } },
+    { id: 'website', label: 'Maestro Website', subtext: 'Open the Maestro website', action: () => { window.maestro.shell.openExternal('https://runmaestro.ai/'); setQuickActionOpen(false); } },
     { id: 'discord', label: 'Join Discord', subtext: 'Join the Maestro community', action: () => { window.maestro.shell.openExternal('https://discord.gg/86crXbGb'); setQuickActionOpen(false); } },
     ...(setUpdateCheckModalOpen ? [{ id: 'updateCheck', label: 'Check for Updates', action: () => { setUpdateCheckModalOpen(true); setQuickActionOpen(false); } }] : []),
     { id: 'goToFiles', label: 'Go to Files Tab', action: () => { setRightPanelOpen(true); setActiveRightTab('files'); setQuickActionOpen(false); } },

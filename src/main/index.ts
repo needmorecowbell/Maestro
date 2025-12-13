@@ -5022,6 +5022,20 @@ function setupIpcHandlers() {
       requiresConfirmation?: boolean;
       confirmationUrl?: string;
       error?: string;
+      ranking?: {
+        cumulative: {
+          rank: number;
+          total: number;
+          previousRank: number | null;
+          improved: boolean;
+        };
+        longestRun: {
+          rank: number;
+          total: number;
+          previousRank: number | null;
+          improved: boolean;
+        } | null;
+      };
     }> => {
       try {
         logger.info('Submitting leaderboard entry', 'Leaderboard', {
@@ -5045,17 +5059,33 @@ function setupIpcHandlers() {
           requiresConfirmation?: boolean;
           confirmationUrl?: string;
           error?: string;
+          ranking?: {
+            cumulative: {
+              rank: number;
+              total: number;
+              previousRank: number | null;
+              improved: boolean;
+            };
+            longestRun: {
+              rank: number;
+              total: number;
+              previousRank: number | null;
+              improved: boolean;
+            } | null;
+          };
         };
 
         if (response.ok) {
           logger.info('Leaderboard submission successful', 'Leaderboard', {
             requiresConfirmation: result.requiresConfirmation,
+            ranking: result.ranking,
           });
           return {
             success: true,
             message: result.message || 'Submission received',
             requiresConfirmation: result.requiresConfirmation,
             confirmationUrl: result.confirmationUrl,
+            ranking: result.ranking,
           };
         } else {
           logger.warn('Leaderboard submission failed', 'Leaderboard', {

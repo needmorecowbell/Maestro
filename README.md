@@ -36,8 +36,6 @@ Download the latest release for your platform from the [Releases](https://github
 - **Linux**: `.AppImage`, `.deb`, or `.rpm`
 - **Upgrading**: Simply replace the old binary with the new one. All your data (sessions, settings, playbooks, history) persists in your [config directory](#configuration).
 
-NOTE: On macOS you may need to clear the quarantine label to successfully launch: `xattr -dr com.apple.quarantine Maestro.app`
-
 ### Requirements
 
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and authenticated
