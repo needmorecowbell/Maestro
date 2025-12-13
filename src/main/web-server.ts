@@ -11,25 +11,16 @@ import { existsSync, readFileSync } from 'fs';
 import type { Theme } from '../shared/theme-types';
 import { getLocalIpAddressSync } from './utils/networkUtils';
 import { logger } from './utils/logger';
+import {
+  WebSocketMessageHandler,
+  WebClient,
+  WebClientMessage,
+} from './web-server/handlers';
 
 // Logger context for all web server logs
 const LOG_CONTEXT = 'WebServer';
 
 const GITHUB_REDIRECT_URL = 'https://github.com/pedramamini/Maestro';
-
-// Types for web client messages
-interface WebClientMessage {
-  type: string;
-  [key: string]: unknown;
-}
-
-// Web client connection info
-interface WebClient {
-  socket: WebSocket;
-  id: string;
-  connectedAt: number;
-  subscribedSessionId?: string; // Which session this client is viewing (if any)
-}
 
 // Live session info
 interface LiveSessionInfo {
@@ -265,6 +256,9 @@ export class WebServer {
   // Live sessions - only these appear in the web interface
   private liveSessions: Map<string, LiveSessionInfo> = new Map();
 
+  // WebSocket message handler instance
+  private messageHandler: WebSocketMessageHandler;
+
   constructor(port: number = 0) {
     // Use port 0 to let OS assign a random available port
     this.port = port;
@@ -280,6 +274,9 @@ export class WebServer {
 
     // Determine web assets path (production vs development)
     this.webAssetsPath = this.resolveWebAssetsPath();
+
+    // Initialize the WebSocket message handler
+    this.messageHandler = new WebSocketMessageHandler();
 
     // Note: setupMiddleware and setupRoutes are called in start() to handle async properly
   }
@@ -1045,381 +1042,14 @@ export class WebServer {
 
   /**
    * Handle incoming messages from web clients
+   * Delegates to the WebSocketMessageHandler for all message processing
    */
   private handleWebClientMessage(clientId: string, message: WebClientMessage) {
     const client = this.webClients.get(clientId);
     if (!client) return;
 
-    // Log all incoming messages for debugging
-    logger.info(`[Web] handleWebClientMessage: type=${message.type}, clientId=${clientId}`, LOG_CONTEXT);
-
-    switch (message.type) {
-      case 'ping':
-        // Respond to ping with pong
-        client.socket.send(JSON.stringify({
-          type: 'pong',
-          timestamp: Date.now(),
-        }));
-        break;
-
-      case 'subscribe':
-        // Update client's session subscription
-        if (message.sessionId) {
-          client.subscribedSessionId = message.sessionId as string;
-        }
-        client.socket.send(JSON.stringify({
-          type: 'subscribed',
-          sessionId: message.sessionId,
-          timestamp: Date.now(),
-        }));
-        break;
-
-      case 'send_command': {
-        // Send a command to a session (AI or terminal)
-        const sessionId = message.sessionId as string;
-        const command = message.command as string;
-        // inputMode from web client - use this instead of server state to avoid sync issues
-        const clientInputMode = message.inputMode as 'ai' | 'terminal' | undefined;
-
-        if (!sessionId || !command) {
-          client.socket.send(JSON.stringify({
-            type: 'error',
-            message: 'Missing sessionId or command',
-            timestamp: Date.now(),
-          }));
-          return;
-        }
-
-        // Get session details to check state and determine how to handle
-        const sessionDetail = this.getSessionDetailCallback?.(sessionId);
-        if (!sessionDetail) {
-          client.socket.send(JSON.stringify({
-            type: 'error',
-            message: 'Session not found',
-            timestamp: Date.now(),
-          }));
-          return;
-        }
-
-        // Check if session is busy - prevent race conditions between desktop and web
-        if (sessionDetail.state === 'busy') {
-          client.socket.send(JSON.stringify({
-            type: 'error',
-            message: 'Session is busy - please wait for the current operation to complete',
-            sessionId,
-            timestamp: Date.now(),
-          }));
-          logger.debug(`Command rejected - session ${sessionId} is busy`, LOG_CONTEXT);
-          return;
-        }
-
-        // Use client's inputMode if provided, otherwise fall back to server state
-        const effectiveMode = clientInputMode || sessionDetail.inputMode;
-        const isAiMode = effectiveMode === 'ai';
-        const mode = isAiMode ? 'AI' : 'CLI';
-        const claudeId = sessionDetail.claudeSessionId || 'none';
-
-        // Log all web interface commands prominently
-        logger.info(`[Web Command] Mode: ${mode} | Session: ${sessionId}${isAiMode ? ` | Claude: ${claudeId}` : ''} | Message: ${command}`, LOG_CONTEXT);
-
-        // Route ALL commands through the renderer for consistent handling
-        // The renderer handles both AI and terminal modes, updating UI and state
-        // Pass clientInputMode so renderer uses the web's intended mode
-        if (this.executeCommandCallback) {
-          this.executeCommandCallback(sessionId, command, clientInputMode)
-            .then((success) => {
-              client.socket.send(JSON.stringify({
-                type: 'command_result',
-                success,
-                sessionId,
-                timestamp: Date.now(),
-              }));
-              if (!success) {
-                logger.warn(`[Web Command] ${mode} command rejected for session ${sessionId}`, LOG_CONTEXT);
-              }
-            })
-            .catch((error) => {
-              logger.error(`[Web Command] ${mode} command failed for session ${sessionId}: ${error.message}`, LOG_CONTEXT);
-              client.socket.send(JSON.stringify({
-                type: 'error',
-                message: `Failed to execute command: ${error.message}`,
-                timestamp: Date.now(),
-              }));
-            });
-        } else {
-          client.socket.send(JSON.stringify({
-            type: 'error',
-            message: 'Command execution not configured',
-            timestamp: Date.now(),
-          }));
-        }
-        break;
-      }
-
-      case 'switch_mode': {
-        // Switch session input mode between AI and terminal
-        const sessionId = message.sessionId as string;
-        const mode = message.mode as 'ai' | 'terminal';
-        logger.info(`[Web] Received switch_mode message: session=${sessionId}, mode=${mode}`, LOG_CONTEXT);
-
-        if (!sessionId || !mode) {
-          client.socket.send(JSON.stringify({
-            type: 'error',
-            message: 'Missing sessionId or mode',
-            timestamp: Date.now(),
-          }));
-          return;
-        }
-
-        if (!this.switchModeCallback) {
-          logger.warn(`[Web] switchModeCallback is not set!`, LOG_CONTEXT);
-          client.socket.send(JSON.stringify({
-            type: 'error',
-            message: 'Mode switching not configured',
-            timestamp: Date.now(),
-          }));
-          return;
-        }
-
-        // Forward to desktop's mode switching logic
-        // This ensures single source of truth - desktop handles state updates and broadcasts
-        logger.info(`[Web] Calling switchModeCallback for session ${sessionId}: ${mode}`, LOG_CONTEXT);
-        this.switchModeCallback(sessionId, mode)
-          .then((success) => {
-            client.socket.send(JSON.stringify({
-              type: 'mode_switch_result',
-              success,
-              sessionId,
-              mode,
-              timestamp: Date.now(),
-            }));
-            logger.debug(`Mode switch for session ${sessionId} to ${mode}: ${success ? 'success' : 'failed'}`, LOG_CONTEXT);
-          })
-          .catch((error) => {
-            client.socket.send(JSON.stringify({
-              type: 'error',
-              message: `Failed to switch mode: ${error.message}`,
-              timestamp: Date.now(),
-            }));
-          });
-        break;
-      }
-
-      case 'select_session': {
-        // Select/switch to a session in the desktop app
-        const sessionId = message.sessionId as string;
-        const tabId = message.tabId as string | undefined;
-        logger.info(`[Web] Received select_session message: session=${sessionId}, tab=${tabId || 'none'}`, LOG_CONTEXT);
-
-        if (!sessionId) {
-          client.socket.send(JSON.stringify({
-            type: 'error',
-            message: 'Missing sessionId',
-            timestamp: Date.now(),
-          }));
-          return;
-        }
-
-        if (!this.selectSessionCallback) {
-          logger.warn(`[Web] selectSessionCallback is not set!`, LOG_CONTEXT);
-          client.socket.send(JSON.stringify({
-            type: 'error',
-            message: 'Session selection not configured',
-            timestamp: Date.now(),
-          }));
-          return;
-        }
-
-        // Forward to desktop's session selection logic (include tabId if provided)
-        logger.info(`[Web] Calling selectSessionCallback for session ${sessionId}${tabId ? `, tab ${tabId}` : ''}`, LOG_CONTEXT);
-        this.selectSessionCallback(sessionId, tabId)
-          .then((success) => {
-            client.socket.send(JSON.stringify({
-              type: 'select_session_result',
-              success,
-              sessionId,
-              timestamp: Date.now(),
-            }));
-            if (success) {
-              logger.debug(`Session ${sessionId} selected in desktop`, LOG_CONTEXT);
-            } else {
-              logger.warn(`Failed to select session ${sessionId} in desktop`, LOG_CONTEXT);
-            }
-          })
-          .catch((error) => {
-            client.socket.send(JSON.stringify({
-              type: 'error',
-              message: `Failed to select session: ${error.message}`,
-              timestamp: Date.now(),
-            }));
-          });
-        break;
-      }
-
-      case 'get_sessions': {
-        // Request updated sessions list - returns all sessions (not just "live" ones)
-        // The security token already protects access to this endpoint
-        if (this.getSessionsCallback) {
-          const allSessions = this.getSessionsCallback();
-          // Enrich sessions with live info if available
-          const sessionsWithLiveInfo = allSessions.map(s => {
-            const liveInfo = this.liveSessions.get(s.id);
-            return {
-              ...s,
-              claudeSessionId: liveInfo?.claudeSessionId || s.claudeSessionId,
-              liveEnabledAt: liveInfo?.enabledAt,
-              isLive: this.isSessionLive(s.id),
-            };
-          });
-          client.socket.send(JSON.stringify({
-            type: 'sessions_list',
-            sessions: sessionsWithLiveInfo,
-            timestamp: Date.now(),
-          }));
-        }
-        break;
-      }
-
-      case 'select_tab': {
-        // Select a tab within a session
-        const sessionId = message.sessionId as string;
-        const tabId = message.tabId as string;
-        logger.info(`[Web] Received select_tab message: session=${sessionId}, tab=${tabId}`, LOG_CONTEXT);
-
-        if (!sessionId || !tabId) {
-          client.socket.send(JSON.stringify({
-            type: 'error',
-            message: 'Missing sessionId or tabId',
-            timestamp: Date.now(),
-          }));
-          return;
-        }
-
-        if (!this.selectTabCallback) {
-          client.socket.send(JSON.stringify({
-            type: 'error',
-            message: 'Tab selection not configured',
-            timestamp: Date.now(),
-          }));
-          return;
-        }
-
-        this.selectTabCallback(sessionId, tabId)
-          .then((success) => {
-            client.socket.send(JSON.stringify({
-              type: 'select_tab_result',
-              success,
-              sessionId,
-              tabId,
-              timestamp: Date.now(),
-            }));
-          })
-          .catch((error) => {
-            client.socket.send(JSON.stringify({
-              type: 'error',
-              message: `Failed to select tab: ${error.message}`,
-              timestamp: Date.now(),
-            }));
-          });
-        break;
-      }
-
-      case 'new_tab': {
-        // Create a new tab within a session
-        const sessionId = message.sessionId as string;
-        logger.info(`[Web] Received new_tab message: session=${sessionId}`, LOG_CONTEXT);
-
-        if (!sessionId) {
-          client.socket.send(JSON.stringify({
-            type: 'error',
-            message: 'Missing sessionId',
-            timestamp: Date.now(),
-          }));
-          return;
-        }
-
-        if (!this.newTabCallback) {
-          client.socket.send(JSON.stringify({
-            type: 'error',
-            message: 'Tab creation not configured',
-            timestamp: Date.now(),
-          }));
-          return;
-        }
-
-        this.newTabCallback(sessionId)
-          .then((result) => {
-            client.socket.send(JSON.stringify({
-              type: 'new_tab_result',
-              success: !!result,
-              sessionId,
-              tabId: result?.tabId,
-              timestamp: Date.now(),
-            }));
-          })
-          .catch((error) => {
-            client.socket.send(JSON.stringify({
-              type: 'error',
-              message: `Failed to create tab: ${error.message}`,
-              timestamp: Date.now(),
-            }));
-          });
-        break;
-      }
-
-      case 'close_tab': {
-        // Close a tab within a session
-        const sessionId = message.sessionId as string;
-        const tabId = message.tabId as string;
-        logger.info(`[Web] Received close_tab message: session=${sessionId}, tab=${tabId}`, LOG_CONTEXT);
-
-        if (!sessionId || !tabId) {
-          client.socket.send(JSON.stringify({
-            type: 'error',
-            message: 'Missing sessionId or tabId',
-            timestamp: Date.now(),
-          }));
-          return;
-        }
-
-        if (!this.closeTabCallback) {
-          client.socket.send(JSON.stringify({
-            type: 'error',
-            message: 'Tab closing not configured',
-            timestamp: Date.now(),
-          }));
-          return;
-        }
-
-        this.closeTabCallback(sessionId, tabId)
-          .then((success) => {
-            client.socket.send(JSON.stringify({
-              type: 'close_tab_result',
-              success,
-              sessionId,
-              tabId,
-              timestamp: Date.now(),
-            }));
-          })
-          .catch((error) => {
-            client.socket.send(JSON.stringify({
-              type: 'error',
-              message: `Failed to close tab: ${error.message}`,
-              timestamp: Date.now(),
-            }));
-          });
-        break;
-      }
-
-      default:
-        // Echo unknown message types for debugging
-        logger.debug(`Unknown message type: ${message.type}`, LOG_CONTEXT);
-        client.socket.send(JSON.stringify({
-          type: 'echo',
-          originalType: message.type,
-          data: message,
-        }));
-    }
+    // Delegate to the message handler
+    this.messageHandler.handleMessage(client, message);
   }
 
   /**
@@ -1631,6 +1261,51 @@ export class WebServer {
     return this.webClients.size;
   }
 
+  /**
+   * Wire up the message handler callbacks
+   * Called during start() to ensure all callbacks are set before accepting connections
+   */
+  private setupMessageHandlerCallbacks(): void {
+    this.messageHandler.setCallbacks({
+      getSessionDetail: (sessionId: string) => {
+        return this.getSessionDetailCallback?.(sessionId) ?? null;
+      },
+      executeCommand: async (sessionId: string, command: string, inputMode?: 'ai' | 'terminal') => {
+        if (!this.executeCommandCallback) return false;
+        return this.executeCommandCallback(sessionId, command, inputMode);
+      },
+      switchMode: async (sessionId: string, mode: 'ai' | 'terminal') => {
+        if (!this.switchModeCallback) return false;
+        return this.switchModeCallback(sessionId, mode);
+      },
+      selectSession: async (sessionId: string, tabId?: string) => {
+        if (!this.selectSessionCallback) return false;
+        return this.selectSessionCallback(sessionId, tabId);
+      },
+      selectTab: async (sessionId: string, tabId: string) => {
+        if (!this.selectTabCallback) return false;
+        return this.selectTabCallback(sessionId, tabId);
+      },
+      newTab: async (sessionId: string) => {
+        if (!this.newTabCallback) return null;
+        return this.newTabCallback(sessionId);
+      },
+      closeTab: async (sessionId: string, tabId: string) => {
+        if (!this.closeTabCallback) return false;
+        return this.closeTabCallback(sessionId, tabId);
+      },
+      getSessions: () => {
+        return this.getSessionsCallback?.() ?? [];
+      },
+      getLiveSessionInfo: (sessionId: string) => {
+        return this.liveSessions.get(sessionId);
+      },
+      isSessionLive: (sessionId: string) => {
+        return this.liveSessions.has(sessionId);
+      },
+    });
+  }
+
   async start(): Promise<{ port: number; token: string; url: string }> {
     if (this.isRunning) {
       return {
@@ -1648,6 +1323,9 @@ export class WebServer {
       // Setup middleware and routes (must be done before listen)
       await this.setupMiddleware();
       this.setupRoutes();
+
+      // Wire up message handler callbacks
+      this.setupMessageHandlerCallbacks();
 
       await this.server.listen({ port: this.port, host: '0.0.0.0' });
 
