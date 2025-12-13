@@ -8,6 +8,7 @@ export { useDebouncedValue, useThrottledCallback } from './useThrottle';
 export { useAutoRunHandlers } from './useAutoRunHandlers';
 export { useInputSync } from './useInputSync';
 export { useSessionNavigation } from './useSessionNavigation';
+export { useAutoRunUndo } from './useAutoRunUndo';
 
 export type { UseSettingsReturn } from './useSettings';
 export type { UseSessionManagerReturn } from './useSessionManager';
@@ -17,3 +18,4 @@ export type { NavHistoryEntry } from './useNavigationHistory';
 export type { UseAutoRunHandlersReturn, UseAutoRunHandlersDeps, AutoRunTreeNode } from './useAutoRunHandlers';
 export type { UseInputSyncReturn, UseInputSyncDeps } from './useInputSync';
 export type { UseSessionNavigationReturn, UseSessionNavigationDeps } from './useSessionNavigation';
+export type { UseAutoRunUndoReturn, UseAutoRunUndoDeps, UndoState } from './useAutoRunUndo';

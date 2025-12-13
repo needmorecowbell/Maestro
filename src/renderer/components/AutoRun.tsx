@@ -11,6 +11,7 @@ import { AutoRunDocumentSelector } from './AutoRunDocumentSelector';
 import { AutoRunLightbox } from './AutoRunLightbox';
 import { AutoRunSearchBar } from './AutoRunSearchBar';
 import { useTemplateAutocomplete } from '../hooks/useTemplateAutocomplete';
+import { useAutoRunUndo } from '../hooks/useAutoRunUndo';
 import { TemplateAutocompleteDropdown } from './TemplateAutocompleteDropdown';
 
 // Memoize remarkPlugins array - it never changes
@@ -77,15 +78,6 @@ export interface AutoRunHandle {
 
 // Cache for loaded images to avoid repeated IPC calls
 const imageCache = new Map<string, string>();
-
-// Undo/Redo state interface
-interface UndoState {
-  content: string;
-  cursorPosition: number;
-}
-
-// Maximum undo history entries per document
-const MAX_UNDO_HISTORY = 50;
 
 // Custom image component that loads images from the Auto Run folder or external URLs
 function AttachmentImage({
@@ -428,125 +420,6 @@ const AutoRunInner = forwardRef<AutoRunHandle, AutoRunProps>(function AutoRunInn
   // Track the last saved content to avoid unnecessary saves
   const lastSavedContentRef = useRef<string>(content);
 
-  // Undo/Redo history maps - keyed by document filename (selectedFile)
-  // Using refs so history persists across re-renders without triggering re-renders
-  const undoHistoryRef = useRef<Map<string, UndoState[]>>(new Map());
-  const redoHistoryRef = useRef<Map<string, UndoState[]>>(new Map());
-  // Track last content that was snapshotted for undo
-  const lastUndoSnapshotRef = useRef<string>(content);
-  // Timer ref for debounced undo snapshots
-  const undoSnapshotTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Push current state to undo history (call BEFORE making changes)
-  const pushUndoState = useCallback((contentToSnapshot?: string, cursorPos?: number) => {
-    if (!selectedFile) return;
-
-    const snapshotContent = contentToSnapshot ?? localContent;
-    const snapshotCursor = cursorPos ?? textareaRef.current?.selectionStart ?? 0;
-
-    // Only push if content actually differs from last snapshot
-    if (snapshotContent === lastUndoSnapshotRef.current) return;
-
-    const currentState: UndoState = {
-      content: snapshotContent,
-      cursorPosition: snapshotCursor,
-    };
-
-    // Get or create history array for this document
-    const history = undoHistoryRef.current.get(selectedFile) || [];
-    history.push(currentState);
-
-    // Limit to MAX_UNDO_HISTORY entries
-    if (history.length > MAX_UNDO_HISTORY) {
-      history.shift();
-    }
-
-    undoHistoryRef.current.set(selectedFile, history);
-
-    // Update last snapshot reference
-    lastUndoSnapshotRef.current = snapshotContent;
-
-    // Clear redo stack on new edit action
-    redoHistoryRef.current.set(selectedFile, []);
-  }, [selectedFile, localContent]);
-
-  // Schedule a debounced undo snapshot (called on each content change)
-  const scheduleUndoSnapshot = useCallback((previousContent: string, previousCursor: number) => {
-    // Clear any pending snapshot
-    if (undoSnapshotTimeoutRef.current) {
-      clearTimeout(undoSnapshotTimeoutRef.current);
-    }
-
-    // Schedule snapshot after 1 second of inactivity
-    undoSnapshotTimeoutRef.current = setTimeout(() => {
-      pushUndoState(previousContent, previousCursor);
-    }, 1000);
-  }, [pushUndoState]);
-
-  // Handle undo (Cmd+Z)
-  const handleUndo = useCallback(() => {
-    if (!selectedFile) return;
-
-    const undoStack = undoHistoryRef.current.get(selectedFile) || [];
-    if (undoStack.length === 0) return;
-
-    // Save current state to redo stack before undoing
-    const redoStack = redoHistoryRef.current.get(selectedFile) || [];
-    redoStack.push({
-      content: localContent,
-      cursorPosition: textareaRef.current?.selectionStart || 0,
-    });
-    redoHistoryRef.current.set(selectedFile, redoStack);
-
-    // Pop and apply the undo state
-    const prevState = undoStack.pop()!;
-    undoHistoryRef.current.set(selectedFile, undoStack);
-
-    // Update content without pushing to undo stack
-    setLocalContent(prevState.content);
-    lastUndoSnapshotRef.current = prevState.content;
-
-    // Restore cursor position after React re-renders
-    requestAnimationFrame(() => {
-      if (textareaRef.current) {
-        textareaRef.current.setSelectionRange(prevState.cursorPosition, prevState.cursorPosition);
-        textareaRef.current.focus();
-      }
-    });
-  }, [selectedFile, localContent]);
-
-  // Handle redo (Cmd+Shift+Z)
-  const handleRedo = useCallback(() => {
-    if (!selectedFile) return;
-
-    const redoStack = redoHistoryRef.current.get(selectedFile) || [];
-    if (redoStack.length === 0) return;
-
-    // Save current state to undo stack before redoing
-    const undoStack = undoHistoryRef.current.get(selectedFile) || [];
-    undoStack.push({
-      content: localContent,
-      cursorPosition: textareaRef.current?.selectionStart || 0,
-    });
-    undoHistoryRef.current.set(selectedFile, undoStack);
-
-    // Pop and apply the redo state
-    const nextState = redoStack.pop()!;
-    redoHistoryRef.current.set(selectedFile, redoStack);
-
-    // Update content without pushing to undo stack
-    setLocalContent(nextState.content);
-    lastUndoSnapshotRef.current = nextState.content;
-
-    // Restore cursor position after React re-renders
-    requestAnimationFrame(() => {
-      if (textareaRef.current) {
-        textareaRef.current.setSelectionRange(nextState.cursorPosition, nextState.cursorPosition);
-        textareaRef.current.focus();
-      }
-    });
-  }, [selectedFile, localContent]);
-
   // Track content prop to detect external changes (for session switch sync)
   const prevContentForSyncRef = useRef(content);
   // Track contentVersion to detect external file changes (from disk watcher)
@@ -637,16 +510,11 @@ const AutoRunInner = forwardRef<AutoRunHandle, AutoRunProps>(function AutoRunInn
       clearTimeout(autoSaveTimeoutRef.current);
       autoSaveTimeoutRef.current = null;
     }
-    // Clear pending undo snapshot when document changes
-    if (undoSnapshotTimeoutRef.current) {
-      clearTimeout(undoSnapshotTimeoutRef.current);
-      undoSnapshotTimeoutRef.current = null;
-    }
     // Reset lastSavedContent to the new content
     lastSavedContentRef.current = content;
-    // Reset lastUndoSnapshot to the new content (so first edit creates a proper undo point)
-    lastUndoSnapshotRef.current = content;
-  }, [selectedFile, sessionId, content]);
+    // Reset undo history snapshot to the new content (so first edit creates a proper undo point)
+    resetUndoHistory(content);
+  }, [selectedFile, sessionId, content, resetUndoHistory]);
 
   // Track mode before auto-run to restore when it ends
   const modeBeforeAutoRunRef = useRef<'edit' | 'preview' | null>(null);
@@ -686,6 +554,21 @@ const AutoRunInner = forwardRef<AutoRunHandle, AutoRunProps>(function AutoRunInn
     textareaRef,
     value: localContent,
     onChange: setLocalContent,
+  });
+
+  // Undo/Redo functionality hook
+  const {
+    pushUndoState,
+    scheduleUndoSnapshot,
+    handleUndo,
+    handleRedo,
+    resetUndoHistory,
+    lastUndoSnapshotRef,
+  } = useAutoRunUndo({
+    selectedFile,
+    localContent,
+    setLocalContent,
+    textareaRef,
   });
 
   // Expose focus method to parent via ref
