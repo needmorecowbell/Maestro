@@ -5,6 +5,7 @@ import { useLayerStack } from '../contexts/LayerStackContext';
 import { MODAL_PRIORITIES } from '../constants/modalPriorities';
 import { SessionActivityGraph, type ActivityEntry } from './SessionActivityGraph';
 import { formatSize, formatNumber, formatTokens, formatRelativeTime } from '../utils/formatters';
+import { useSessionViewer, type ClaudeSession, type SessionMessage } from '../hooks/useSessionViewer';
 
 type SearchMode = 'title' | 'user' | 'assistant' | 'all';
 
@@ -13,33 +14,6 @@ interface SearchResult {
   matchType: 'title' | 'user' | 'assistant';
   matchPreview: string;
   matchCount: number;
-}
-
-interface ClaudeSession {
-  sessionId: string;
-  projectPath: string;
-  timestamp: string;
-  modifiedAt: string;
-  firstMessage: string;
-  messageCount: number;
-  sizeBytes: number;
-  costUsd: number;
-  inputTokens: number;
-  outputTokens: number;
-  cacheReadTokens: number;
-  cacheCreationTokens: number;
-  durationSeconds: number;
-  origin?: 'user' | 'auto'; // Maestro session origin, undefined for CLI sessions
-  sessionName?: string; // User-defined session name from Maestro
-}
-
-interface SessionMessage {
-  type: string;
-  role?: string;
-  content: string;
-  timestamp: string;
-  uuid: string;
-  toolUse?: any;
 }
 
 interface AgentSessionsBrowserProps {
@@ -61,6 +35,21 @@ export function AgentSessionsBrowser({
   onNewSession,
   onUpdateTab,
 }: AgentSessionsBrowserProps) {
+  // Session viewer hook for detail view state and handlers
+  const {
+    viewingSession,
+    messages,
+    messagesLoading,
+    hasMoreMessages,
+    totalMessages,
+    messagesContainerRef,
+    handleViewSession,
+    handleLoadMore,
+    handleMessagesScroll,
+    clearViewingSession,
+    setViewingSession,
+  } = useSessionViewer({ cwd: activeSession?.cwd });
+
   const [sessions, setSessions] = useState<ClaudeSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -71,12 +60,6 @@ export function AgentSessionsBrowser({
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [viewingSession, setViewingSession] = useState<ClaudeSession | null>(null);
-  const [messages, setMessages] = useState<SessionMessage[]>([]);
-  const [messagesLoading, setMessagesLoading] = useState(false);
-  const [hasMoreMessages, setHasMoreMessages] = useState(false);
-  const [totalMessages, setTotalMessages] = useState(0);
-  const [messagesOffset, setMessagesOffset] = useState(0);
   const [starredSessions, setStarredSessions] = useState<Set<string>>(new Set());
   const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
@@ -105,7 +88,6 @@ export function AgentSessionsBrowser({
   const inputRef = useRef<HTMLInputElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
   const selectedItemRef = useRef<HTMLButtonElement>(null);
-  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const sessionsContainerRef = useRef<HTMLDivElement>(null);
   const searchModeDropdownRef = useRef<HTMLDivElement>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -120,9 +102,8 @@ export function AgentSessionsBrowser({
 
   // Reset to list view on mount - ensures we always start with list view when opening
   useEffect(() => {
-    setViewingSession(null);
-    setMessages([]);
-  }, []);
+    clearViewingSession();
+  }, [clearViewingSession]);
 
   // Register layer on mount for Escape key handling
   useEffect(() => {
@@ -136,8 +117,7 @@ export function AgentSessionsBrowser({
       onEscape: () => {
         // If viewing a session detail, go back to list; otherwise close the panel
         if (viewingSessionRef.current) {
-          setViewingSession(null);
-          setMessages([]);
+          clearViewingSession();
         } else {
           onCloseRef.current();
         }
@@ -149,21 +129,20 @@ export function AgentSessionsBrowser({
         unregisterLayer(layerIdRef.current);
       }
     };
-  }, [registerLayer, unregisterLayer]);
+  }, [registerLayer, unregisterLayer, clearViewingSession]);
 
   // Update handler when viewingSession changes
   useEffect(() => {
     if (layerIdRef.current) {
       updateLayerHandler(layerIdRef.current, () => {
         if (viewingSessionRef.current) {
-          setViewingSession(null);
-          setMessages([]);
+          clearViewingSession();
         } else {
           onCloseRef.current();
         }
       });
     }
-  }, [viewingSession, updateLayerHandler]);
+  }, [viewingSession, updateLayerHandler, clearViewingSession]);
 
   // Restore focus and scroll position when returning from detail view to list view
   const prevViewingSessionRef = useRef<ClaudeSession | null>(null);
@@ -179,49 +158,6 @@ export function AgentSessionsBrowser({
     }
     prevViewingSessionRef.current = viewingSession;
   }, [viewingSession]);
-
-  // Load messages when viewing a session (defined early for use in effects below)
-  const loadMessages = useCallback(async (session: ClaudeSession, offset: number = 0) => {
-    if (!activeSession?.cwd) return;
-
-    setMessagesLoading(true);
-    try {
-      const result = await window.maestro.claude.readSessionMessages(
-        activeSession.cwd,
-        session.sessionId,
-        { offset, limit: 20 }
-      );
-
-      if (offset === 0) {
-        setMessages(result.messages);
-        // Scroll to bottom after initial load and focus the container for keyboard nav
-        requestAnimationFrame(() => {
-          if (messagesContainerRef.current) {
-            messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
-            messagesContainerRef.current.focus();
-          }
-        });
-      } else {
-        // Prepend older messages
-        setMessages(prev => [...result.messages, ...prev]);
-      }
-      setTotalMessages(result.total);
-      setHasMoreMessages(result.hasMore);
-      setMessagesOffset(offset + result.messages.length);
-    } catch (error) {
-      console.error('Failed to load messages:', error);
-    } finally {
-      setMessagesLoading(false);
-    }
-  }, [activeSession?.cwd]);
-
-  // Handle viewing a session (defined early for use in effects below)
-  const handleViewSession = useCallback((session: ClaudeSession) => {
-    setViewingSession(session);
-    setMessages([]);
-    setMessagesOffset(0);
-    loadMessages(session, 0);
-  }, [loadMessages]);
 
   // Load sessions on mount
   useEffect(() => {
@@ -483,32 +419,6 @@ export function AgentSessionsBrowser({
     };
   }, [search, searchMode, activeSession?.cwd]);
 
-  // Handle loading more messages (scroll to top)
-  const handleLoadMore = useCallback(() => {
-    if (viewingSession && hasMoreMessages && !messagesLoading) {
-      loadMessages(viewingSession, messagesOffset);
-    }
-  }, [viewingSession, hasMoreMessages, messagesLoading, messagesOffset, loadMessages]);
-
-  // Handle scroll for lazy loading
-  const handleMessagesScroll = useCallback(() => {
-    const container = messagesContainerRef.current;
-    if (!container) return;
-
-    // Load more when scrolled near top
-    if (container.scrollTop < 100 && hasMoreMessages && !messagesLoading) {
-      const prevScrollHeight = container.scrollHeight;
-      handleLoadMore();
-
-      // Maintain scroll position after loading
-      requestAnimationFrame(() => {
-        if (container) {
-          container.scrollTop = container.scrollHeight - prevScrollHeight;
-        }
-      });
-    }
-  }, [hasMoreMessages, messagesLoading, handleLoadMore]);
-
   // Helper to check if a session should be visible based on filters
   const isSessionVisible = useCallback((session: ClaudeSession) => {
     // Named only filter - if enabled, only show sessions with a custom name
@@ -630,8 +540,7 @@ export function AgentSessionsBrowser({
     if (viewingSession) {
       if (e.key === 'Escape') {
         e.preventDefault();
-        setViewingSession(null);
-        setMessages([]);
+        clearViewingSession();
       } else if (e.key === 'Enter') {
         // Enter in session details view resumes the session
         e.preventDefault();
@@ -760,10 +669,7 @@ export function AgentSessionsBrowser({
           {viewingSession ? (
             <>
               <button
-                onClick={() => {
-                  setViewingSession(null);
-                  setMessages([]);
-                }}
+                onClick={clearViewingSession}
                 className="p-1.5 rounded hover:bg-white/10 transition-colors"
                 style={{ color: theme.colors.textDim }}
               >
