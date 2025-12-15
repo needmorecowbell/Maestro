@@ -164,6 +164,11 @@ interface MainPanelProps {
   fileTree?: import('../hooks/useFileExplorer').FileNode[];
   // Callback when a file link is clicked in AI response
   onFileClick?: (relativePath: string) => void;
+  // File preview navigation
+  canGoBack?: boolean;
+  canGoForward?: boolean;
+  onNavigateBack?: () => void;
+  onNavigateForward?: () => void;
 }
 
 export const MainPanel = forwardRef<MainPanelHandle, MainPanelProps>(function MainPanel(props, ref) {
@@ -872,8 +877,20 @@ export const MainPanel = forwardRef<MainPanelHandle, MainPanelProps>(function Ma
                 }}
                 shortcuts={shortcuts}
                 fileTree={props.fileTree}
-                cwd={activeSession?.cwd}
+                cwd={(() => {
+                  // Compute relative directory from preview file path for proximity matching
+                  if (!activeSession?.fullPath || !previewFile.path.startsWith(activeSession.fullPath)) {
+                    return '';
+                  }
+                  const relativePath = previewFile.path.slice(activeSession.fullPath.length + 1);
+                  const lastSlash = relativePath.lastIndexOf('/');
+                  return lastSlash > 0 ? relativePath.slice(0, lastSlash) : '';
+                })()}
                 onFileClick={props.onFileClick}
+                canGoBack={props.canGoBack}
+                canGoForward={props.canGoForward}
+                onNavigateBack={props.onNavigateBack}
+                onNavigateForward={props.onNavigateForward}
               />
             </div>
           ) : (
@@ -911,7 +928,10 @@ export const MainPanel = forwardRef<MainPanelHandle, MainPanelProps>(function Ma
                 setMarkdownEditMode={setMarkdownEditMode}
                 onReplayMessage={props.onReplayMessage}
                 fileTree={props.fileTree}
-                cwd={activeSession.cwd}
+                cwd={activeSession.cwd.startsWith(activeSession.fullPath)
+                  ? activeSession.cwd.slice(activeSession.fullPath.length + 1)
+                  : ''}
+                projectRoot={activeSession.fullPath}
                 onFileClick={props.onFileClick}
               />
               </div>

@@ -44,6 +44,8 @@ export const FIXED_SHORTCUTS: Record<string, Shortcut> = {
   filterHistory: { id: 'filterHistory', label: 'Filter History (in History tab)', keys: ['Meta', 'f'] },
   searchLogs: { id: 'searchLogs', label: 'Search System Logs', keys: ['Meta', 'f'] },
   searchOutput: { id: 'searchOutput', label: 'Search Output (in Main Window)', keys: ['Meta', 'f'] },
+  filePreviewBack: { id: 'filePreviewBack', label: 'File Preview: Go Back', keys: ['Meta', 'ArrowLeft'] },
+  filePreviewForward: { id: 'filePreviewForward', label: 'File Preview: Go Forward', keys: ['Meta', 'ArrowRight'] },
 };
 
 // Tab navigation shortcuts (AI mode only)

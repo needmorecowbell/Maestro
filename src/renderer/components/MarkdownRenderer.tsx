@@ -71,6 +71,8 @@ interface MarkdownRendererProps {
   fileTree?: FileNode[];
   /** Current working directory for proximity-based matching */
   cwd?: string;
+  /** Project root absolute path - used to convert absolute paths to relative */
+  projectRoot?: string;
   /** Callback when a file link is clicked */
   onFileClick?: (path: string) => void;
 }
@@ -87,15 +89,15 @@ interface MarkdownRendererProps {
  * Note: Prose styles are injected at the TerminalOutput container level for performance.
  * This component assumes those styles are already present in a parent container.
  */
-export const MarkdownRenderer = memo(({ content, theme, onCopy, className = '', fileTree, cwd, onFileClick }: MarkdownRendererProps) => {
+export const MarkdownRenderer = memo(({ content, theme, onCopy, className = '', fileTree, cwd, projectRoot, onFileClick }: MarkdownRendererProps) => {
   // Memoize remark plugins to avoid recreating on every render
   const remarkPlugins = useMemo(() => {
     const plugins: any[] = [remarkGfm];
-    if (fileTree && fileTree.length > 0 && cwd) {
-      plugins.push([remarkFileLinks, { fileTree, cwd }]);
+    if (fileTree && fileTree.length > 0 && cwd !== undefined) {
+      plugins.push([remarkFileLinks, { fileTree, cwd, projectRoot }]);
     }
     return plugins;
-  }, [fileTree, cwd]);
+  }, [fileTree, cwd, projectRoot]);
 
   return (
     <div
@@ -106,9 +108,11 @@ export const MarkdownRenderer = memo(({ content, theme, onCopy, className = '', 
         remarkPlugins={remarkPlugins}
         components={{
           a: ({ node, href, children, ...props }) => {
-            // Handle maestro-file:// protocol for internal file links
-            const isMaestroFile = href?.startsWith('maestro-file://');
-            const filePath = isMaestroFile ? href.replace('maestro-file://', '') : null;
+            // Check for maestro-file:// protocol OR data-maestro-file attribute
+            // (data attribute is fallback when rehype strips custom protocols)
+            const dataFilePath = (props as any)['data-maestro-file'];
+            const isMaestroFile = href?.startsWith('maestro-file://') || !!dataFilePath;
+            const filePath = dataFilePath || (href?.startsWith('maestro-file://') ? href.replace('maestro-file://', '') : null);
 
             return (
               <a

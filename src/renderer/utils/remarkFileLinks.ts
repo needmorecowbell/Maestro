@@ -16,8 +16,10 @@ import type { FileNode } from '../hooks/useFileExplorer';
 export interface RemarkFileLinksOptions {
   /** The file tree to validate paths against */
   fileTree: FileNode[];
-  /** Current working directory for proximity-based matching */
+  /** Current working directory for proximity-based matching (relative path) */
   cwd: string;
+  /** Project root absolute path - used to convert absolute paths to relative */
+  projectRoot?: string;
 }
 
 interface FilePathEntry {
@@ -194,16 +196,32 @@ const WIKI_LINK_PATTERN = /\[\[([^\]]+)\]\]/g;
 // Avoid matching URLs (no :// prefix)
 const PATH_PATTERN = /(?<![:\w])(?:(?:[A-Za-z0-9_-]+\/)+[A-Za-z0-9_.-]+|[A-Za-z0-9_-]+\.(?:md|txt|json|yaml|yml|toml|ts|tsx|js|jsx|py|rb|go|rs|java|c|cpp|h|hpp|css|scss|html|xml|sh|bash|zsh))(?![:\w/])/g;
 
+// Absolute path pattern: Starts with / and contains path segments
+// Matches paths like /Users/pedram/Project/file.md or /home/user/docs/note.txt
+// Must end with a file extension to avoid matching arbitrary paths
+const ABSOLUTE_PATH_PATTERN = /\/(?:[A-Za-z0-9_. -]+\/)+[A-Za-z0-9_. -]+\.(?:md|txt|json|yaml|yml|toml|ts|tsx|js|jsx|py|rb|go|rs|java|c|cpp|h|hpp|css|scss|html|xml|sh|bash|zsh)/g;
+
 /**
  * The remark plugin
  */
 export function remarkFileLinks(options: RemarkFileLinksOptions) {
-  const { fileTree, cwd } = options;
+  const { fileTree, cwd, projectRoot } = options;
 
   // Build indices
   const fileEntries = buildFileIndex(fileTree);
   const allPaths = new Set(fileEntries.map(e => e.relativePath));
   const filenameIndex = buildFilenameIndex(fileEntries);
+
+  // Helper to convert absolute path to relative path
+  const toRelativePath = (absPath: string): string | null => {
+    if (!projectRoot) return null;
+    // Normalize projectRoot to not have trailing slash
+    const root = projectRoot.endsWith('/') ? projectRoot.slice(0, -1) : projectRoot;
+    if (absPath.startsWith(root + '/')) {
+      return absPath.slice(root.length + 1);
+    }
+    return null;
+  };
 
   return (tree: Root) => {
     visit(tree, 'text', (node: Text, index, parent) => {
@@ -239,17 +257,43 @@ export function remarkFileLinks(options: RemarkFileLinksOptions) {
         }
       }
 
-      // Find path-style references
+      // Find absolute path references (e.g., /Users/pedram/Project/file.md)
+      if (projectRoot) {
+        let absMatch;
+        ABSOLUTE_PATH_PATTERN.lastIndex = 0;
+        while ((absMatch = ABSOLUTE_PATH_PATTERN.exec(text)) !== null) {
+          const absolutePath = absMatch[0];
+
+          // Skip if already inside another match
+          const isInsideExisting = matches.some(m =>
+            absMatch!.index >= m.start && absMatch!.index < m.end
+          );
+          if (isInsideExisting) continue;
+
+          // Convert to relative path
+          const relativePath = toRelativePath(absolutePath);
+          if (relativePath && allPaths.has(relativePath)) {
+            matches.push({
+              start: absMatch.index,
+              end: absMatch.index + absMatch[0].length,
+              display: absolutePath,
+              resolvedPath: relativePath,
+            });
+          }
+        }
+      }
+
+      // Find path-style references (relative paths)
       let pathMatch;
       PATH_PATTERN.lastIndex = 0;
       while ((pathMatch = PATH_PATTERN.exec(text)) !== null) {
         const reference = pathMatch[0];
 
-        // Skip if already inside a wiki link
-        const isInsideWiki = matches.some(m =>
+        // Skip if already inside another match
+        const isInsideExisting = matches.some(m =>
           pathMatch!.index >= m.start && pathMatch!.index < m.end
         );
-        if (isInsideWiki) continue;
+        if (isInsideExisting) continue;
 
         const resolvedPath = validatePathReference(reference, allPaths);
 
@@ -279,10 +323,16 @@ export function remarkFileLinks(options: RemarkFileLinksOptions) {
           });
         }
 
-        // Add the link
+        // Add the link - use data-hProperties to pass the file path as a data attribute
+        // This survives rehype processing which may strip custom protocols from href
         replacements.push({
           type: 'link',
           url: `maestro-file://${match.resolvedPath}`,
+          data: {
+            hProperties: {
+              'data-maestro-file': match.resolvedPath,
+            },
+          },
           children: [{ type: 'text', value: match.display }],
         });
 

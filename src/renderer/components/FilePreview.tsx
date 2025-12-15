@@ -4,7 +4,7 @@ import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { FileCode, X, Copy, FileText, Eye, ChevronUp, ChevronDown, Clipboard, Loader2, Image, Globe, Save, Edit, FolderOpen } from 'lucide-react';
+import { FileCode, X, Copy, FileText, Eye, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Clipboard, Loader2, Image, Globe, Save, Edit, FolderOpen } from 'lucide-react';
 import { visit } from 'unist-util-visit';
 import { useLayerStack } from '../contexts/LayerStackContext';
 import { MODAL_PRIORITIES } from '../constants/modalPriorities';
@@ -34,6 +34,14 @@ interface FilePreviewProps {
   cwd?: string;
   /** Callback when a file link is clicked */
   onFileClick?: (path: string) => void;
+  /** Whether back navigation is available */
+  canGoBack?: boolean;
+  /** Whether forward navigation is available */
+  canGoForward?: boolean;
+  /** Navigate back in history */
+  onNavigateBack?: () => void;
+  /** Navigate forward in history */
+  onNavigateForward?: () => void;
 }
 
 // Get language from filename extension
@@ -74,6 +82,7 @@ const isImageFile = (filename: string): boolean => {
   const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico'];
   return imageExtensions.includes(ext || '');
 };
+
 
 // Format file size in human-readable format
 const formatFileSize = (bytes: number): string => {
@@ -325,7 +334,7 @@ function remarkHighlight() {
   };
 }
 
-export function FilePreview({ file, onClose, theme, markdownEditMode, setMarkdownEditMode, onSave, shortcuts, fileTree, cwd, onFileClick }: FilePreviewProps) {
+export function FilePreview({ file, onClose, theme, markdownEditMode, setMarkdownEditMode, onSave, shortcuts, fileTree, cwd, onFileClick, canGoBack, canGoForward, onNavigateBack, onNavigateForward }: FilePreviewProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [showCopyNotification, setShowCopyNotification] = useState(false);
@@ -848,6 +857,20 @@ export function FilePreview({ file, onClose, theme, markdownEditMode, setMarkdow
         // Arrow Down: Scroll down
         container.scrollTop += 40;
       }
+    } else if (e.key === 'ArrowLeft' && (e.metaKey || e.ctrlKey)) {
+      // Cmd+Left: Navigate back in history
+      e.preventDefault();
+      e.stopPropagation();
+      if (canGoBack && onNavigateBack) {
+        onNavigateBack();
+      }
+    } else if (e.key === 'ArrowRight' && (e.metaKey || e.ctrlKey)) {
+      // Cmd+Right: Navigate forward in history
+      e.preventDefault();
+      e.stopPropagation();
+      if (canGoForward && onNavigateForward) {
+        onNavigateForward();
+      }
     }
   };
 
@@ -939,44 +962,69 @@ export function FilePreview({ file, onClose, theme, markdownEditMode, setMarkdow
           </div>
         </div>
         {/* File Stats subbar - hidden on scroll */}
-        {(fileStats || tokenCount !== null || taskCounts) && showStatsBar && (
+        {((fileStats || tokenCount !== null || taskCounts) && showStatsBar) || (canGoBack || canGoForward) ? (
           <div
-            className="flex items-center gap-4 px-6 py-1.5 border-b transition-all duration-200"
+            className="flex items-center justify-between px-6 py-1.5 border-b transition-all duration-200"
             style={{ borderColor: theme.colors.border, backgroundColor: theme.colors.bgActivity }}
           >
-            {fileStats && (
-              <div className="text-[10px]" style={{ color: theme.colors.textDim }}>
-                <span className="opacity-60">Size:</span>{' '}
-                <span style={{ color: theme.colors.textMain }}>{formatFileSize(fileStats.size)}</span>
-              </div>
-            )}
-            {tokenCount !== null && (
-              <div className="text-[10px]" style={{ color: theme.colors.textDim }}>
-                <span className="opacity-60">Tokens:</span>{' '}
-                <span style={{ color: theme.colors.accent }}>{formatTokenCount(tokenCount)}</span>
-              </div>
-            )}
-            {fileStats && (
-              <>
+            <div className="flex items-center gap-4">
+              {fileStats && (
                 <div className="text-[10px]" style={{ color: theme.colors.textDim }}>
-                  <span className="opacity-60">Modified:</span>{' '}
-                  <span style={{ color: theme.colors.textMain }}>{formatDateTime(fileStats.modifiedAt)}</span>
+                  <span className="opacity-60">Size:</span>{' '}
+                  <span style={{ color: theme.colors.textMain }}>{formatFileSize(fileStats.size)}</span>
                 </div>
+              )}
+              {tokenCount !== null && (
                 <div className="text-[10px]" style={{ color: theme.colors.textDim }}>
-                  <span className="opacity-60">Created:</span>{' '}
-                  <span style={{ color: theme.colors.textMain }}>{formatDateTime(fileStats.createdAt)}</span>
+                  <span className="opacity-60">Tokens:</span>{' '}
+                  <span style={{ color: theme.colors.accent }}>{formatTokenCount(tokenCount)}</span>
                 </div>
-              </>
-            )}
-            {taskCounts && (
-              <div className="text-[10px]" style={{ color: theme.colors.textDim }}>
-                <span className="opacity-60">Tasks:</span>{' '}
-                <span style={{ color: theme.colors.success }}>{taskCounts.closed}</span>
-                <span style={{ color: theme.colors.textMain }}> of {taskCounts.open + taskCounts.closed}</span>
+              )}
+              {fileStats && (
+                <>
+                  <div className="text-[10px]" style={{ color: theme.colors.textDim }}>
+                    <span className="opacity-60">Modified:</span>{' '}
+                    <span style={{ color: theme.colors.textMain }}>{formatDateTime(fileStats.modifiedAt)}</span>
+                  </div>
+                  <div className="text-[10px]" style={{ color: theme.colors.textDim }}>
+                    <span className="opacity-60">Created:</span>{' '}
+                    <span style={{ color: theme.colors.textMain }}>{formatDateTime(fileStats.createdAt)}</span>
+                  </div>
+                </>
+              )}
+              {taskCounts && (
+                <div className="text-[10px]" style={{ color: theme.colors.textDim }}>
+                  <span className="opacity-60">Tasks:</span>{' '}
+                  <span style={{ color: theme.colors.success }}>{taskCounts.closed}</span>
+                  <span style={{ color: theme.colors.textMain }}> of {taskCounts.open + taskCounts.closed}</span>
+                </div>
+              )}
+            </div>
+            {/* Navigation buttons - show when either direction is available */}
+            {(canGoBack || canGoForward) && (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={onNavigateBack}
+                  disabled={!canGoBack}
+                  className="p-1 rounded hover:bg-white/10 transition-colors disabled:opacity-30 disabled:cursor-default"
+                  style={{ color: canGoBack ? theme.colors.textMain : theme.colors.textDim }}
+                  title="Go back (⌘←)"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={onNavigateForward}
+                  disabled={!canGoForward}
+                  className="p-1 rounded hover:bg-white/10 transition-colors disabled:opacity-30 disabled:cursor-default"
+                  style={{ color: canGoForward ? theme.colors.textMain : theme.colors.textDim }}
+                  title="Go forward (⌘→)"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
               </div>
             )}
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* Content */}
@@ -1120,9 +1168,11 @@ export function FilePreview({ file, onClose, theme, markdownEditMode, setMarkdow
               rehypePlugins={[rehypeRaw]}
               components={{
                 a: ({ node, href, children, ...props }) => {
-                  // Handle maestro-file:// protocol for internal file links
-                  const isMaestroFile = href?.startsWith('maestro-file://');
-                  const filePath = isMaestroFile ? href.replace('maestro-file://', '') : null;
+                  // Check for maestro-file:// protocol OR data-maestro-file attribute
+                  // (data attribute is fallback when rehype strips custom protocols)
+                  const dataFilePath = (props as any)['data-maestro-file'];
+                  const isMaestroFile = href?.startsWith('maestro-file://') || !!dataFilePath;
+                  const filePath = dataFilePath || (href?.startsWith('maestro-file://') ? href.replace('maestro-file://', '') : null);
 
                   return (
                     <a

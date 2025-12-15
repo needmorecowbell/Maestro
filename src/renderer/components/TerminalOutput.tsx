@@ -66,6 +66,7 @@ interface LogItemProps {
   // File linking support
   fileTree?: FileNode[];
   cwd?: string;
+  projectRoot?: string;
   onFileClick?: (path: string) => void;
 }
 
@@ -104,6 +105,7 @@ const LogItemComponent = memo(({
   onReplayMessage,
   fileTree,
   cwd,
+  projectRoot,
   onFileClick,
 }: LogItemProps) => {
   // Ref for the log item container - used for scroll-into-view on expand
@@ -410,6 +412,7 @@ const LogItemComponent = memo(({
                   onCopy={copyToClipboard}
                   fileTree={fileTree}
                   cwd={cwd}
+                  projectRoot={projectRoot}
                   onFileClick={onFileClick}
                 />
               ) : (
@@ -489,6 +492,7 @@ const LogItemComponent = memo(({
                   onCopy={copyToClipboard}
                   fileTree={fileTree}
                   cwd={cwd}
+                  projectRoot={projectRoot}
                   onFileClick={onFileClick}
                 />
               ) : (
@@ -550,6 +554,7 @@ const LogItemComponent = memo(({
                 onCopy={copyToClipboard}
                 fileTree={fileTree}
                 cwd={cwd}
+                projectRoot={projectRoot}
                 onFileClick={onFileClick}
               />
             ) : (
@@ -764,6 +769,7 @@ interface TerminalOutputProps {
   onReplayMessage?: (text: string, images?: string[]) => void; // Replay a user message
   fileTree?: FileNode[]; // File tree for linking file references
   cwd?: string; // Current working directory for proximity-based matching
+  projectRoot?: string; // Project root absolute path for converting absolute paths to relative
   onFileClick?: (path: string) => void; // Callback when a file link is clicked
 }
 
@@ -774,7 +780,7 @@ export const TerminalOutput = forwardRef<HTMLDivElement, TerminalOutputProps>((p
     inputRef, logsEndRef, maxOutputLines, onDeleteLog, onRemoveQueuedItem, onInterrupt,
     audioFeedbackCommand, onScrollPositionChange, onAtBottomChange, initialScrollTop,
     markdownEditMode, setMarkdownEditMode, onReplayMessage,
-    fileTree, cwd, onFileClick
+    fileTree, cwd, projectRoot, onFileClick
   } = props;
 
   // Use the forwarded ref if provided, otherwise create a local one
@@ -1433,6 +1439,7 @@ export const TerminalOutput = forwardRef<HTMLDivElement, TerminalOutputProps>((p
             onReplayMessage={onReplayMessage}
             fileTree={fileTree}
             cwd={cwd}
+            projectRoot={projectRoot}
             onFileClick={onFileClick}
           />
         ))}

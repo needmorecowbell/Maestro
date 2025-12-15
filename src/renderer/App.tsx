@@ -232,6 +232,10 @@ export default function MaestroConsole() {
   const [fileTreeFilter, setFileTreeFilter] = useState('');
   const [fileTreeFilterOpen, setFileTreeFilterOpen] = useState(false);
 
+  // File Preview Navigation History
+  const [filePreviewHistory, setFilePreviewHistory] = useState<{name: string; content: string; path: string}[]>([]);
+  const [filePreviewHistoryIndex, setFilePreviewHistoryIndex] = useState(-1);
+
   // Git Diff State
   const [gitDiffPreview, setGitDiffPreview] = useState<string | null>(null);
 
@@ -411,10 +415,12 @@ export default function MaestroConsole() {
     };
   }, []);
 
-  // Close file preview when switching sessions
+  // Close file preview and clear navigation history when switching sessions
   useEffect(() => {
     if (previewFile !== null) {
       setPreviewFile(null);
+      setFilePreviewHistory([]);
+      setFilePreviewHistoryIndex(-1);
     }
   }, [activeSessionId]);
 
@@ -5262,18 +5268,50 @@ export default function MaestroConsole() {
         fileTree={activeSession?.fileTree}
         onFileClick={async (relativePath: string) => {
           if (!activeSession) return;
+          const filename = relativePath.split('/').pop() || relativePath;
+
+          // Check if file should be opened externally (PDF, etc.)
+          if (shouldOpenExternally(filename)) {
+            const fullPath = `${activeSession.fullPath}/${relativePath}`;
+            window.maestro.shell.openExternal(`file://${fullPath}`);
+            return;
+          }
+
           try {
             const fullPath = `${activeSession.fullPath}/${relativePath}`;
             const content = await window.maestro.fs.readFile(fullPath);
-            const filename = relativePath.split('/').pop() || relativePath;
-            setPreviewFile({
+            const newFile = {
               name: filename,
               content,
               path: fullPath
-            });
+            };
+
+            // Add to navigation history (truncate forward history if we're not at the end)
+            const newHistory = filePreviewHistory.slice(0, filePreviewHistoryIndex + 1);
+            newHistory.push(newFile);
+            setFilePreviewHistory(newHistory);
+            setFilePreviewHistoryIndex(newHistory.length - 1);
+
+            setPreviewFile(newFile);
             setActiveFocus('main');
           } catch (error) {
             console.error('[onFileClick] Failed to read file:', error);
+          }
+        }}
+        canGoBack={filePreviewHistoryIndex > 0}
+        canGoForward={filePreviewHistoryIndex < filePreviewHistory.length - 1}
+        onNavigateBack={() => {
+          if (filePreviewHistoryIndex > 0) {
+            const newIndex = filePreviewHistoryIndex - 1;
+            setFilePreviewHistoryIndex(newIndex);
+            setPreviewFile(filePreviewHistory[newIndex]);
+          }
+        }}
+        onNavigateForward={() => {
+          if (filePreviewHistoryIndex < filePreviewHistory.length - 1) {
+            const newIndex = filePreviewHistoryIndex + 1;
+            setFilePreviewHistoryIndex(newIndex);
+            setPreviewFile(filePreviewHistory[newIndex]);
           }
         }}
       />

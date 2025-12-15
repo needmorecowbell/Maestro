@@ -6,10 +6,10 @@ import { remarkFileLinks } from '../../../renderer/utils/remarkFileLinks';
 import type { FileNode } from '../../../renderer/hooks/useFileExplorer';
 
 // Helper to process markdown and return the result
-async function processMarkdown(content: string, fileTree: FileNode[], cwd: string): Promise<string> {
+async function processMarkdown(content: string, fileTree: FileNode[], cwd: string, projectRoot?: string): Promise<string> {
   const result = await unified()
     .use(remarkParse)
-    .use(remarkFileLinks, { fileTree, cwd })
+    .use(remarkFileLinks, { fileTree, cwd, projectRoot })
     .use(remarkStringify)
     .process(content);
   return String(result);
@@ -299,6 +299,52 @@ describe('remarkFileLinks', () => {
         'a/b'
       );
       expect(result).toContain('[target](maestro-file://a/b/target.md)');
+    });
+  });
+
+  describe('absolute path references', () => {
+    it('converts absolute paths when projectRoot is provided', async () => {
+      const result = await processMarkdown(
+        'See /Users/pedram/Project/OPSWAT/README.md for details.',
+        sampleFileTree,
+        '',
+        '/Users/pedram/Project'
+      );
+      expect(result).toContain('[/Users/pedram/Project/OPSWAT/README.md](maestro-file://OPSWAT/README.md)');
+    });
+
+    it('does not convert absolute paths outside projectRoot', async () => {
+      const result = await processMarkdown(
+        'See /other/path/README.md for details.',
+        sampleFileTree,
+        '',
+        '/Users/pedram/Project'
+      );
+      // Should not be converted since it's outside projectRoot
+      expect(result).toContain('/other/path/README.md');
+      expect(result).not.toContain('maestro-file://');
+    });
+
+    it('does not convert absolute paths when projectRoot is not provided', async () => {
+      const result = await processMarkdown(
+        'See /Users/pedram/Project/OPSWAT/README.md for details.',
+        sampleFileTree,
+        ''
+      );
+      // Should not be converted since projectRoot is not provided
+      expect(result).toContain('/Users/pedram/Project/OPSWAT/README.md');
+      expect(result).not.toContain('maestro-file://');
+    });
+
+    it('handles absolute paths with spaces in folder/file names', async () => {
+      const result = await processMarkdown(
+        'See /Users/pedram/Project/Notes/Meeting Notes.md for details.',
+        sampleFileTree,
+        '',
+        '/Users/pedram/Project'
+      );
+      // remark-stringify wraps URLs with spaces in angle brackets
+      expect(result).toContain('[/Users/pedram/Project/Notes/Meeting Notes.md](<maestro-file://Notes/Meeting Notes.md>)');
     });
   });
 });
