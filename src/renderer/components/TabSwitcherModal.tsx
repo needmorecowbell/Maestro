@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Search, Star } from 'lucide-react';
 import type { AITab, Theme, Shortcut } from '../types';
 import { fuzzyMatchWithScore } from '../utils/search';
 import { useLayerStack } from '../contexts/LayerStackContext';
+import { useListNavigation } from '../hooks/useListNavigation';
 import { MODAL_PRIORITIES } from '../constants/modalPriorities';
 import { getContextColor } from '../utils/theme';
 import { formatShortcutKeys } from '../utils/shortcutFormatter';
@@ -143,7 +144,6 @@ export function TabSwitcherModal({
   onClose
 }: TabSwitcherModalProps) {
   const [search, setSearch] = useState('');
-  const [selectedIndex, setSelectedIndex] = useState(0);
   const [firstVisibleIndex, setFirstVisibleIndex] = useState(0);
   const [viewMode, setViewMode] = useState<ViewMode>('open');
   const [namedSessions, setNamedSessions] = useState<NamedSession[]>([]);
@@ -217,11 +217,6 @@ export function TabSwitcherModal({
       syncAndLoad();
     }
   }, [namedSessionsLoaded, tabs, projectRoot]);
-
-  // Scroll selected item into view
-  useEffect(() => {
-    selectedItemRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }, [selectedIndex]);
 
   // Track scroll position to determine which items are visible
   const handleScroll = () => {
@@ -345,13 +340,43 @@ export function TabSwitcherModal({
       .map(r => r.item);
   }, [listItems, search]);
 
+  // Helper to select an item by index
+  const handleSelectByIndex = useCallback((index: number) => {
+    const item = filteredItems[index];
+    if (item) {
+      if (item.type === 'open') {
+        onTabSelect(item.tab.id);
+      } else {
+        onNamedSessionSelect(item.session.claudeSessionId, item.session.projectPath, item.session.sessionName, item.session.starred);
+      }
+      onClose();
+    }
+  }, [filteredItems, onTabSelect, onNamedSessionSelect, onClose]);
+
+  // Use the list navigation hook for keyboard navigation
+  const {
+    selectedIndex,
+    setSelectedIndex,
+    handleKeyDown: listKeyDown,
+  } = useListNavigation({
+    listLength: filteredItems.length,
+    onSelect: handleSelectByIndex,
+    enableNumberHotkeys: true,
+    firstVisibleIndex,
+  });
+
+  // Scroll selected item into view
+  useEffect(() => {
+    selectedItemRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [selectedIndex]);
+
   // Reset selection and scroll tracking when search or mode changes
   useEffect(() => {
     setSelectedIndex(0);
     setFirstVisibleIndex(0);
-  }, [search, viewMode]);
+  }, [search, viewMode, setSelectedIndex]);
 
-  const toggleViewMode = (reverse = false) => {
+  const toggleViewMode = useCallback((reverse = false) => {
     setViewMode(prev => {
       if (reverse) {
         if (prev === 'open') return 'starred';
@@ -363,46 +388,21 @@ export function TabSwitcherModal({
         return 'open';
       }
     });
-  };
+  }, []);
 
-  const handleItemSelect = (item: ListItem) => {
-    if (item.type === 'open') {
-      onTabSelect(item.tab.id);
-    } else {
-      onNamedSessionSelect(item.session.claudeSessionId, item.session.projectPath, item.session.sessionName, item.session.starred);
-    }
-    onClose();
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  // Keyboard handler: Tab for view mode, delegate rest to list navigation
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Tab') {
       e.preventDefault();
       toggleViewMode(e.shiftKey);
-    } else if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setSelectedIndex(prev => Math.min(prev + 1, filteredItems.length - 1));
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setSelectedIndex(prev => Math.max(prev - 1, 0));
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      e.stopPropagation();
-      if (filteredItems[selectedIndex]) {
-        handleItemSelect(filteredItems[selectedIndex]);
-      }
-    } else if (e.metaKey && ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].includes(e.key)) {
-      e.preventDefault();
-      // 1-9 map to positions 1-9, 0 maps to position 10
-      const number = e.key === '0' ? 10 : parseInt(e.key);
-      // Cap firstVisibleIndex so hotkeys always work for the last 10 items
-      const maxFirstIndex = Math.max(0, filteredItems.length - 10);
-      const effectiveFirstIndex = Math.min(firstVisibleIndex, maxFirstIndex);
-      const targetIndex = effectiveFirstIndex + number - 1;
-      if (filteredItems[targetIndex]) {
-        handleItemSelect(filteredItems[targetIndex]);
-      }
+      return;
     }
-  };
+    // Stop propagation on Enter to prevent parent handlers
+    if (e.key === 'Enter') {
+      e.stopPropagation();
+    }
+    listKeyDown(e);
+  }, [listKeyDown, toggleViewMode]);
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-start justify-center pt-16 z-[9999] animate-in fade-in duration-100">
@@ -511,7 +511,7 @@ export function TabSwitcherModal({
                 <button
                   key={tab.id}
                   ref={isSelected ? selectedItemRef : null}
-                  onClick={() => handleItemSelect(item)}
+                  onClick={() => handleSelectByIndex(i)}
                   className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-opacity-10"
                   style={{
                     backgroundColor: isSelected ? theme.colors.accent : 'transparent',
@@ -593,7 +593,7 @@ export function TabSwitcherModal({
                 <button
                   key={session.claudeSessionId}
                   ref={isSelected ? selectedItemRef : null}
-                  onClick={() => handleItemSelect(item)}
+                  onClick={() => handleSelectByIndex(i)}
                   className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-opacity-10"
                   style={{
                     backgroundColor: isSelected ? theme.colors.accent : 'transparent',
