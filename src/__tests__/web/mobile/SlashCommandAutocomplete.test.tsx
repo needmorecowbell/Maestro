@@ -69,13 +69,13 @@ describe('SlashCommandAutocomplete', () => {
   });
 
   describe('DEFAULT_SLASH_COMMANDS', () => {
-    it('includes /synopsis as AI-only command', () => {
-      const synopsis = DEFAULT_SLASH_COMMANDS.find(
-        (c) => c.command === '/synopsis'
+    it('includes /history as AI-only command', () => {
+      const history = DEFAULT_SLASH_COMMANDS.find(
+        (c) => c.command === '/history'
       );
-      expect(synopsis).toBeDefined();
-      expect(synopsis?.aiOnly).toBe(true);
-      expect(synopsis?.terminalOnly).toBeUndefined();
+      expect(history).toBeDefined();
+      expect(history?.aiOnly).toBe(true);
+      expect(history?.terminalOnly).toBeUndefined();
     });
 
     it('includes /clear as mode-agnostic command', () => {
@@ -103,21 +103,21 @@ describe('SlashCommandAutocomplete', () => {
   describe('Command filtering by input', () => {
     it('shows all available commands when input is empty', () => {
       render(<SlashCommandAutocomplete {...defaultProps} inputValue="" inputMode="ai" />);
-      // In AI mode, should show /synopsis and /clear (not /jump which is terminal-only)
-      expect(screen.getByText('/synopsis')).toBeInTheDocument();
+      // In AI mode, should show /history and /clear (not /jump which is terminal-only)
+      expect(screen.getByText('/history')).toBeInTheDocument();
       expect(screen.getByText('/clear')).toBeInTheDocument();
     });
 
     it('shows all commands when input does not start with /', () => {
       render(<SlashCommandAutocomplete {...defaultProps} inputValue="test" inputMode="ai" />);
-      expect(screen.getByText('/synopsis')).toBeInTheDocument();
+      expect(screen.getByText('/history')).toBeInTheDocument();
       expect(screen.getByText('/clear')).toBeInTheDocument();
     });
 
     it('filters commands by prefix when input starts with /', () => {
       render(<SlashCommandAutocomplete {...defaultProps} inputValue="/cl" inputMode="ai" />);
       expect(screen.getByText('/clear')).toBeInTheDocument();
-      expect(screen.queryByText('/synopsis')).not.toBeInTheDocument();
+      expect(screen.queryByText('/history')).not.toBeInTheDocument();
     });
 
     it('filtering is case insensitive', () => {
@@ -145,13 +145,13 @@ describe('SlashCommandAutocomplete', () => {
 
     it('hides AI-only commands in terminal mode', () => {
       render(<SlashCommandAutocomplete {...defaultProps} inputMode="terminal" inputValue="" />);
-      // /synopsis is AI-only
-      expect(screen.queryByText('/synopsis')).not.toBeInTheDocument();
+      // /history is AI-only
+      expect(screen.queryByText('/history')).not.toBeInTheDocument();
     });
 
     it('shows AI-only commands in AI mode', () => {
       render(<SlashCommandAutocomplete {...defaultProps} inputMode="ai" inputValue="" />);
-      expect(screen.getByText('/synopsis')).toBeInTheDocument();
+      expect(screen.getByText('/history')).toBeInTheDocument();
     });
 
     it('shows mode-agnostic commands in both modes', () => {
@@ -522,7 +522,7 @@ describe('SlashCommandAutocomplete', () => {
     it('command names have monospace font', () => {
       render(<SlashCommandAutocomplete {...defaultProps} inputMode="ai" />);
       // Find the command name div
-      const commandName = screen.getByText('/synopsis');
+      const commandName = screen.getByText('/history');
       expect(commandName).toHaveStyle({
         fontFamily: 'ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, monospace',
       });
@@ -584,13 +584,13 @@ describe('SlashCommandAutocomplete', () => {
   describe('Command item rendering', () => {
     it('shows command name', () => {
       render(<SlashCommandAutocomplete {...defaultProps} inputMode="ai" />);
-      expect(screen.getByText('/synopsis')).toBeInTheDocument();
+      expect(screen.getByText('/history')).toBeInTheDocument();
     });
 
     it('shows command description', () => {
       render(<SlashCommandAutocomplete {...defaultProps} inputMode="ai" />);
       expect(
-        screen.getByText('Get a synopsis of recent work and add to history')
+        screen.getByText('Get a synopsis of work since the last /history and add to history')
       ).toBeInTheDocument();
     });
 
@@ -662,14 +662,14 @@ describe('SlashCommandAutocomplete', () => {
         <SlashCommandAutocomplete {...defaultProps} inputMode="ai" inputValue="" />
       );
 
-      expect(screen.getByText('/synopsis')).toBeInTheDocument();
+      expect(screen.getByText('/history')).toBeInTheDocument();
       expect(screen.queryByText('/jump')).not.toBeInTheDocument();
 
       rerender(
         <SlashCommandAutocomplete {...defaultProps} inputMode="terminal" inputValue="" />
       );
 
-      expect(screen.queryByText('/synopsis')).not.toBeInTheDocument();
+      expect(screen.queryByText('/history')).not.toBeInTheDocument();
       expect(screen.getByText('/jump')).toBeInTheDocument();
     });
 

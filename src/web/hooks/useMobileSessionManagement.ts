@@ -454,7 +454,6 @@ export function useMobileSessionManagement(
       };
       setSessionLogs(prev => {
         const logKey = inputMode === 'ai' ? 'aiLogs' : 'shellLogs';
-        console.log(`[MobileApp] Added user input to ${logKey}`);
         return { ...prev, [logKey]: [...prev[logKey], userLogEntry] };
       });
     },

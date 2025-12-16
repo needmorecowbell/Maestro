@@ -69,7 +69,9 @@ export function HistoryHelpModal({ theme, onClose }: HistoryHelpModalProps) {
                 </span>
                 <p>
                   Synopsis entries from your interactive work sessions. Created manually with{' '}
-                  <code className="px-1 rounded" style={{ backgroundColor: theme.colors.bgActivity }}>/synopsis</code>{' '}
+                  <code className="px-1 rounded" style={{ backgroundColor: theme.colors.bgActivity }}>/history</code>{' '}
+                  (creates a synopsis of everything since the last{' '}
+                  <code className="px-1 rounded" style={{ backgroundColor: theme.colors.bgActivity }}>/history</code>)
                   or automatically when using{' '}
                   <code className="px-1 rounded" style={{ backgroundColor: theme.colors.bgActivity }}>/clear</code>.
                 </p>

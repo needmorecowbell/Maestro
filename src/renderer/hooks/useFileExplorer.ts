@@ -50,12 +50,30 @@ export function useFileExplorer(
   const shouldOpenExternally = (filename: string): boolean => {
     const ext = filename.split('.').pop()?.toLowerCase();
     const externalExtensions = [
+      // Documents
       'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
-      'png', 'jpg', 'jpeg', 'gif', 'bmp', 'svg', 'webp',
-      'mp4', 'mov', 'avi', 'mkv', 'webm',
-      'mp3', 'wav', 'flac', 'aac',
-      'zip', 'tar', 'gz', '7z', 'rar',
-      'exe', 'dmg', 'app', 'deb', 'rpm'
+      // Images (handled separately for preview, but open externally if double-clicked from file tree)
+      'png', 'jpg', 'jpeg', 'gif', 'bmp', 'svg', 'webp', 'tiff', 'tif', 'heic', 'heif',
+      // macOS/iOS specific
+      'icns', 'car', 'actool',
+      // Design files
+      'psd', 'ai', 'sketch', 'fig', 'xd',
+      // Video
+      'mp4', 'mov', 'avi', 'mkv', 'webm', 'wmv', 'flv', 'm4v',
+      // Audio
+      'mp3', 'wav', 'flac', 'aac', 'm4a', 'ogg', 'wma',
+      // Archives
+      'zip', 'tar', 'gz', '7z', 'rar', 'bz2', 'xz', 'tgz',
+      // Executables/binaries
+      'exe', 'dmg', 'app', 'deb', 'rpm', 'msi', 'pkg', 'bin',
+      // Compiled/object files
+      'o', 'a', 'so', 'dylib', 'dll', 'class', 'pyc', 'pyo',
+      // Database files
+      'db', 'sqlite', 'sqlite3',
+      // Fonts
+      'ttf', 'otf', 'woff', 'woff2', 'eot',
+      // Other binary formats
+      'iso', 'img', 'vmdk', 'vdi'
     ];
     return externalExtensions.includes(ext || '');
   };

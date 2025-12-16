@@ -885,7 +885,7 @@ export function AgentSessionsBrowser({
               <div className="flex items-center gap-2">
                 <BarChart3 className="w-4 h-4" style={{ color: theme.colors.accent }} />
                 <span className={`text-xs font-medium ${!stats.isComplete ? 'animate-pulse' : ''}`} style={{ color: theme.colors.textDim }}>
-                  {stats.totalSessions} {stats.totalSessions === 1 ? 'session' : 'sessions'}
+                  {stats.totalSessions.toLocaleString()} {stats.totalSessions === 1 ? 'session' : 'sessions'}
                 </span>
               </div>
               <div className="flex items-center gap-2">

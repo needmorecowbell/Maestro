@@ -36,8 +36,8 @@ export interface SlashCommand {
  */
 export const DEFAULT_SLASH_COMMANDS: SlashCommand[] = [
   {
-    command: '/synopsis',
-    description: 'Get a synopsis of recent work and add to history',
+    command: '/history',
+    description: 'Get a synopsis of work since the last /history and add to history',
     aiOnly: true,
   },
   {

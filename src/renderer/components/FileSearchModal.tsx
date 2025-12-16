@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Search, File, Folder } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { Search, File, FileImage, FileText } from 'lucide-react';
 import type { Theme, Shortcut } from '../types';
 import { fuzzyMatchWithScore } from '../utils/search';
 import { useLayerStack } from '../contexts/LayerStackContext';
@@ -28,29 +28,102 @@ interface FileSearchModalProps {
   onClose: () => void;
 }
 
+// Extensions for files that can be previewed as text/code
+const TEXT_EXTENSIONS = new Set([
+  // Code files
+  'js', 'jsx', 'ts', 'tsx', 'mjs', 'cjs', 'mts', 'cts',
+  'py', 'rb', 'php', 'java', 'c', 'cpp', 'cc', 'h', 'hpp',
+  'cs', 'go', 'rs', 'swift', 'kt', 'scala', 'clj', 'ex', 'exs',
+  'lua', 'r', 'pl', 'pm', 'sh', 'bash', 'zsh', 'fish', 'ps1',
+  'sql', 'graphql', 'gql',
+  // Web files
+  'html', 'htm', 'css', 'scss', 'sass', 'less', 'vue', 'svelte',
+  // Config/data files
+  'json', 'yaml', 'yml', 'toml', 'xml', 'ini', 'cfg', 'conf',
+  'env', 'properties', 'plist',
+  // Documentation
+  'md', 'mdx', 'markdown', 'rst', 'txt', 'text', 'log',
+  'csv', 'tsv',
+  // Other
+  'dockerfile', 'makefile', 'cmake', 'gradle', 'gemfile',
+  'gitignore', 'gitattributes', 'editorconfig', 'prettierrc',
+  'eslintrc', 'babelrc', 'npmrc', 'nvmrc',
+]);
+
+// Extensions for image files
+const IMAGE_EXTENSIONS = new Set([
+  'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ico', 'bmp', 'tiff', 'tif',
+]);
+
+// Extensions for files that open externally but are still useful to list
+const EXTERNAL_EXTENSIONS = new Set([
+  'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
+]);
+
 /**
- * Recursively flatten the entire file tree (ignoring expansion state).
- * Returns all files and folders with their full paths.
+ * Check if a file can be previewed or opened
  */
-function flattenEntireTree(nodes: FileNode[], currentPath = '', depth = 0): FlatFileItem[] {
+function isPreviewableFile(filename: string): boolean {
+  const ext = filename.split('.').pop()?.toLowerCase() || '';
+  const nameLower = filename.toLowerCase();
+
+  // Special filenames without extensions
+  if (['makefile', 'dockerfile', 'gemfile', 'rakefile', 'procfile', 'brewfile'].includes(nameLower)) {
+    return true;
+  }
+
+  // Dotfiles that are typically text (like .gitignore, .env, .bashrc)
+  if (filename.startsWith('.') && !filename.includes('.', 1)) {
+    return true;
+  }
+
+  return TEXT_EXTENSIONS.has(ext) || IMAGE_EXTENSIONS.has(ext) || EXTERNAL_EXTENSIONS.has(ext);
+}
+
+/**
+ * Check if a file is a hidden file (starts with .)
+ */
+function isHiddenFile(fullPath: string): boolean {
+  return fullPath.split('/').some(part => part.startsWith('.'));
+}
+
+/**
+ * Get the appropriate icon for a file
+ */
+function getFileIconType(filename: string): 'image' | 'text' | 'file' {
+  const ext = filename.split('.').pop()?.toLowerCase() || '';
+  if (IMAGE_EXTENSIONS.has(ext)) return 'image';
+  if (TEXT_EXTENSIONS.has(ext)) return 'text';
+  return 'file';
+}
+
+/**
+ * Recursively flatten the file tree, filtering to only previewable files.
+ */
+function flattenPreviewableFiles(nodes: FileNode[], currentPath = '', depth = 0): FlatFileItem[] {
   const result: FlatFileItem[] = [];
 
   for (const node of nodes) {
     const fullPath = currentPath ? `${currentPath}/${node.name}` : node.name;
-    result.push({
-      name: node.name,
-      fullPath,
-      isFolder: node.type === 'folder',
-      depth,
-    });
 
     if (node.type === 'folder' && node.children) {
-      result.push(...flattenEntireTree(node.children, fullPath, depth + 1));
+      // Recurse into folders but don't add the folder itself
+      result.push(...flattenPreviewableFiles(node.children, fullPath, depth + 1));
+    } else if (node.type === 'file' && isPreviewableFile(node.name)) {
+      // Only add files that can be previewed/opened
+      result.push({
+        name: node.name,
+        fullPath,
+        isFolder: false,
+        depth,
+      });
     }
   }
 
   return result;
 }
+
+type ViewMode = 'visible' | 'all';
 
 /**
  * Fuzzy File Search Modal - Quick navigation to any file in the file tree.
@@ -66,6 +139,7 @@ export function FileSearchModal({
   const [search, setSearch] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [firstVisibleIndex, setFirstVisibleIndex] = useState(0);
+  const [viewMode, setViewMode] = useState<ViewMode>('visible');
   const inputRef = useRef<HTMLInputElement>(null);
   const selectedItemRef = useRef<HTMLButtonElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -113,20 +187,32 @@ export function FileSearchModal({
     return () => clearTimeout(timer);
   }, []);
 
-  // Flatten the entire tree (all files, regardless of expansion state)
+  // Flatten the file tree to only previewable files
   const allFiles = useMemo(() => {
-    return flattenEntireTree(fileTree);
+    return flattenPreviewableFiles(fileTree);
   }, [fileTree]);
 
-  // Filter and sort files based on search query
+  // Count files by visibility for tab badges
+  const fileCounts = useMemo(() => {
+    const visible = allFiles.filter(f => !isHiddenFile(f.fullPath)).length;
+    const all = allFiles.length;
+    return { visible, all };
+  }, [allFiles]);
+
+  // Filter files based on view mode and search query
   const filteredFiles = useMemo(() => {
+    // First filter by view mode (hidden files)
+    let files = viewMode === 'visible'
+      ? allFiles.filter(f => !isHiddenFile(f.fullPath))
+      : allFiles;
+
     if (!search.trim()) {
-      // No search - show all files sorted alphabetically by path
-      return [...allFiles].sort((a, b) => a.fullPath.localeCompare(b.fullPath));
+      // No search - show files sorted alphabetically by path
+      return [...files].sort((a, b) => a.fullPath.localeCompare(b.fullPath));
     }
 
     // Fuzzy search on both name and full path
-    const results = allFiles.map(file => {
+    const results = files.map(file => {
       const nameResult = fuzzyMatchWithScore(file.name, search);
       const pathResult = fuzzyMatchWithScore(file.fullPath, search);
       const bestScore = Math.max(nameResult.score, pathResult.score);
@@ -139,13 +225,17 @@ export function FileSearchModal({
       .filter(r => r.matches)
       .sort((a, b) => b.score - a.score)
       .map(r => r.file);
-  }, [allFiles, search]);
+  }, [allFiles, search, viewMode]);
 
-  // Reset selection when search changes
+  // Reset selection when search or view mode changes
   useEffect(() => {
     setSelectedIndex(0);
     setFirstVisibleIndex(0);
-  }, [search]);
+  }, [search, viewMode]);
+
+  const toggleViewMode = useCallback(() => {
+    setViewMode(prev => prev === 'visible' ? 'all' : 'visible');
+  }, []);
 
   // Scroll selected item into view
   useEffect(() => {
@@ -167,8 +257,11 @@ export function FileSearchModal({
     onClose();
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'ArrowDown') {
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      toggleViewMode();
+    } else if (e.key === 'ArrowDown') {
       e.preventDefault();
       setSelectedIndex(prev => Math.min(prev + 1, filteredFiles.length - 1));
     } else if (e.key === 'ArrowUp') {
@@ -192,7 +285,7 @@ export function FileSearchModal({
         handleItemSelect(filteredFiles[targetIndex]);
       }
     }
-  };
+  }, [filteredFiles, selectedIndex, firstVisibleIndex, handleItemSelect, toggleViewMode]);
 
   // Get the directory part of a path (everything before the last /)
   const getDirectory = (fullPath: string): string => {
@@ -237,6 +330,33 @@ export function FileSearchModal({
           </div>
         </div>
 
+        {/* Mode Toggle Pills */}
+        <div className="px-4 py-2 flex items-center gap-2 border-b" style={{ borderColor: theme.colors.border }}>
+          <button
+            onClick={() => setViewMode('visible')}
+            className="px-3 py-1 rounded-full text-xs font-medium transition-colors"
+            style={{
+              backgroundColor: viewMode === 'visible' ? theme.colors.accent : theme.colors.bgMain,
+              color: viewMode === 'visible' ? theme.colors.accentForeground : theme.colors.textDim
+            }}
+          >
+            Visible Files ({fileCounts.visible})
+          </button>
+          <button
+            onClick={() => setViewMode('all')}
+            className="px-3 py-1 rounded-full text-xs font-medium transition-colors"
+            style={{
+              backgroundColor: viewMode === 'all' ? theme.colors.accent : theme.colors.bgMain,
+              color: viewMode === 'all' ? theme.colors.accentForeground : theme.colors.textDim
+            }}
+          >
+            All Files ({fileCounts.all})
+          </button>
+          <span className="text-[10px] opacity-50 ml-auto" style={{ color: theme.colors.textDim }}>
+            Tab to switch
+          </span>
+        </div>
+
         {/* File List */}
         <div
           ref={scrollContainerRef}
@@ -278,12 +398,18 @@ export function FileSearchModal({
                   <div className="flex-shrink-0 w-5 h-5" />
                 )}
 
-                {/* File/Folder Icon */}
-                {file.isFolder ? (
-                  <Folder className="w-4 h-4 flex-shrink-0" style={{ color: isSelected ? theme.colors.accentForeground : theme.colors.warning }} />
-                ) : (
-                  <File className="w-4 h-4 flex-shrink-0" style={{ color: isSelected ? theme.colors.accentForeground : theme.colors.textDim }} />
-                )}
+                {/* File Icon based on type */}
+                {(() => {
+                  const iconType = getFileIconType(file.name);
+                  const iconColor = isSelected ? theme.colors.accentForeground : theme.colors.textDim;
+                  if (iconType === 'image') {
+                    return <FileImage className="w-4 h-4 flex-shrink-0" style={{ color: iconColor }} />;
+                  } else if (iconType === 'text') {
+                    return <FileText className="w-4 h-4 flex-shrink-0" style={{ color: iconColor }} />;
+                  } else {
+                    return <File className="w-4 h-4 flex-shrink-0" style={{ color: iconColor }} />;
+                  }
+                })()}
 
                 {/* File Info */}
                 <div className="flex flex-col flex-1 min-w-0">

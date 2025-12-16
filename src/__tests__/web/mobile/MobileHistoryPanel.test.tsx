@@ -335,7 +335,7 @@ describe('MobileHistoryPanel', () => {
         await vi.runAllTimersAsync();
       });
 
-      expect(screen.getByText(/Run batch tasks or use \/synopsis/)).toBeInTheDocument();
+      expect(screen.getByText(/Run batch tasks or use \/history/)).toBeInTheDocument();
     });
 
     it('shows filter-specific empty message', async () => {

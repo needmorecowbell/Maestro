@@ -1050,7 +1050,7 @@ export function MobileHistoryPanel({
                   ? `No entries found matching "${searchQuery}".`
                   : filter !== 'all'
                     ? `No ${filter} entries found. Try changing the filter.`
-                    : 'Run batch tasks or use /synopsis to add entries.'}
+                    : 'Run batch tasks or use /history to add entries.'}
               </p>
             </div>
           ) : (

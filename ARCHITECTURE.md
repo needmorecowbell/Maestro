@@ -523,7 +523,7 @@ const unsubscribe = processService.onData((sessionId, data) => { ... });
 
 ## Custom AI Commands
 
-User-defined prompt macros that expand when typed. The built-in slash commands (`/clear`, `/jump`, `/synopsis`) have been deprecated in favor of fully customizable commands defined in Settings.
+User-defined prompt macros that expand when typed. The built-in slash commands (`/clear`, `/jump`, `/history`) have been deprecated in favor of fully customizable commands defined in Settings.
 
 ### Overview
 

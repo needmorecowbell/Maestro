@@ -249,11 +249,11 @@ describe('HistoryHelpModal', () => {
       expect(botIcons.length).toBeGreaterThanOrEqual(1);
     });
 
-    it('renders /synopsis code snippet', () => {
+    it('renders /history code snippet', () => {
       render(<HistoryHelpModal {...defaultProps} />);
 
-      const synopsisCode = screen.getByText('/synopsis');
-      expect(synopsisCode.tagName.toLowerCase()).toBe('code');
+      const historyCode = screen.getAllByText('/history');
+      expect(historyCode[0].tagName.toLowerCase()).toBe('code');
     });
 
     it('renders /clear code snippet', () => {
@@ -597,8 +597,8 @@ describe('HistoryHelpModal', () => {
     it('applies bgActivity background to code elements', () => {
       render(<HistoryHelpModal {...defaultProps} />);
 
-      const synopsisCode = screen.getByText('/synopsis');
-      expect(synopsisCode).toHaveStyle({ backgroundColor: mockTheme.colors.bgActivity });
+      const historyCode = screen.getAllByText('/history');
+      expect(historyCode[0]).toHaveStyle({ backgroundColor: mockTheme.colors.bgActivity });
 
       const clearCode = screen.getByText('/clear');
       expect(clearCode).toHaveStyle({ backgroundColor: mockTheme.colors.bgActivity });
@@ -607,8 +607,8 @@ describe('HistoryHelpModal', () => {
     it('applies correct classes to code elements', () => {
       render(<HistoryHelpModal {...defaultProps} />);
 
-      const synopsisCode = screen.getByText('/synopsis');
-      expect(synopsisCode).toHaveClass('px-1', 'rounded');
+      const historyCode = screen.getAllByText('/history');
+      expect(historyCode[0]).toHaveClass('px-1', 'rounded');
     });
   });
 

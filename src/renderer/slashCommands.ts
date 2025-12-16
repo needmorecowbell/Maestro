@@ -10,6 +10,6 @@ export interface SlashCommand {
 }
 
 // Empty array - all slash commands are now custom AI commands
-// Built-in special cases (/synopsis, /clear, /jump) have been removed
+// Built-in special cases (/history, /clear, /jump) have been removed
 // Users can recreate similar functionality via custom AI commands if needed
 export const slashCommands: SlashCommand[] = [];

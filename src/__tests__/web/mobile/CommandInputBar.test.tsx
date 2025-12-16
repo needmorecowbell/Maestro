@@ -80,7 +80,7 @@ vi.mock('../../../web/mobile/SlashCommandAutocomplete', () => ({
   )),
   DEFAULT_SLASH_COMMANDS: [
     { command: '/clear', description: 'Clear output' },
-    { command: '/synopsis', description: 'Get synopsis', aiOnly: true },
+    { command: '/history', description: 'Get history synopsis', aiOnly: true },
   ],
 }));
 

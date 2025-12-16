@@ -128,14 +128,24 @@ export class BroadcastService {
    * Broadcast a message to all connected web clients
    */
   broadcastToAll(message: object): void {
-    if (!this.getWebClients) return;
+    if (!this.getWebClients) {
+      console.log(`[SYNC-DEBUG] broadcastToAll: getWebClients callback not set!`);
+      return;
+    }
+
+    const clients = this.getWebClients();
+    const msgType = (message as Record<string, unknown>).type || 'unknown';
+    console.log(`[SYNC-DEBUG] broadcastToAll: type=${msgType}, clients=${clients.size}`);
 
     const data = JSON.stringify(message);
-    for (const client of this.getWebClients().values()) {
+    let sentCount = 0;
+    for (const client of clients.values()) {
       if (client.socket.readyState === WebSocket.OPEN) {
         client.socket.send(data);
+        sentCount++;
       }
     }
+    console.log(`[SYNC-DEBUG] broadcastToAll: sent to ${sentCount}/${clients.size} clients`);
   }
 
   /**
@@ -259,6 +269,7 @@ export class BroadcastService {
    * Called when the user changes the theme in the desktop app
    */
   broadcastThemeChange(theme: Theme): void {
+    console.log(`[SYNC-DEBUG] BroadcastService.broadcastThemeChange called: ${theme.name}`);
     this.broadcastToAll({
       type: 'theme',
       theme,

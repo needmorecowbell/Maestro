@@ -93,6 +93,51 @@ const isImageFile = (filename: string): boolean => {
   return imageExtensions.includes(ext || '');
 };
 
+// Check if content appears to be binary (contains null bytes or high concentration of non-printable chars)
+const isBinaryContent = (content: string): boolean => {
+  // Check for null bytes (definitive binary indicator)
+  if (content.includes('\0')) return true;
+
+  // Sample the first 8KB for performance (binary files are usually obvious early)
+  const sample = content.slice(0, 8192);
+  if (sample.length === 0) return false;
+
+  // Count non-printable characters (excluding common whitespace)
+  let nonPrintableCount = 0;
+  for (let i = 0; i < sample.length; i++) {
+    const code = sample.charCodeAt(i);
+    // Allow: tab (9), newline (10), carriage return (13), and printable ASCII (32-126)
+    // Also allow common extended ASCII and Unicode
+    if (code < 9 || (code > 13 && code < 32) || (code >= 127 && code < 160)) {
+      nonPrintableCount++;
+    }
+  }
+
+  // If more than 10% of characters are non-printable, treat as binary
+  return nonPrintableCount / sample.length > 0.1;
+};
+
+// Check if file extension indicates a known binary format
+const isBinaryExtension = (filename: string): boolean => {
+  const ext = filename.split('.').pop()?.toLowerCase();
+  const binaryExtensions = [
+    // macOS/iOS specific
+    'icns', 'car', 'actool',
+    // Design files
+    'psd', 'ai', 'sketch', 'fig', 'xd',
+    // Compiled/object files
+    'o', 'a', 'so', 'dylib', 'dll', 'class', 'pyc', 'pyo', 'wasm',
+    // Database files
+    'db', 'sqlite', 'sqlite3',
+    // Fonts
+    'ttf', 'otf', 'woff', 'woff2', 'eot',
+    // Archives (if somehow not opened externally)
+    'zip', 'tar', 'gz', '7z', 'rar', 'bz2', 'xz', 'tgz',
+    // Other binary
+    'exe', 'bin', 'dat', 'pak'
+  ];
+  return binaryExtensions.includes(ext || '');
+};
 
 // Format file size in human-readable format
 const formatFileSize = (bytes: number): string => {
@@ -401,6 +446,12 @@ export function FilePreview({ file, onClose, theme, markdownEditMode, setMarkdow
   const language = getLanguageFromFilename(file.name);
   const isMarkdown = language === 'markdown';
   const isImage = isImageFile(file.name);
+  // Check for binary files - either by extension or by content analysis
+  // Memoize to avoid recalculating on every render (content analysis can be expensive)
+  const isBinary = useMemo(() => {
+    if (isImage) return false;
+    return isBinaryExtension(file.name) || isBinaryContent(file.content);
+  }, [isImage, file.name, file.content]);
 
   // Calculate task counts for markdown files
   const taskCounts = useMemo(() => {
@@ -430,9 +481,9 @@ export function FilePreview({ file, onClose, theme, markdownEditMode, setMarkdow
     }
   }, [file?.path]);
 
-  // Count tokens when file content changes (skip for images)
+  // Count tokens when file content changes (skip for images and binary files)
   useEffect(() => {
-    if (!file?.content || isImage) {
+    if (!file?.content || isImage || isBinary) {
       setTokenCount(null);
       return;
     }
@@ -446,7 +497,7 @@ export function FilePreview({ file, onClose, theme, markdownEditMode, setMarkdow
         console.error('Failed to count tokens:', err);
         setTokenCount(null);
       });
-  }, [file?.content, isImage]);
+  }, [file?.content, isImage, isBinary]);
 
   // Sync edit content when file changes or when entering edit mode
   useEffect(() => {
@@ -1223,6 +1274,25 @@ export function FilePreview({ file, onClose, theme, markdownEditMode, setMarkdow
               className="max-w-full max-h-full object-contain"
               style={{ imageRendering: 'crisp-edges' }}
             />
+          </div>
+        ) : isBinary ? (
+          <div className="flex flex-col items-center justify-center h-full gap-4">
+            <FileCode className="w-16 h-16" style={{ color: theme.colors.textDim }} />
+            <div className="text-center">
+              <p className="text-lg font-medium" style={{ color: theme.colors.textMain }}>
+                Binary File
+              </p>
+              <p className="text-sm mt-1" style={{ color: theme.colors.textDim }}>
+                This file cannot be displayed as text.
+              </p>
+              <button
+                onClick={() => window.maestro.shell.openExternal(`file://${file.path}`)}
+                className="mt-4 px-4 py-2 rounded text-sm hover:opacity-80 transition-opacity"
+                style={{ backgroundColor: theme.colors.accent, color: theme.colors.accentForeground }}
+              >
+                Open in Default App
+              </button>
+            </div>
           </div>
         ) : isMarkdown && markdownEditMode ? (
           // Edit mode - show editable textarea

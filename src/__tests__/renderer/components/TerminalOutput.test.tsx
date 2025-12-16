@@ -595,7 +595,7 @@ describe('TerminalOutput', () => {
       const session = createDefaultSession({
         executionQueue: [
           { id: 'q1', type: 'message', text: 'Queued message 1' },
-          { id: 'q2', type: 'command', command: '/synopsis' },
+          { id: 'q2', type: 'command', command: '/history' },
         ],
       });
 
@@ -604,7 +604,7 @@ describe('TerminalOutput', () => {
 
       expect(screen.getByText('QUEUED (2)')).toBeInTheDocument();
       expect(screen.getByText('Queued message 1')).toBeInTheDocument();
-      expect(screen.getByText('/synopsis')).toBeInTheDocument();
+      expect(screen.getByText('/history')).toBeInTheDocument();
     });
 
     it('shows tab indicator for queued items with tabName', () => {
@@ -1238,11 +1238,11 @@ describe('TerminalOutput', () => {
     it('renders AI command with special styling', () => {
       const logs: LogEntry[] = [
         createLogEntry({
-          text: 'Synopsis content here',
+          text: 'History synopsis content here',
           source: 'user',
           aiCommand: {
-            command: '/synopsis',
-            description: 'Generate a synopsis',
+            command: '/history',
+            description: 'Generate a history synopsis',
           },
         }),
       ];
@@ -1255,8 +1255,8 @@ describe('TerminalOutput', () => {
       const props = createDefaultProps({ session });
       render(<TerminalOutput {...props} />);
 
-      expect(screen.getByText('/synopsis:')).toBeInTheDocument();
-      expect(screen.getByText('Generate a synopsis')).toBeInTheDocument();
+      expect(screen.getByText('/history:')).toBeInTheDocument();
+      expect(screen.getByText('Generate a history synopsis')).toBeInTheDocument();
     });
   });
 

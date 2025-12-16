@@ -81,11 +81,18 @@ export function registerPersistenceHandlers(deps: PersistenceHandlerDependencies
 
     const webServer = getWebServer();
     // Broadcast theme changes to connected web clients
-    if (key === 'activeThemeId' && webServer && webServer.getWebClientCount() > 0) {
-      const theme = getThemeById(value);
-      if (theme) {
-        webServer.broadcastThemeChange(theme);
-        logger.info(`Broadcasted theme change to web clients: ${value}`, 'WebServer');
+    if (key === 'activeThemeId') {
+      const clientCount = webServer?.getWebClientCount() ?? 0;
+      console.log(`[SYNC-DEBUG] Theme change: webServer=${!!webServer}, clientCount=${clientCount}, themeId=${value}`);
+      if (webServer && clientCount > 0) {
+        const theme = getThemeById(value);
+        console.log(`[SYNC-DEBUG] Theme resolved: ${theme ? theme.name : 'null'}`);
+        if (theme) {
+          webServer.broadcastThemeChange(theme);
+          logger.info(`Broadcasted theme change to web clients: ${value}`, 'WebServer');
+        }
+      } else {
+        console.log(`[SYNC-DEBUG] Theme change NOT broadcast: no webServer or no clients`);
       }
     }
 

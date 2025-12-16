@@ -356,7 +356,7 @@ export function AutoRunnerHelpModal({ theme, onClose }: AutoRunnerHelpModalProps
               </p>
               <p>
                 Click the session ID pill to jump directly to that AI conversation and review
-                what the agent did. Use <code>/synopsis</code> to add manual summaries.
+                what the agent did. Use <code>/history</code> to add manual summaries.
               </p>
             </div>
           </section>
