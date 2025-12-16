@@ -234,6 +234,12 @@ interface SessionListProps {
   webInterfaceUrl: string | null;
   toggleGlobalLive: () => void;
 
+  // Web Interface Port Settings
+  webInterfaceUseCustomPort: boolean;
+  setWebInterfaceUseCustomPort: (value: boolean) => void;
+  webInterfaceCustomPort: number;
+  setWebInterfaceCustomPort: (value: number) => void;
+
   // Bookmarks folder state (lifted from component to App.tsx for keyboard shortcut access)
   bookmarksCollapsed: boolean;
   setBookmarksCollapsed: (collapsed: boolean) => void;
@@ -300,6 +306,8 @@ export function SessionList(props: SessionListProps) {
     leftSidebarWidthState, activeFocus, selectedSidebarIndex, editingGroupId,
     editingSessionId, draggingSessionId, shortcuts,
     isLiveMode, webInterfaceUrl, toggleGlobalLive,
+    webInterfaceUseCustomPort, setWebInterfaceUseCustomPort,
+    webInterfaceCustomPort, setWebInterfaceCustomPort,
     bookmarksCollapsed, setBookmarksCollapsed,
     ungroupedCollapsed, setUngroupedCollapsed,
     setActiveFocus, setActiveSessionId, setLeftSidebarOpen, setLeftSidebarWidthState,
@@ -755,6 +763,86 @@ export function SessionList(props: SessionListProps) {
                             >
                               Other platforms →
                             </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Custom Port Toggle Section */}
+                      <div className="p-3 border-b" style={{ borderColor: theme.colors.border }}>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="text-[10px] uppercase font-bold" style={{ color: theme.colors.textDim }}>
+                              Custom Port
+                            </div>
+                            <div className="text-[9px] mt-0.5" style={{ color: theme.colors.textDim, opacity: 0.7 }}>
+                              For static proxy routes
+                            </div>
+                          </div>
+
+                          {/* Toggle Switch */}
+                          <button
+                            onClick={() => setWebInterfaceUseCustomPort(!webInterfaceUseCustomPort)}
+                            disabled={isLiveMode}
+                            className={`relative w-10 h-5 rounded-full transition-colors ${
+                              webInterfaceUseCustomPort
+                                ? 'bg-green-500'
+                                : isLiveMode
+                                  ? 'bg-gray-700 opacity-50 cursor-not-allowed'
+                                  : 'bg-gray-600 hover:bg-gray-500'
+                            }`}
+                            title={
+                              isLiveMode
+                                ? 'Turn off web interface to change port settings'
+                                : webInterfaceUseCustomPort
+                                  ? 'Use random port'
+                                  : 'Use custom port'
+                            }
+                          >
+                            <div
+                              className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+                                webInterfaceUseCustomPort ? 'translate-x-5' : 'translate-x-0.5'
+                              }`}
+                            />
+                          </button>
+                        </div>
+
+                        {/* Port Input (shown when custom port is enabled) */}
+                        {webInterfaceUseCustomPort && (
+                          <div className="mt-2">
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                min={1024}
+                                max={65535}
+                                value={webInterfaceCustomPort}
+                                onChange={(e) => {
+                                  const value = parseInt(e.target.value, 10);
+                                  if (!isNaN(value)) {
+                                    setWebInterfaceCustomPort(value);
+                                  }
+                                }}
+                                disabled={isLiveMode}
+                                className={`flex-1 px-2 py-1 text-[11px] font-mono rounded border outline-none ${
+                                  isLiveMode ? 'opacity-50 cursor-not-allowed' : ''
+                                }`}
+                                style={{
+                                  backgroundColor: theme.colors.bgActivity,
+                                  borderColor: theme.colors.border,
+                                  color: theme.colors.textMain,
+                                }}
+                                placeholder="8080"
+                              />
+                            </div>
+                            {isLiveMode && (
+                              <div className="text-[9px] text-yellow-500 mt-1">
+                                Turn off web interface to change port
+                              </div>
+                            )}
+                            {!isLiveMode && (
+                              <div className="text-[9px] mt-1" style={{ color: theme.colors.textDim, opacity: 0.7 }}>
+                                Port range: 1024-65535
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>

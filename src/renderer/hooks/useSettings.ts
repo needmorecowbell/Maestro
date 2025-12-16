@@ -210,6 +210,12 @@ export interface UseSettingsReturn {
   leaderboardRegistration: LeaderboardRegistration | null;
   setLeaderboardRegistration: (value: LeaderboardRegistration | null) => void;
   isLeaderboardRegistered: boolean;
+
+  // Web Interface settings
+  webInterfaceUseCustomPort: boolean;
+  setWebInterfaceUseCustomPort: (value: boolean) => void;
+  webInterfaceCustomPort: number;
+  setWebInterfaceCustomPort: (value: number) => void;
 }
 
 export function useSettings(): UseSettingsReturn {
@@ -294,6 +300,10 @@ export function useSettings(): UseSettingsReturn {
 
   // Leaderboard Registration (persistent)
   const [leaderboardRegistration, setLeaderboardRegistrationState] = useState<LeaderboardRegistration | null>(null);
+
+  // Web Interface settings (persistent)
+  const [webInterfaceUseCustomPort, setWebInterfaceUseCustomPortState] = useState(false);
+  const [webInterfaceCustomPort, setWebInterfaceCustomPortState] = useState(8080);
 
   // Wrapper functions that persist to electron-store
   // PERF: All wrapped in useCallback to prevent re-renders
@@ -829,6 +839,19 @@ export function useSettings(): UseSettingsReturn {
     return leaderboardRegistration !== null && leaderboardRegistration.emailConfirmed;
   }, [leaderboardRegistration]);
 
+  // Web Interface settings setters
+  const setWebInterfaceUseCustomPort = useCallback((value: boolean) => {
+    setWebInterfaceUseCustomPortState(value);
+    window.maestro.settings.set('webInterfaceUseCustomPort', value);
+  }, []);
+
+  const setWebInterfaceCustomPort = useCallback((value: number) => {
+    // Clamp port to valid range (1024-65535 for non-privileged ports)
+    const clampedPort = Math.max(1024, Math.min(65535, value));
+    setWebInterfaceCustomPortState(clampedPort);
+    window.maestro.settings.set('webInterfaceCustomPort', clampedPort);
+  }, []);
+
   // Load settings from electron-store on mount
   useEffect(() => {
     const loadSettings = async () => {
@@ -872,6 +895,8 @@ export function useSettings(): UseSettingsReturn {
       const savedFirstAutoRunCompleted = await window.maestro.settings.get('firstAutoRunCompleted');
       const savedOnboardingStats = await window.maestro.settings.get('onboardingStats');
       const savedLeaderboardRegistration = await window.maestro.settings.get('leaderboardRegistration');
+      const savedWebInterfaceUseCustomPort = await window.maestro.settings.get('webInterfaceUseCustomPort');
+      const savedWebInterfaceCustomPort = await window.maestro.settings.get('webInterfaceCustomPort');
 
       if (savedEnterToSendAI !== undefined) setEnterToSendAIState(savedEnterToSendAI);
       if (savedEnterToSendTerminal !== undefined) setEnterToSendTerminalState(savedEnterToSendTerminal);
@@ -1009,6 +1034,10 @@ export function useSettings(): UseSettingsReturn {
         setLeaderboardRegistrationState(savedLeaderboardRegistration as LeaderboardRegistration | null);
       }
 
+      // Load web interface settings
+      if (savedWebInterfaceUseCustomPort !== undefined) setWebInterfaceUseCustomPortState(savedWebInterfaceUseCustomPort);
+      if (savedWebInterfaceCustomPort !== undefined) setWebInterfaceCustomPortState(savedWebInterfaceCustomPort);
+
       // Mark settings as loaded
       setSettingsLoaded(true);
     };
@@ -1118,6 +1147,10 @@ export function useSettings(): UseSettingsReturn {
     leaderboardRegistration,
     setLeaderboardRegistration,
     isLeaderboardRegistered,
+    webInterfaceUseCustomPort,
+    setWebInterfaceUseCustomPort,
+    webInterfaceCustomPort,
+    setWebInterfaceCustomPort,
   }), [
     // State values
     settingsLoaded,
@@ -1214,5 +1247,9 @@ export function useSettings(): UseSettingsReturn {
     leaderboardRegistration,
     setLeaderboardRegistration,
     isLeaderboardRegistered,
+    webInterfaceUseCustomPort,
+    setWebInterfaceUseCustomPort,
+    webInterfaceCustomPort,
+    setWebInterfaceCustomPort,
   ]);
 }

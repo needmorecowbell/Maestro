@@ -4732,6 +4732,10 @@ export default function MaestroConsole() {
             isLiveMode={isLiveMode}
             webInterfaceUrl={webInterfaceUrl}
             toggleGlobalLive={toggleGlobalLive}
+            webInterfaceUseCustomPort={settings.webInterfaceUseCustomPort}
+            setWebInterfaceUseCustomPort={settings.setWebInterfaceUseCustomPort}
+            webInterfaceCustomPort={settings.webInterfaceCustomPort}
+            setWebInterfaceCustomPort={settings.setWebInterfaceCustomPort}
             bookmarksCollapsed={bookmarksCollapsed}
             setBookmarksCollapsed={setBookmarksCollapsed}
             ungroupedCollapsed={settings.ungroupedCollapsed}

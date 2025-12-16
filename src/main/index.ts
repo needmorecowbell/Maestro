@@ -37,6 +37,9 @@ interface MaestroSettings {
   // Web interface authentication
   webAuthEnabled: boolean;
   webAuthToken: string | null;
+  // Web interface custom port
+  webInterfaceUseCustomPort: boolean;
+  webInterfaceCustomPort: number;
 }
 
 const store = new Store<MaestroSettings>({
@@ -55,6 +58,8 @@ const store = new Store<MaestroSettings>({
     defaultShell: 'zsh',
     webAuthEnabled: false,
     webAuthToken: null,
+    webInterfaceUseCustomPort: false,
+    webInterfaceCustomPort: 8080,
   },
 });
 
@@ -148,7 +153,11 @@ let cliActivityWatcher: fsSync.FSWatcher | null = null;
  * Called when user enables the web interface.
  */
 function createWebServer(): WebServer {
-  const server = new WebServer(); // Random port with auto-generated security token
+  // Use custom port if enabled, otherwise 0 for random port assignment
+  const useCustomPort = store.get('webInterfaceUseCustomPort', false);
+  const customPort = store.get('webInterfaceCustomPort', 8080);
+  const port = useCustomPort ? customPort : 0;
+  const server = new WebServer(port); // Custom or random port with auto-generated security token
 
   // Set up callback for web server to fetch sessions list
   server.setGetSessionsCallback(() => {
