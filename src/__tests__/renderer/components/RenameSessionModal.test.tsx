@@ -625,7 +625,8 @@ describe('RenameSessionModal', () => {
         </TestWrapper>
       );
 
-      const modalBox = container.querySelector('.w-\\[400px\\]');
+      // The Modal component now uses inline width style instead of Tailwind class
+      const modalBox = container.querySelector('.border.rounded-lg');
       expect(modalBox).toHaveStyle({
         backgroundColor: mockTheme.colors.bgSidebar,
         borderColor: mockTheme.colors.border,
@@ -696,7 +697,7 @@ describe('RenameSessionModal', () => {
       expect(dialog).toHaveClass('fixed', 'inset-0');
     });
 
-    it('has proper width class', () => {
+    it('has proper width style', () => {
       const { container } = render(
         <TestWrapper>
           <RenameSessionModal
@@ -711,8 +712,10 @@ describe('RenameSessionModal', () => {
         </TestWrapper>
       );
 
-      const modalBox = container.querySelector('.w-\\[400px\\]');
+      // The Modal component now uses inline width style instead of Tailwind class
+      const modalBox = container.querySelector('.border.rounded-lg');
       expect(modalBox).toBeInTheDocument();
+      expect(modalBox).toHaveStyle({ width: '400px' });
     });
   });
 });
