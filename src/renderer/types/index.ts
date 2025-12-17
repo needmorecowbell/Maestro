@@ -9,7 +9,7 @@ export type { AgentError, AgentErrorType, AgentErrorRecovery } from '../../share
 // Import AgentError for use within this file
 import type { AgentError } from '../../shared/types';
 
-export type ToolType = 'claude' | 'claude-code' | 'aider' | 'opencode' | 'terminal';
+export type ToolType = 'claude' | 'claude-code' | 'aider' | 'opencode' | 'codex' | 'terminal';
 export type SessionState = 'idle' | 'busy' | 'waiting_input' | 'connecting' | 'error';
 export type FileChangeType = 'modified' | 'added' | 'deleted';
 export type RightPanelTab = 'files' | 'history' | 'autorun';

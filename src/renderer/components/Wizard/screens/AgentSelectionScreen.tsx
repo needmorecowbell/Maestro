@@ -35,7 +35,8 @@ interface AgentTile {
 
 /**
  * Define the agents to display in the grid
- * Claude Code is the only currently supported agent; others are shown ghosted
+ * Supported agents: Claude Code, Codex, OpenCode
+ * Unsupported agents are shown ghosted with "Coming soon"
  */
 const AGENT_TILES: AgentTile[] = [
   {
@@ -46,10 +47,10 @@ const AGENT_TILES: AgentTile[] = [
     brandColor: '#D97757', // Claude's orange/coral color
   },
   {
-    id: 'openai-codex',
-    name: 'OpenAI Codex',
-    supported: false,
-    description: 'Coming soon',
+    id: 'codex',
+    name: 'Codex',
+    supported: true,
+    description: 'OpenAI\'s AI coding assistant',
     brandColor: '#10A37F', // OpenAI green
   },
   {
@@ -62,8 +63,8 @@ const AGENT_TILES: AgentTile[] = [
   {
     id: 'opencode',
     name: 'OpenCode',
-    supported: false,
-    description: 'Coming soon',
+    supported: true,
+    description: 'Open-source AI coding assistant',
     brandColor: '#F97316', // Orange
   },
   {
@@ -117,8 +118,8 @@ function AgentLogo({ agentId, supported, detected, brandColor, theme }: {
         </svg>
       );
 
-    case 'openai-codex':
-      // OpenAI - hexagonal/circular logo
+    case 'codex':
+      // Codex (OpenAI) - hexagonal/circular logo
       return (
         <svg
           className="w-12 h-12"

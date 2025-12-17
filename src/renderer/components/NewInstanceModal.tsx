@@ -239,21 +239,21 @@ export function NewInstanceModal({ isOpen, onClose, onCreate, theme, defaultAgen
                   >
                     <div
                       onClick={() => {
-                        // Enable selection for supported agents (claude-code, opencode)
-                        const isSupportedAgent = agent.id === 'claude-code' || agent.id === 'opencode';
+                        // Enable selection for supported agents (claude-code, opencode, codex)
+                        const isSupportedAgent = agent.id === 'claude-code' || agent.id === 'opencode' || agent.id === 'codex';
                         if (isSupportedAgent && agent.available) {
                           setSelectedAgent(agent.id);
                         }
                       }}
                       className={`w-full text-left p-3 ${
-                        !(agent.id === 'claude-code' || agent.id === 'opencode') || !agent.available
+                        !(agent.id === 'claude-code' || agent.id === 'opencode' || agent.id === 'codex') || !agent.available
                           ? 'opacity-40 cursor-not-allowed'
                           : 'hover:bg-opacity-10 cursor-pointer'
                       }`}
                       style={{ color: theme.colors.textMain }}
                       role="option"
                       aria-selected={selectedAgent === agent.id}
-                      tabIndex={(agent.id === 'claude-code' || agent.id === 'opencode') && agent.available ? 0 : -1}
+                      tabIndex={(agent.id === 'claude-code' || agent.id === 'opencode' || agent.id === 'codex') && agent.available ? 0 : -1}
                     >
                       <div className="flex items-center justify-between">
                         <div>
@@ -263,7 +263,7 @@ export function NewInstanceModal({ isOpen, onClose, onCreate, theme, defaultAgen
                           )}
                         </div>
                         <div className="flex items-center gap-2">
-                          {agent.id === 'claude-code' || agent.id === 'opencode' ? (
+                          {agent.id === 'claude-code' || agent.id === 'opencode' || agent.id === 'codex' ? (
                             <>
                               {agent.available ? (
                                 <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: theme.colors.success + '20', color: theme.colors.success }}>
@@ -295,7 +295,7 @@ export function NewInstanceModal({ isOpen, onClose, onCreate, theme, defaultAgen
                       </div>
                     </div>
                     {/* Custom path input for supported agents */}
-                    {(agent.id === 'claude-code' || agent.id === 'opencode') && (
+                    {(agent.id === 'claude-code' || agent.id === 'opencode' || agent.id === 'codex') && (
                       <div className="px-3 pb-3 pt-1 border-t" style={{ borderColor: theme.colors.border }}>
                         <label className="block text-xs opacity-60 mb-1">Custom Path (optional)</label>
                         <div className="flex gap-2">
@@ -498,7 +498,12 @@ export function EditAgentModal({ isOpen, onClose, onSave, theme, session, existi
   if (!isOpen || !session) return null;
 
   // Get agent name for display
-  const agentName = session.toolType === 'claude-code' ? 'Claude Code' : session.toolType;
+  const agentNameMap: Record<string, string> = {
+    'claude-code': 'Claude Code',
+    'codex': 'Codex',
+    'opencode': 'OpenCode',
+  };
+  const agentName = agentNameMap[session.toolType] || session.toolType;
 
   return (
     <div onKeyDown={handleKeyDown}>

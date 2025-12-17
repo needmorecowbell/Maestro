@@ -96,9 +96,9 @@ export function AgentSelectionPanel({
                 }}
               >
                 <button
-                  disabled={agent.id !== 'claude-code' || !agent.available}
+                  disabled={!(agent.id === 'claude-code' || agent.id === 'opencode' || agent.id === 'codex') || !agent.available}
                   onClick={() => setDefaultAgent(agent.id)}
-                  className={`w-full text-left p-3 ${(agent.id !== 'claude-code' || !agent.available) ? 'opacity-40 cursor-not-allowed' : 'hover:bg-opacity-10'}`}
+                  className={`w-full text-left p-3 ${(!(agent.id === 'claude-code' || agent.id === 'opencode' || agent.id === 'codex') || !agent.available) ? 'opacity-40 cursor-not-allowed' : 'hover:bg-opacity-10'}`}
                   style={{ color: theme.colors.textMain }}
                 >
                   <div className="flex items-center justify-between">
@@ -108,7 +108,7 @@ export function AgentSelectionPanel({
                         <div className="text-xs opacity-50 font-mono mt-1">{agent.path}</div>
                       )}
                     </div>
-                    {agent.id === 'claude-code' ? (
+                    {agent.id === 'claude-code' || agent.id === 'opencode' || agent.id === 'codex' ? (
                       agent.available ? (
                         <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: theme.colors.success + '20', color: theme.colors.success }}>
                           Available
@@ -125,8 +125,8 @@ export function AgentSelectionPanel({
                     )}
                   </div>
                 </button>
-                {/* Custom path input for Claude Code */}
-                {agent.id === 'claude-code' && (
+                {/* Custom path input for supported agents */}
+                {(agent.id === 'claude-code' || agent.id === 'opencode' || agent.id === 'codex') && (
                   <div className="px-3 pb-3 pt-1 border-t" style={{ borderColor: theme.colors.border }}>
                     <label className="block text-xs opacity-60 mb-1">Custom Path (optional)</label>
                     <div className="flex gap-2">
