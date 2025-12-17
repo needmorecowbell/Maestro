@@ -727,6 +727,45 @@ describe('MainPanel', () => {
 
       expect(screen.queryByText('ABC12345')).not.toBeInTheDocument();
     });
+
+    it('should not show UUID pill when agent does not support session ID', () => {
+      // Pre-populate cache with capabilities where supportsSessionId is false
+      clearCapabilitiesCache();
+      setCapabilitiesCache('claude-code', {
+        supportsResume: true,
+        supportsReadOnlyMode: true,
+        supportsJsonOutput: true,
+        supportsSessionId: false, // Agent doesn't support session ID
+        supportsImageInput: true,
+        supportsSlashCommands: true,
+        supportsSessionStorage: true,
+        supportsCostTracking: true,
+        supportsUsageStats: true,
+        supportsBatchMode: true,
+        supportsStreaming: true,
+        supportsResultMessages: true,
+      });
+
+      const session = createSession({
+        inputMode: 'ai',
+        aiTabs: [{
+          id: 'tab-1',
+          agentSessionId: 'abc12345-def6-7890-ghij-klmnopqrstuv',
+          name: 'Tab 1',
+          isUnread: false,
+          createdAt: Date.now(),
+        }],
+        activeTabId: 'tab-1',
+      });
+
+      render(<MainPanel {...defaultProps} activeSession={session} />);
+
+      // Should NOT show the UUID pill when agent doesn't support session ID
+      expect(screen.queryByText('ABC12345')).not.toBeInTheDocument();
+
+      // Restore cache for other tests
+      clearCapabilitiesCache();
+    });
   });
 
   describe('Cost tracker', () => {

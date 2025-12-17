@@ -618,7 +618,7 @@ export const MainPanel = forwardRef<MainPanelHandle, MainPanelProps>(function Ma
 
             <div className="flex items-center gap-3 min-w-[200px] justify-end">
               {/* Session UUID Pill - click to copy full UUID, left-most of session stats */}
-              {activeSession.inputMode === 'ai' && activeTab?.agentSessionId && (
+              {activeSession.inputMode === 'ai' && activeTab?.agentSessionId && hasCapability('supportsSessionId') && (
                 <button
                   className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border transition-colors hover:opacity-80"
                   style={{ backgroundColor: theme.colors.accent + '20', color: theme.colors.accent, borderColor: theme.colors.accent + '30' }}
