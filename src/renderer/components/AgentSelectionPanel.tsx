@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { RefreshCw } from 'lucide-react';
 import type { AgentConfig, Theme } from '../types';
 
 export interface AgentSelectionPanelProps {
@@ -43,6 +44,36 @@ export function AgentSelectionPanel({
   loadAgents,
   theme,
 }: AgentSelectionPanelProps): React.ReactElement {
+  // Track available models for agents that support model selection
+  const [availableModels, setAvailableModels] = useState<Record<string, string[]>>({});
+  const [loadingModels, setLoadingModels] = useState<Record<string, boolean>>({});
+
+  // Fetch models for an agent
+  const fetchModels = useCallback(async (agentId: string, forceRefresh = false) => {
+    setLoadingModels(prev => ({ ...prev, [agentId]: true }));
+    try {
+      const models = await window.maestro.agents.getModels(agentId, forceRefresh);
+      setAvailableModels(prev => ({ ...prev, [agentId]: models }));
+    } catch (error) {
+      console.error(`Failed to fetch models for ${agentId}:`, error);
+      setAvailableModels(prev => ({ ...prev, [agentId]: [] }));
+    } finally {
+      setLoadingModels(prev => ({ ...prev, [agentId]: false }));
+    }
+  }, []);
+
+  // Fetch models when an agent with model selection is selected
+  useEffect(() => {
+    const selectedAgent = agents.find(a => a.id === defaultAgent);
+    // Check if the agent's configOptions include a 'model' option
+    // This indicates the agent supports model selection
+    const hasModelOption = selectedAgent?.configOptions?.some((opt) => opt.key === 'model');
+
+    if (selectedAgent && selectedAgent.available && hasModelOption && !availableModels[defaultAgent]) {
+      fetchModels(defaultAgent);
+    }
+  }, [defaultAgent, agents, fetchModels, availableModels]);
+
   return (
     <>
       {/* Default AI Agent Selection */}
@@ -198,28 +229,78 @@ export function AgentSelectionPanel({
                           {option.description}
                         </div>
                       </div>
-                      <input
-                        type="text"
-                        value={agentConfigs[selectedAgent.id]?.[option.key] ?? option.default}
-                        onChange={(e) => {
-                          const newConfig = {
-                            ...agentConfigs[selectedAgent.id],
-                            [option.key]: e.target.value
-                          };
-                          setAgentConfigs(prev => ({
-                            ...prev,
-                            [selectedAgent.id]: newConfig
-                          }));
-                        }}
-                        onBlur={() => {
-                          // Only persist on blur to avoid excessive writes
-                          const currentConfig = agentConfigs[selectedAgent.id] || {};
-                          window.maestro.agents.setConfig(selectedAgent.id, currentConfig);
-                        }}
-                        placeholder={option.default || ''}
-                        className="w-full p-2 rounded border bg-transparent outline-none text-sm font-mono"
-                        style={{ borderColor: theme.colors.border, color: theme.colors.textMain }}
-                      />
+                      {/* Model selection with dropdown for discovered models */}
+                      {option.key === 'model' && (availableModels[selectedAgent.id]?.length > 0 || loadingModels[selectedAgent.id]) ? (
+                        <div className="flex gap-2">
+                          <select
+                            value={agentConfigs[selectedAgent.id]?.[option.key] ?? option.default}
+                            onChange={(e) => {
+                              const newConfig = {
+                                ...agentConfigs[selectedAgent.id],
+                                [option.key]: e.target.value
+                              };
+                              setAgentConfigs(prev => ({
+                                ...prev,
+                                [selectedAgent.id]: newConfig
+                              }));
+                              // Persist immediately on select
+                              window.maestro.agents.setConfig(selectedAgent.id, newConfig);
+                            }}
+                            className="flex-1 p-2 rounded border bg-transparent outline-none text-sm font-mono cursor-pointer"
+                            style={{ borderColor: theme.colors.border, color: theme.colors.textMain, backgroundColor: theme.colors.bgMain }}
+                            disabled={loadingModels[selectedAgent.id]}
+                          >
+                            <option value="">Default model</option>
+                            {availableModels[selectedAgent.id]?.map((model) => (
+                              <option key={model} value={model}>
+                                {model}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            onClick={() => fetchModels(selectedAgent.id, true)}
+                            className="p-2 rounded border hover:bg-opacity-10 transition-colors"
+                            style={{ borderColor: theme.colors.border, color: theme.colors.textDim }}
+                            title="Refresh model list"
+                            disabled={loadingModels[selectedAgent.id]}
+                          >
+                            <RefreshCw className={`w-4 h-4 ${loadingModels[selectedAgent.id] ? 'animate-spin' : ''}`} />
+                          </button>
+                        </div>
+                      ) : (
+                        <input
+                          type="text"
+                          value={agentConfigs[selectedAgent.id]?.[option.key] ?? option.default}
+                          onChange={(e) => {
+                            const newConfig = {
+                              ...agentConfigs[selectedAgent.id],
+                              [option.key]: e.target.value
+                            };
+                            setAgentConfigs(prev => ({
+                              ...prev,
+                              [selectedAgent.id]: newConfig
+                            }));
+                          }}
+                          onBlur={() => {
+                            // Only persist on blur to avoid excessive writes
+                            const currentConfig = agentConfigs[selectedAgent.id] || {};
+                            window.maestro.agents.setConfig(selectedAgent.id, currentConfig);
+                          }}
+                          placeholder={option.default || ''}
+                          className="w-full p-2 rounded border bg-transparent outline-none text-sm font-mono"
+                          style={{ borderColor: theme.colors.border, color: theme.colors.textMain }}
+                        />
+                      )}
+                      {/* Show hint if model discovery is available but not yet loaded */}
+                      {option.key === 'model' && !loadingModels[selectedAgent.id] && !availableModels[selectedAgent.id] && (
+                        <button
+                          onClick={() => fetchModels(selectedAgent.id)}
+                          className="mt-2 text-xs underline opacity-60 hover:opacity-100"
+                          style={{ color: theme.colors.accent }}
+                        >
+                          Load available models
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>

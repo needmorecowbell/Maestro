@@ -20,14 +20,25 @@ interface ProcessConfig {
   images?: string[];
 }
 
+interface AgentConfigOption {
+  key: string;
+  type: 'checkbox' | 'text' | 'number' | 'select';
+  label: string;
+  description: string;
+  default: any;
+  options?: string[];
+}
+
 interface AgentConfig {
   id: string;
   name: string;
+  binaryName?: string;
   available: boolean;
   path?: string;
   command?: string;
   args?: string[];
   hidden?: boolean;
+  configOptions?: AgentConfigOption[];
 }
 
 interface DirectoryEntry {
@@ -211,6 +222,7 @@ interface MaestroAPI {
     setConfig: (agentId: string, config: Record<string, any>) => Promise<boolean>;
     getConfigValue: (agentId: string, key: string) => Promise<any>;
     setConfigValue: (agentId: string, key: string, value: any) => Promise<boolean>;
+    getModels: (agentId: string, forceRefresh?: boolean) => Promise<string[]>;
   };
   dialog: {
     selectFolder: () => Promise<string | null>;

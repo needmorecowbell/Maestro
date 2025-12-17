@@ -428,15 +428,27 @@ export interface Group {
   collapsed: boolean;
 }
 
+export interface AgentConfigOption {
+  key: string;
+  type: 'checkbox' | 'text' | 'number' | 'select';
+  label: string;
+  description: string;
+  default: any;
+  options?: string[];
+  argBuilder?: (value: any) => string[];
+}
+
 export interface AgentConfig {
   id: string;
   name: string;
+  binaryName?: string;
   available: boolean;
   path?: string;
   customPath?: string; // User-specified custom path (shown in UI even if not available)
   command?: string;
   args?: string[];
   hidden?: boolean; // If true, agent is hidden from UI (internal use only)
+  configOptions?: AgentConfigOption[]; // Agent-specific configuration options
 }
 
 // Process spawning configuration
