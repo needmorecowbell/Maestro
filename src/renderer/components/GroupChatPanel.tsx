@@ -41,6 +41,9 @@ interface GroupChatPanelProps {
   executionQueue?: QueuedItem[];
   onRemoveQueuedItem?: (itemId: string) => void;
   onReorderQueuedItems?: (fromIndex: number, toIndex: number) => void;
+  // Markdown toggle (Cmd+E)
+  markdownEditMode?: boolean;
+  onToggleMarkdownEditMode?: () => void;
 }
 
 export function GroupChatPanel({
@@ -68,6 +71,8 @@ export function GroupChatPanel({
   executionQueue,
   onRemoveQueuedItem,
   onReorderQueuedItems,
+  markdownEditMode,
+  onToggleMarkdownEditMode,
 }: GroupChatPanelProps): JSX.Element {
   return (
     <div
@@ -91,6 +96,8 @@ export function GroupChatPanel({
         messages={messages}
         participants={groupChat.participants}
         state={state}
+        markdownEditMode={markdownEditMode}
+        onToggleMarkdownEditMode={onToggleMarkdownEditMode}
       />
 
       <GroupChatInput

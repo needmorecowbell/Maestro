@@ -436,6 +436,7 @@ class PhaseGenerator {
 
       const rawOutput = result.rawOutput || '';
       let documents = parseGeneratedDocuments(rawOutput);
+      let documentsFromDisk = false;
 
       // If no documents parsed with markers, try splitting intelligently
       if (documents.length === 0 && rawOutput.trim()) {
@@ -443,16 +444,28 @@ class PhaseGenerator {
         documents = splitIntoPhases(rawOutput);
       }
 
-      // If still no documents, check if files were written directly to disk
-      // (Claude Code may write files directly instead of outputting with markers)
-      let documentsFromDisk = false;
-      if (documents.length === 0) {
+      // Validate that parsed documents contain actual tasks
+      // If the agent wrote files directly to disk (Claude Code's normal behavior),
+      // the rawOutput won't contain document content, just status messages.
+      // splitIntoPhases would create a single document from that status text,
+      // which wouldn't contain any valid tasks.
+      const totalTasksFromParsed = documents.reduce((sum, doc) => sum + countTasks(doc.content), 0);
+      const hasValidParsedDocs = documents.length > 0 && totalTasksFromParsed > 0;
+
+      // Check for files on disk if:
+      // 1. No documents were parsed at all, OR
+      // 2. Parsed documents don't contain valid tasks (likely just status output)
+      if (!hasValidParsedDocs) {
         callbacks?.onProgress?.('Checking for documents on disk...');
         const diskDocs = await this.readDocumentsFromDisk(config.directoryPath);
         if (diskDocs.length > 0) {
           console.log('[PhaseGenerator] Found documents on disk:', diskDocs.length);
-          documents = diskDocs;
-          documentsFromDisk = true;
+          // Prefer disk documents if they have more content/tasks
+          const totalTasksFromDisk = diskDocs.reduce((sum, doc) => sum + countTasks(doc.content), 0);
+          if (totalTasksFromDisk >= totalTasksFromParsed) {
+            documents = diskDocs;
+            documentsFromDisk = true;
+          }
         }
       }
 

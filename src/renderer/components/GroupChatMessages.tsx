@@ -6,15 +6,19 @@
  * align left with colored borders. Includes auto-scroll and typing indicator.
  */
 
-import { useRef, useEffect } from 'react';
-import { BookOpen } from 'lucide-react';
+import { useRef, useEffect, useCallback } from 'react';
+import { BookOpen, Eye, FileText, Copy } from 'lucide-react';
 import type { GroupChatMessage, GroupChatParticipant, GroupChatState, Theme } from '../types';
+import { MarkdownRenderer } from './MarkdownRenderer';
+import { stripMarkdown } from '../utils/textProcessing';
 
 interface GroupChatMessagesProps {
   theme: Theme;
   messages: GroupChatMessage[];
   participants: GroupChatParticipant[];
   state: GroupChatState;
+  markdownEditMode?: boolean;
+  onToggleMarkdownEditMode?: () => void;
 }
 
 // Color mapping for participants
@@ -32,8 +36,14 @@ export function GroupChatMessages({
   messages,
   participants,
   state,
+  markdownEditMode,
+  onToggleMarkdownEditMode,
 }: GroupChatMessagesProps): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const copyToClipboard = useCallback((text: string) => {
+    navigator.clipboard.writeText(text);
+  }, []);
 
   // Auto-scroll on new messages
   useEffect(() => {
@@ -102,7 +112,7 @@ export function GroupChatMessages({
               className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
             >
               <div
-                className="max-w-[70%] rounded-lg px-4 py-2"
+                className="group relative max-w-[70%] rounded-lg px-4 py-2"
                 style={{
                   backgroundColor: style.bgColor,
                   color: style.textColor,
@@ -120,9 +130,19 @@ export function GroupChatMessages({
                 )}
 
                 {/* Message content */}
-                <div className="text-sm whitespace-pre-wrap">
-                  {msg.content}
-                </div>
+                {!isUser && !markdownEditMode ? (
+                  <div className="text-sm">
+                    <MarkdownRenderer
+                      content={msg.content}
+                      theme={theme}
+                      onCopy={copyToClipboard}
+                    />
+                  </div>
+                ) : (
+                  <div className="text-sm whitespace-pre-wrap">
+                    {isUser ? msg.content : stripMarkdown(msg.content)}
+                  </div>
+                )}
 
                 {/* Timestamp and read-only indicator */}
                 <div className="flex items-center gap-2 mt-1">
@@ -143,6 +163,35 @@ export function GroupChatMessages({
                     </span>
                   )}
                 </div>
+
+                {/* Action buttons - bottom right corner (non-user messages only) */}
+                {!isUser && (
+                  <div
+                    className="absolute bottom-2 right-2 flex items-center gap-1"
+                    style={{ transition: 'opacity 0.15s ease-in-out' }}
+                  >
+                    {/* Markdown toggle button */}
+                    {onToggleMarkdownEditMode && (
+                      <button
+                        onClick={onToggleMarkdownEditMode}
+                        className="p-1.5 rounded opacity-0 group-hover:opacity-50 hover:!opacity-100"
+                        style={{ color: markdownEditMode ? theme.colors.accent : theme.colors.textDim }}
+                        title={markdownEditMode ? "Show formatted (⌘E)" : "Show plain text (⌘E)"}
+                      >
+                        {markdownEditMode ? <Eye className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
+                      </button>
+                    )}
+                    {/* Copy to Clipboard Button */}
+                    <button
+                      onClick={() => copyToClipboard(msg.content)}
+                      className="p-1.5 rounded opacity-0 group-hover:opacity-50 hover:!opacity-100"
+                      style={{ color: theme.colors.textDim }}
+                      title="Copy to clipboard"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           );

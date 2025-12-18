@@ -5567,6 +5567,8 @@ export default function MaestroConsole() {
               executionQueue={groupChatExecutionQueue}
               onRemoveQueuedItem={handleRemoveGroupChatQueueItem}
               onReorderQueuedItems={handleReorderGroupChatQueueItems}
+              markdownEditMode={markdownEditMode}
+              onToggleMarkdownEditMode={() => setMarkdownEditMode(!markdownEditMode)}
             />
           </div>
           <GroupChatParticipants
