@@ -340,8 +340,8 @@ describe('error-patterns', () => {
         expect(result?.type).toBe('permission_denied');
       });
 
-      it('should match "forbidden"', () => {
-        const result = matchErrorPattern(CLAUDE_ERROR_PATTERNS, 'Forbidden');
+      it('should match "403 forbidden"', () => {
+        const result = matchErrorPattern(CLAUDE_ERROR_PATTERNS, '403 Forbidden');
         expect(result).not.toBeNull();
         expect(result?.type).toBe('permission_denied');
       });
