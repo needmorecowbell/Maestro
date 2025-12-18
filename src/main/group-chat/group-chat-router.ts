@@ -9,7 +9,7 @@
  */
 
 import { GroupChatParticipant, loadGroupChat } from './group-chat-storage';
-import { appendToLog, readLog } from './group-chat-log';
+import { appendToLog } from './group-chat-log';
 import {
   IProcessManager,
   getModeratorSessionId,

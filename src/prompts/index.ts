@@ -20,6 +20,9 @@ import imageOnlyDefaultPrompt from './image-only-default.md?raw';
 // Built-in command prompts
 import commitCommandPrompt from './commit-command.md?raw';
 
+// Group Chat prompts
+import groupChatModeratorPrompt from './group-chat-moderator.md?raw';
+
 export {
   // Wizard
   wizardSystemPrompt,
@@ -35,4 +38,7 @@ export {
 
   // Commands
   commitCommandPrompt,
+
+  // Group Chat
+  groupChatModeratorPrompt,
 };
