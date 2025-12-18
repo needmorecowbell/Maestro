@@ -57,11 +57,13 @@ export function extractMentions(
  * @param groupChatId - The ID of the group chat
  * @param message - The message from the user
  * @param processManager - The process manager (optional)
+ * @param readOnly - Optional flag indicating read-only mode
  */
 export async function routeUserMessage(
   groupChatId: string,
   message: string,
-  processManager?: IProcessManager
+  processManager?: IProcessManager,
+  readOnly?: boolean
 ): Promise<void> {
   const chat = await loadGroupChat(groupChatId);
   if (!chat) {
@@ -73,13 +75,16 @@ export async function routeUserMessage(
   }
 
   // Log the message as coming from user
-  await appendToLog(chat.logPath, 'user', message);
+  await appendToLog(chat.logPath, 'user', message, readOnly);
 
-  // Send to moderator
+  // Send to moderator (include read-only context if active)
   if (processManager) {
     const sessionId = getModeratorSessionId(groupChatId);
     if (sessionId) {
-      processManager.write(sessionId, message + '\n');
+      const messageToSend = readOnly
+        ? `[READ-ONLY MODE] ${message}`
+        : message;
+      processManager.write(sessionId, messageToSend + '\n');
     }
   }
 }

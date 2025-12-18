@@ -6,36 +6,60 @@
  * This panel replaces the RightPanel when a group chat is active.
  */
 
-import type { Theme, GroupChatParticipant, SessionState } from '../types';
+import { PanelRightClose, PanelRightOpen } from 'lucide-react';
+import type { Theme, GroupChatParticipant, SessionState, Shortcut } from '../types';
 import { ParticipantCard } from './ParticipantCard';
+import { formatShortcutKeys } from '../utils/shortcutFormatter';
 
 interface GroupChatParticipantsProps {
   theme: Theme;
   participants: GroupChatParticipant[];
   participantStates: Map<string, SessionState>;
+  isOpen: boolean;
+  onToggle: () => void;
+  width: number;
+  shortcuts: Record<string, Shortcut>;
 }
 
 export function GroupChatParticipants({
   theme,
   participants,
   participantStates,
+  isOpen,
+  onToggle,
+  width,
+  shortcuts,
 }: GroupChatParticipantsProps): JSX.Element {
+  if (!isOpen) return null;
+
   return (
     <div
-      className="h-full flex flex-col"
-      style={{ backgroundColor: theme.colors.bgSidebar }}
+      className="border-l flex flex-col transition-all duration-300"
+      style={{
+        width: `${width}px`,
+        backgroundColor: theme.colors.bgSidebar,
+        borderColor: theme.colors.border,
+      }}
     >
-      <div
-        className="px-4 py-3 border-b"
-        style={{ borderColor: theme.colors.border }}
-      >
-        <h2
-          className="text-sm font-semibold"
-          style={{ color: theme.colors.textMain }}
+        {/* Header with collapse button */}
+        <div
+          className="px-4 py-3 border-b flex items-center justify-between"
+          style={{ borderColor: theme.colors.border }}
         >
-          Participants
-        </h2>
-      </div>
+          <h2
+            className="text-sm font-semibold"
+            style={{ color: theme.colors.textMain }}
+          >
+            Participants
+          </h2>
+          <button
+            onClick={onToggle}
+            className="flex items-center justify-center p-2 rounded hover:bg-white/5 transition-colors"
+            title={`Collapse Participants (${formatShortcutKeys(shortcuts.toggleRightPanel.keys)})`}
+          >
+            <PanelRightClose className="w-4 h-4 opacity-50" />
+          </button>
+        </div>
 
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
         {participants.length === 0 ? (

@@ -695,7 +695,7 @@ export function SessionList(props: SessionListProps) {
                   title={isLiveMode ? "Web interface active - Click to show URL" : "Click to enable web interface"}
                 >
                   <Radio className={`w-3 h-3 ${isLiveMode ? 'animate-pulse' : ''}`} />
-                  {leftSidebarWidthState >= 280 && (isLiveMode ? 'LIVE' : 'OFFLINE')}
+                  {leftSidebarWidthState >= (isLiveMode ? 280 : 310) && (isLiveMode ? 'LIVE' : 'OFFLINE')}
                 </button>
 
                 {/* LIVE Overlay with URL and QR Code - Single QR with pill selector */}
@@ -1345,7 +1345,7 @@ export function SessionList(props: SessionListProps) {
 
       {/* SIDEBAR CONTENT: EXPANDED */}
       {leftSidebarOpen ? (
-        <div className="flex-1 overflow-y-auto py-2 select-none scrollbar-thin" data-tour="session-list">
+        <div className="flex-1 overflow-y-auto py-2 select-none scrollbar-thin flex flex-col" data-tour="session-list">
           {/* Session Filter */}
           {sessionFilterOpen && (
             <div className="mx-3 mb-3">
@@ -1393,7 +1393,7 @@ export function SessionList(props: SessionListProps) {
                         session={session}
                         variant="bookmark"
                         theme={theme}
-                        isActive={activeSessionId === session.id}
+                        isActive={activeSessionId === session.id && !activeGroupChatId}
                         isKeyboardSelected={isKeyboardSelected}
                         isDragging={draggingSessionId === session.id}
                         isEditing={editingSessionId === `bookmark-${session.id}`}
@@ -1594,7 +1594,7 @@ export function SessionList(props: SessionListProps) {
                           session={session}
                           variant="group"
                           theme={theme}
-                          isActive={activeSessionId === session.id}
+                          isActive={activeSessionId === session.id && !activeGroupChatId}
                           isKeyboardSelected={isKeyboardSelected}
                           isDragging={draggingSessionId === session.id}
                           isEditing={editingSessionId === `group-${group.id}-${session.id}`}
@@ -1750,7 +1750,7 @@ export function SessionList(props: SessionListProps) {
                     session={session}
                     variant="flat"
                     theme={theme}
-                    isActive={activeSessionId === session.id}
+                    isActive={activeSessionId === session.id && !activeGroupChatId}
                     isKeyboardSelected={isKeyboardSelected}
                     isDragging={draggingSessionId === session.id}
                     isEditing={editingSessionId === `flat-${session.id}`}
@@ -1813,7 +1813,7 @@ export function SessionList(props: SessionListProps) {
                       session={session}
                       variant="ungrouped"
                       theme={theme}
-                      isActive={activeSessionId === session.id}
+                      isActive={activeSessionId === session.id && !activeGroupChatId}
                       isKeyboardSelected={isKeyboardSelected}
                       isDragging={draggingSessionId === session.id}
                       isEditing={editingSessionId === `ungrouped-${session.id}`}
@@ -1953,6 +1953,9 @@ export function SessionList(props: SessionListProps) {
             )}
           </div>
           )}
+
+          {/* Flexible spacer to push group chats to bottom */}
+          <div className="flex-grow min-h-4" />
 
           {/* GROUP CHATS SECTION */}
           {onNewGroupChat && onOpenGroupChat && onRenameGroupChat && onDeleteGroupChat && (

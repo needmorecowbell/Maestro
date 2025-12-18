@@ -210,6 +210,9 @@ export default function MaestroConsole() {
   const [activeGroupChatId, setActiveGroupChatId] = useState<string | null>(null);
   const [groupChatMessages, setGroupChatMessages] = useState<GroupChatMessage[]>([]);
   const [groupChatState, setGroupChatState] = useState<GroupChatState>('idle');
+  const [groupChatStagedImages, setGroupChatStagedImages] = useState<string[]>([]);
+  const [groupChatReadOnlyMode, setGroupChatReadOnlyMode] = useState(false);
+  const [groupChatExecutionQueue, setGroupChatExecutionQueue] = useState<QueuedItem[]>([]);
 
   // --- BATCHED SESSION UPDATES (reduces React re-renders during AI streaming) ---
   const batchedUpdater = useBatchedSessionUpdates(setSessions);
@@ -227,9 +230,11 @@ export default function MaestroConsole() {
 
   // Wrapper that resets cycle position when session is changed via click (not cycling)
   // Also flushes batched updates to ensure previous session's state is fully updated
+  // Dismisses any active group chat when selecting an agent
   const setActiveSessionId = useCallback((id: string) => {
     batchedUpdater.flushNow(); // Flush pending updates before switching sessions
     cyclePositionRef.current = -1; // Reset so next cycle finds first occurrence
+    setActiveGroupChatId(null); // Dismiss group chat when selecting an agent
     setActiveSessionIdInternal(id);
   }, [batchedUpdater]);
 
@@ -1561,9 +1566,28 @@ export default function MaestroConsole() {
     };
   }, [activeGroupChatId]);
 
+  // Process group chat execution queue when state becomes idle
+  useEffect(() => {
+    if (groupChatState === 'idle' && groupChatExecutionQueue.length > 0 && activeGroupChatId) {
+      // Take the first item from the queue
+      const [nextItem, ...remainingQueue] = groupChatExecutionQueue;
+      setGroupChatExecutionQueue(remainingQueue);
+
+      // Send the queued message
+      setGroupChatState('moderator-thinking');
+      window.maestro.groupChat.sendToModerator(
+        activeGroupChatId,
+        nextItem.text || '',
+        nextItem.images,
+        nextItem.readOnlyMode
+      );
+    }
+  }, [groupChatState, groupChatExecutionQueue, activeGroupChatId]);
+
   // Refs
   const logsEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const groupChatInputRef = useRef<HTMLTextAreaElement>(null);
   const terminalOutputRef = useRef<HTMLDivElement>(null);
   const sidebarContainerRef = useRef<HTMLDivElement>(null);
   const fileTreeContainerRef = useRef<HTMLDivElement>(null);
@@ -2552,11 +2576,51 @@ export default function MaestroConsole() {
     setShowRenameGroupChatModal(null);
   }, []);
 
-  const handleSendGroupChatMessage = useCallback(async (content: string, images?: string[]) => {
+  const handleSendGroupChatMessage = useCallback(async (content: string, images?: string[], readOnly?: boolean) => {
     if (!activeGroupChatId) return;
+
+    // If group chat is busy, queue the message instead of sending immediately
+    if (groupChatState !== 'idle') {
+      const queuedItem: QueuedItem = {
+        id: generateId(),
+        timestamp: Date.now(),
+        tabId: activeGroupChatId, // Use group chat ID as tab ID
+        type: 'message',
+        text: content,
+        images: images ? [...images] : undefined,
+        tabName: groupChats.find(c => c.id === activeGroupChatId)?.name || 'Group Chat',
+        readOnlyMode: readOnly,
+      };
+      setGroupChatExecutionQueue(prev => [...prev, queuedItem]);
+      return;
+    }
+
     setGroupChatState('moderator-thinking');
-    await window.maestro.groupChat.sendToModerator(activeGroupChatId, content, images);
+    await window.maestro.groupChat.sendToModerator(activeGroupChatId, content, images, readOnly);
+  }, [activeGroupChatId, groupChatState, groupChats]);
+
+  // Handle draft message changes - update local state (persisted on switch/close)
+  const handleGroupChatDraftChange = useCallback((draft: string) => {
+    if (!activeGroupChatId) return;
+    setGroupChats(prev => prev.map(c =>
+      c.id === activeGroupChatId ? { ...c, draftMessage: draft } : c
+    ));
   }, [activeGroupChatId]);
+
+  // Handle removing an item from the group chat execution queue
+  const handleRemoveGroupChatQueueItem = useCallback((itemId: string) => {
+    setGroupChatExecutionQueue(prev => prev.filter(item => item.id !== itemId));
+  }, []);
+
+  // Handle reordering items in the group chat execution queue
+  const handleReorderGroupChatQueueItems = useCallback((fromIndex: number, toIndex: number) => {
+    setGroupChatExecutionQueue(prev => {
+      const queue = [...prev];
+      const [removed] = queue.splice(fromIndex, 1);
+      queue.splice(toIndex, 0, removed);
+      return queue;
+    });
+  }, []);
 
   // --- SESSION SORTING ---
   // Extracted hook for sorted and visible session lists (ignores leading emojis for alphabetization)
@@ -4347,8 +4411,11 @@ export default function MaestroConsole() {
 
   // Image Handlers
   const handlePaste = (e: React.ClipboardEvent) => {
-    // Only allow image pasting in AI mode
-    if (!activeSession || activeSession.inputMode !== 'ai') return;
+    // Allow image pasting in group chat or direct AI mode
+    const isGroupChatActive = !!activeGroupChatId;
+    const isDirectAIMode = activeSession && activeSession.inputMode === 'ai';
+
+    if (!isGroupChatActive && !isDirectAIMode) return;
 
     const items = e.clipboardData.items;
     for (let i = 0; i < items.length; i++) {
@@ -4359,7 +4426,11 @@ export default function MaestroConsole() {
           const reader = new FileReader();
           reader.onload = (event) => {
             if (event.target?.result) {
-              setStagedImages(prev => [...prev, event.target!.result as string]);
+              if (isGroupChatActive) {
+                setGroupChatStagedImages(prev => [...prev, event.target!.result as string]);
+              } else {
+                setStagedImages(prev => [...prev, event.target!.result as string]);
+              }
             }
           };
           reader.readAsDataURL(blob);
@@ -4557,6 +4628,8 @@ export default function MaestroConsole() {
     setTabSwitcherOpen, showUnreadOnly, stagedImages, handleSetLightboxImage, setMarkdownEditMode,
     toggleTabStar, toggleTabUnread, setPromptComposerOpen, openWizardModal, rightPanelRef, setFuzzyFileSearchOpen,
     setShowNewGroupChatModal,
+    // Group chat context
+    activeGroupChatId, groupChatInputRef, groupChatStagedImages,
     // Navigation handlers from useKeyboardNavigation hook
     handleSidebarNavigation, handleTabNavigation, handleEnterToActivate, handleEscapeInMain
   };
@@ -5102,6 +5175,7 @@ export default function MaestroConsole() {
           theme={theme}
           isOpen={showGroupChatInfo}
           groupChat={groupChats.find(c => c.id === activeGroupChatId)!}
+          messages={groupChatMessages}
           onClose={() => setShowGroupChatInfo(false)}
         />
       )}
@@ -5307,16 +5381,34 @@ export default function MaestroConsole() {
       {/* --- GROUP CHAT VIEW (shown when a group chat is active) --- */}
       {activeGroupChatId && groupChats.find(c => c.id === activeGroupChatId) && (
         <>
-          <GroupChatPanel
-            theme={theme}
-            groupChat={groupChats.find(c => c.id === activeGroupChatId)!}
-            messages={groupChatMessages}
-            state={groupChatState}
-            onSendMessage={handleSendGroupChatMessage}
-            onClose={handleCloseGroupChat}
-            onRename={() => setShowRenameGroupChatModal(activeGroupChatId)}
-            onShowInfo={() => setShowGroupChatInfo(true)}
-          />
+          <div className="flex-1 flex flex-col min-w-0">
+            <GroupChatPanel
+              theme={theme}
+              groupChat={groupChats.find(c => c.id === activeGroupChatId)!}
+              messages={groupChatMessages}
+              state={groupChatState}
+              onSendMessage={handleSendGroupChatMessage}
+              onClose={handleCloseGroupChat}
+              onRename={() => setShowRenameGroupChatModal(activeGroupChatId)}
+              onShowInfo={() => setShowGroupChatInfo(true)}
+              rightPanelOpen={rightPanelOpen}
+              onToggleRightPanel={() => setRightPanelOpen(!rightPanelOpen)}
+              shortcuts={shortcuts}
+              sessions={sessions}
+              onDraftChange={handleGroupChatDraftChange}
+              onOpenPromptComposer={() => setPromptComposerOpen(true)}
+              stagedImages={groupChatStagedImages}
+              setStagedImages={setGroupChatStagedImages}
+              readOnlyMode={groupChatReadOnlyMode}
+              setReadOnlyMode={setGroupChatReadOnlyMode}
+              inputRef={groupChatInputRef}
+              handlePaste={handlePaste}
+              onOpenLightbox={handleSetLightboxImage}
+              executionQueue={groupChatExecutionQueue}
+              onRemoveQueuedItem={handleRemoveGroupChatQueueItem}
+              onReorderQueuedItems={handleReorderGroupChatQueueItems}
+            />
+          </div>
           <GroupChatParticipants
             theme={theme}
             participants={groupChats.find(c => c.id === activeGroupChatId)?.participants || []}
@@ -5325,6 +5417,10 @@ export default function MaestroConsole() {
                 .filter(s => groupChats.find(c => c.id === activeGroupChatId)?.participants.some(p => p.sessionId === s.id))
                 .map(s => [s.id, s.state])
             )}
+            isOpen={rightPanelOpen}
+            onToggle={() => setRightPanelOpen(!rightPanelOpen)}
+            width={rightPanelWidth}
+            shortcuts={shortcuts}
           />
         </>
       )}
@@ -6002,22 +6098,47 @@ export default function MaestroConsole() {
           setTimeout(() => inputRef.current?.focus(), 0);
         }}
         theme={theme}
-        initialValue={inputValue}
-        onSubmit={(value) => setInputValue(value)}
-        onSend={(value) => {
-          // Set the input value and trigger send
-          setInputValue(value);
-          // Use setTimeout to ensure state updates before processing
-          setTimeout(() => processInput(value), 0);
+        initialValue={activeGroupChatId
+          ? (groupChats.find(c => c.id === activeGroupChatId)?.draftMessage || '')
+          : inputValue
+        }
+        onSubmit={(value) => {
+          if (activeGroupChatId) {
+            // Update group chat draft
+            setGroupChats(prev => prev.map(c =>
+              c.id === activeGroupChatId ? { ...c, draftMessage: value } : c
+            ));
+          } else {
+            setInputValue(value);
+          }
         }}
-        sessionName={activeSession?.name}
-        // Image attachment props - share with main input area
-        stagedImages={stagedImages}
-        setStagedImages={setStagedImages}
+        onSend={(value) => {
+          if (activeGroupChatId) {
+            // Send to group chat
+            handleSendGroupChatMessage(value, groupChatStagedImages.length > 0 ? groupChatStagedImages : undefined, groupChatReadOnlyMode);
+            setGroupChatStagedImages([]);
+            // Clear draft
+            setGroupChats(prev => prev.map(c =>
+              c.id === activeGroupChatId ? { ...c, draftMessage: '' } : c
+            ));
+          } else {
+            // Set the input value and trigger send
+            setInputValue(value);
+            // Use setTimeout to ensure state updates before processing
+            setTimeout(() => processInput(value), 0);
+          }
+        }}
+        sessionName={activeGroupChatId
+          ? groupChats.find(c => c.id === activeGroupChatId)?.name
+          : activeSession?.name
+        }
+        // Image attachment props - context-aware
+        stagedImages={activeGroupChatId ? groupChatStagedImages : stagedImages}
+        setStagedImages={activeGroupChatId ? setGroupChatStagedImages : setStagedImages}
         onOpenLightbox={handleSetLightboxImage}
-        // Bottom bar toggles - get from active tab
-        tabSaveToHistory={activeSession ? getActiveTab(activeSession)?.saveToHistory ?? false : false}
-        onToggleTabSaveToHistory={() => {
+        // Bottom bar toggles - context-aware (History not applicable for group chat)
+        tabSaveToHistory={activeGroupChatId ? false : (activeSession ? getActiveTab(activeSession)?.saveToHistory ?? false : false)}
+        onToggleTabSaveToHistory={activeGroupChatId ? undefined : () => {
           if (!activeSession) return;
           const activeTab = getActiveTab(activeSession);
           if (!activeTab) return;
@@ -6031,21 +6152,24 @@ export default function MaestroConsole() {
             };
           }));
         }}
-        tabReadOnlyMode={activeSession ? getActiveTab(activeSession)?.readOnlyMode ?? false : false}
-        onToggleTabReadOnlyMode={() => {
-          if (!activeSession) return;
-          const activeTab = getActiveTab(activeSession);
-          if (!activeTab) return;
-          setSessions(prev => prev.map(s => {
-            if (s.id !== activeSession.id) return s;
-            return {
-              ...s,
-              aiTabs: s.aiTabs.map(tab =>
-                tab.id === activeTab.id ? { ...tab, readOnlyMode: !tab.readOnlyMode } : tab
-              )
-            };
-          }));
-        }}
+        tabReadOnlyMode={activeGroupChatId ? groupChatReadOnlyMode : (activeSession ? getActiveTab(activeSession)?.readOnlyMode ?? false : false)}
+        onToggleTabReadOnlyMode={activeGroupChatId
+          ? () => setGroupChatReadOnlyMode(!groupChatReadOnlyMode)
+          : () => {
+            if (!activeSession) return;
+            const activeTab = getActiveTab(activeSession);
+            if (!activeTab) return;
+            setSessions(prev => prev.map(s => {
+              if (s.id !== activeSession.id) return s;
+              return {
+                ...s,
+                aiTabs: s.aiTabs.map(tab =>
+                  tab.id === activeTab.id ? { ...tab, readOnlyMode: !tab.readOnlyMode } : tab
+                )
+              };
+            }));
+          }
+        }
         enterToSend={enterToSendAI}
         onToggleEnterToSend={() => setEnterToSendAI(!enterToSendAI)}
       />

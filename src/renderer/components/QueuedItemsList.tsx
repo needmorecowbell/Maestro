@@ -1,5 +1,5 @@
-import React, { useState, useCallback, memo } from 'react';
-import { X, ChevronDown, ChevronUp } from 'lucide-react';
+import React, { useState, useCallback, useRef, memo } from 'react';
+import { X, ChevronDown, ChevronUp, GripVertical } from 'lucide-react';
 import type { Theme, QueuedItem } from '../types';
 
 // ============================================================================
@@ -10,6 +10,7 @@ interface QueuedItemsListProps {
   executionQueue: QueuedItem[];
   theme: Theme;
   onRemoveQueuedItem?: (itemId: string) => void;
+  onReorderItems?: (fromIndex: number, toIndex: number) => void;
   activeTabId?: string;  // If provided, only show queued items for this tab
 }
 
@@ -20,11 +21,13 @@ interface QueuedItemsListProps {
  * - Long message expand/collapse functionality
  * - Image attachment indicators
  * - Remove button with confirmation modal
+ * - Drag-and-drop reordering
  */
 export const QueuedItemsList = memo(({
   executionQueue,
   theme,
   onRemoveQueuedItem,
+  onReorderItems,
   activeTabId,
 }: QueuedItemsListProps) => {
   // Filter to only show items for the active tab if activeTabId is provided
@@ -36,6 +39,14 @@ export const QueuedItemsList = memo(({
 
   // Track which queued messages are expanded (for viewing full content)
   const [expandedQueuedMessages, setExpandedQueuedMessages] = useState<Set<string>>(new Set());
+
+  // Drag state
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dropIndex, setDropIndex] = useState<number | null>(null);
+  const dragItemRef = useRef<number | null>(null);
+
+  // Can only drag if we have reorder handler and more than 1 item
+  const canDrag = !!onReorderItems && filteredQueue.length > 1;
 
   // Toggle expanded state for a queued message
   const toggleExpanded = useCallback((itemId: string) => {
@@ -72,6 +83,32 @@ export const QueuedItemsList = memo(({
     setQueueRemoveConfirmId(null);
   }, [onRemoveQueuedItem, queueRemoveConfirmId]);
 
+  // Drag handlers
+  const handleDragStart = useCallback((index: number) => {
+    dragItemRef.current = index;
+    setDragIndex(index);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (dragItemRef.current !== null && dragItemRef.current !== index) {
+      setDropIndex(index);
+    }
+  }, []);
+
+  const handleDragEnd = useCallback(() => {
+    if (dragItemRef.current !== null && dropIndex !== null && dragItemRef.current !== dropIndex) {
+      onReorderItems?.(dragItemRef.current, dropIndex);
+    }
+    dragItemRef.current = null;
+    setDragIndex(null);
+    setDropIndex(null);
+  }, [dropIndex, onReorderItems]);
+
+  const handleDragLeave = useCallback(() => {
+    setDropIndex(null);
+  }, []);
+
   if (!filteredQueue || filteredQueue.length === 0) {
     return null;
   }
@@ -91,22 +128,43 @@ export const QueuedItemsList = memo(({
       </div>
 
       {/* Queued items */}
-      {filteredQueue.map((item) => {
+      {filteredQueue.map((item, index) => {
         const displayText = item.type === 'command' ? item.command : item.text || '';
         const isLongMessage = displayText.length > 200;
         const isQueuedExpanded = expandedQueuedMessages.has(item.id);
+        const isDragging = dragIndex === index;
+        const isDropTarget = dropIndex === index;
 
         return (
           <div
             key={item.id}
-            className="mx-6 mb-2 p-3 rounded-lg opacity-60 relative group"
+            draggable={canDrag}
+            onDragStart={() => handleDragStart(index)}
+            onDragOver={(e) => handleDragOver(e, index)}
+            onDragEnd={handleDragEnd}
+            onDragLeave={handleDragLeave}
+            className="mx-6 mb-2 p-3 rounded-lg relative group transition-all"
             style={{
               backgroundColor: item.type === 'command'
                 ? theme.colors.success + '20'
                 : theme.colors.accent + '20',
-              borderLeft: `3px solid ${item.type === 'command' ? theme.colors.success : theme.colors.accent}`
+              borderLeft: `3px solid ${item.type === 'command' ? theme.colors.success : theme.colors.accent}`,
+              opacity: isDragging ? 0.4 : 0.6,
+              transform: isDropTarget ? 'translateY(4px)' : 'none',
+              boxShadow: isDropTarget ? `0 -2px 0 0 ${theme.colors.accent}` : 'none',
+              cursor: canDrag ? 'grab' : 'default',
             }}
           >
+            {/* Drag handle - only show when draggable */}
+            {canDrag && (
+              <div
+                className="absolute left-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-50 transition-opacity"
+                style={{ color: theme.colors.textDim }}
+              >
+                <GripVertical className="w-4 h-4" />
+              </div>
+            )}
+
             {/* Remove button */}
             <button
               onClick={() => setQueueRemoveConfirmId(item.id)}
@@ -119,7 +177,7 @@ export const QueuedItemsList = memo(({
 
             {/* Item content */}
             <div
-              className="text-sm pr-8 whitespace-pre-wrap break-words"
+              className={`text-sm pr-8 whitespace-pre-wrap break-words ${canDrag ? 'pl-4' : ''}`}
               style={{ color: theme.colors.textMain }}
             >
               {item.type === 'command' && (

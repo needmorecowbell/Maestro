@@ -557,24 +557,24 @@ function DocumentEditor({
     }
   };
 
-  // Prose styles for markdown preview
+  // Prose styles for markdown preview - scoped to .phase-review to avoid CSS conflicts
   const proseStyles = useMemo(
     () => `
-    .prose h1 { color: ${theme.colors.textMain}; font-size: 2em; font-weight: bold; margin: 0.67em 0; }
-    .prose h2 { color: ${theme.colors.textMain}; font-size: 1.5em; font-weight: bold; margin: 0.75em 0; }
-    .prose h3 { color: ${theme.colors.textMain}; font-size: 1.17em; font-weight: bold; margin: 0.83em 0; }
-    .prose p { color: ${theme.colors.textMain}; margin: 0.5em 0; }
-    .prose ul, .prose ol { color: ${theme.colors.textMain}; margin: 0.5em 0; padding-left: 1.5em; }
-    .prose ul { list-style-type: disc; }
-    .prose li { margin: 0.25em 0; display: list-item; }
-    .prose code { background-color: ${theme.colors.bgActivity}; color: ${theme.colors.textMain}; padding: 0.2em 0.4em; border-radius: 3px; font-size: 0.9em; }
-    .prose pre { background-color: ${theme.colors.bgActivity}; color: ${theme.colors.textMain}; padding: 1em; border-radius: 6px; overflow-x: auto; }
-    .prose pre code { background: none; padding: 0; }
-    .prose blockquote { border-left: 4px solid ${theme.colors.border}; padding-left: 1em; margin: 0.5em 0; color: ${theme.colors.textDim}; }
-    .prose a { color: ${theme.colors.accent}; text-decoration: underline; }
-    .prose strong { font-weight: bold; }
-    .prose em { font-style: italic; }
-    .prose input[type="checkbox"] {
+    .phase-review .prose h1 { color: ${theme.colors.textMain}; font-size: 2em; font-weight: bold; margin: 0.67em 0; }
+    .phase-review .prose h2 { color: ${theme.colors.textMain}; font-size: 1.5em; font-weight: bold; margin: 0.75em 0; }
+    .phase-review .prose h3 { color: ${theme.colors.textMain}; font-size: 1.17em; font-weight: bold; margin: 0.83em 0; }
+    .phase-review .prose p { color: ${theme.colors.textMain}; margin: 0.5em 0; }
+    .phase-review .prose ul, .phase-review .prose ol { color: ${theme.colors.textMain}; margin: 0.5em 0; padding-left: 1.5em; }
+    .phase-review .prose ul { list-style-type: disc; }
+    .phase-review .prose li { margin: 0.25em 0; display: list-item; }
+    .phase-review .prose code { background-color: ${theme.colors.bgActivity}; color: ${theme.colors.textMain}; padding: 0.2em 0.4em; border-radius: 3px; font-size: 0.9em; }
+    .phase-review .prose pre { background-color: ${theme.colors.bgActivity}; color: ${theme.colors.textMain}; padding: 1em; border-radius: 6px; overflow-x: auto; }
+    .phase-review .prose pre code { background: none; padding: 0; }
+    .phase-review .prose blockquote { border-left: 4px solid ${theme.colors.border}; padding-left: 1em; margin: 0.5em 0; color: ${theme.colors.textDim}; }
+    .phase-review .prose a { color: ${theme.colors.accent}; text-decoration: underline; }
+    .phase-review .prose strong { font-weight: bold; }
+    .phase-review .prose em { font-style: italic; }
+    .phase-review .prose input[type="checkbox"] {
       appearance: none;
       -webkit-appearance: none;
       width: 16px;
@@ -587,11 +587,11 @@ function DocumentEditor({
       margin-right: 8px;
       position: relative;
     }
-    .prose input[type="checkbox"]:checked {
+    .phase-review .prose input[type="checkbox"]:checked {
       background-color: ${theme.colors.accent};
       border-color: ${theme.colors.accent};
     }
-    .prose input[type="checkbox"]:checked::after {
+    .phase-review .prose input[type="checkbox"]:checked::after {
       content: '';
       position: absolute;
       left: 4px;
@@ -602,7 +602,7 @@ function DocumentEditor({
       border-width: 0 2px 2px 0;
       transform: rotate(45deg);
     }
-    .prose li:has(> input[type="checkbox"]) {
+    .phase-review .prose li:has(> input[type="checkbox"]) {
       list-style-type: none;
       margin-left: -1.5em;
     }
@@ -804,7 +804,7 @@ function DocumentEditor({
         ) : (
           <div
             ref={previewRef}
-            className="h-full overflow-y-auto border rounded p-4 prose prose-sm max-w-none outline-none"
+            className="phase-review h-full overflow-y-auto border rounded p-4 prose prose-sm max-w-none outline-none"
             tabIndex={0}
             onKeyDown={(e) => {
               if ((e.metaKey || e.ctrlKey) && e.key === 'e') {

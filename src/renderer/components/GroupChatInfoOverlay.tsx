@@ -6,9 +6,9 @@
  * an "Open in Finder" button for the chat directory.
  */
 
-import { useRef, useCallback } from 'react';
-import { Copy, FolderOpen } from 'lucide-react';
-import type { Theme, GroupChat } from '../types';
+import { useRef, useCallback, useMemo } from 'react';
+import { Copy, FolderOpen, Users, MessageSquare, Bot, Clock } from 'lucide-react';
+import type { Theme, GroupChat, GroupChatMessage } from '../types';
 import { MODAL_PRIORITIES } from '../constants/modalPriorities';
 import { Modal } from './ui/Modal';
 
@@ -16,6 +16,7 @@ interface GroupChatInfoOverlayProps {
   theme: Theme;
   isOpen: boolean;
   groupChat: GroupChat;
+  messages: GroupChatMessage[];
   onClose: () => void;
 }
 
@@ -61,10 +62,44 @@ function InfoRow({ theme, label, value, onCopy }: InfoRowProps) {
   );
 }
 
+/**
+ * Statistics card with icon
+ */
+interface StatCardProps {
+  theme: Theme;
+  icon: React.ReactNode;
+  label: string;
+  value: string | number;
+}
+
+function StatCard({ theme, icon, label, value }: StatCardProps) {
+  return (
+    <div
+      className="flex flex-col items-center justify-center p-3 rounded-lg"
+      style={{ backgroundColor: `${theme.colors.accent}10` }}
+    >
+      <div style={{ color: theme.colors.accent }}>{icon}</div>
+      <span
+        className="text-xl font-bold mt-1"
+        style={{ color: theme.colors.textMain }}
+      >
+        {value}
+      </span>
+      <span
+        className="text-xs"
+        style={{ color: theme.colors.textDim }}
+      >
+        {label}
+      </span>
+    </div>
+  );
+}
+
 export function GroupChatInfoOverlay({
   theme,
   isOpen,
   groupChat,
+  messages,
   onClose,
 }: GroupChatInfoOverlayProps): JSX.Element | null {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -79,6 +114,37 @@ export function GroupChatInfoOverlay({
     window.maestro.shell.openExternal(`file://${chatDir}`);
   }, [groupChat.imagesDir]);
 
+  // Calculate statistics
+  const stats = useMemo(() => {
+    const userMessages = messages.filter(m => m.role === 'user').length;
+    const agentMessages = messages.filter(m => m.role === 'agent').length;
+    const moderatorMessages = messages.filter(m => m.role === 'moderator').length;
+
+    // Calculate chat duration (time between first and last message)
+    let durationStr = '0m';
+    if (messages.length >= 2) {
+      const firstTimestamp = new Date(messages[0].timestamp).getTime();
+      const lastTimestamp = new Date(messages[messages.length - 1].timestamp).getTime();
+      const durationMs = lastTimestamp - firstTimestamp;
+      const durationHours = Math.floor(durationMs / (1000 * 60 * 60));
+      const durationMins = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
+      durationStr = durationHours > 0
+        ? `${durationHours}h ${durationMins}m`
+        : `${durationMins}m`;
+    } else if (messages.length === 1) {
+      durationStr = '0m';
+    }
+
+    return {
+      totalMessages: messages.length,
+      userMessages,
+      agentMessages,
+      moderatorMessages,
+      participantCount: groupChat.participants.length,
+      duration: durationStr,
+    };
+  }, [messages, groupChat.participants.length]);
+
   if (!isOpen) return null;
 
   return (
@@ -87,67 +153,106 @@ export function GroupChatInfoOverlay({
       title="Group Chat Info"
       priority={MODAL_PRIORITIES.GROUP_CHAT_INFO}
       onClose={onClose}
-      width={520}
+      width={600}
       closeOnBackdropClick
     >
-      <div ref={containerRef} className="space-y-1">
-        <InfoRow
-          theme={theme}
-          label="Group Chat ID"
-          value={groupChat.id}
-          onCopy={() => copyToClipboard(groupChat.id)}
-        />
-
-        <InfoRow
-          theme={theme}
-          label="Created"
-          value={new Date(groupChat.createdAt).toLocaleString()}
-        />
-
-        <InfoRow
-          theme={theme}
-          label="Chat Log"
-          value={groupChat.logPath}
-          onCopy={() => copyToClipboard(groupChat.logPath)}
-        />
-
-        <InfoRow
-          theme={theme}
-          label="Images Directory"
-          value={groupChat.imagesDir}
-          onCopy={() => copyToClipboard(groupChat.imagesDir)}
-        />
+      <div ref={containerRef} className="space-y-4">
+        {/* Statistics Cards */}
+        <div className="grid grid-cols-4 gap-3">
+          <StatCard
+            theme={theme}
+            icon={<Users className="w-5 h-5" />}
+            label="Agents"
+            value={stats.participantCount}
+          />
+          <StatCard
+            theme={theme}
+            icon={<MessageSquare className="w-5 h-5" />}
+            label="Messages"
+            value={stats.totalMessages}
+          />
+          <StatCard
+            theme={theme}
+            icon={<Bot className="w-5 h-5" />}
+            label="Agent Replies"
+            value={stats.agentMessages}
+          />
+          <StatCard
+            theme={theme}
+            icon={<Clock className="w-5 h-5" />}
+            label="Duration"
+            value={stats.duration}
+          />
+        </div>
 
         <div
-          className="border-t my-3"
+          className="border-t"
           style={{ borderColor: theme.colors.border }}
         />
 
-        <InfoRow
-          theme={theme}
-          label="Moderator Agent"
-          value={groupChat.moderatorAgentId}
+        {/* Details Section */}
+        <div className="space-y-1">
+          <InfoRow
+            theme={theme}
+            label="Group Chat ID"
+            value={groupChat.id}
+            onCopy={() => copyToClipboard(groupChat.id)}
+          />
+
+          <InfoRow
+            theme={theme}
+            label="Created"
+            value={new Date(groupChat.createdAt).toLocaleString()}
+          />
+
+          <InfoRow
+            theme={theme}
+            label="Chat Log"
+            value={groupChat.logPath}
+            onCopy={() => copyToClipboard(groupChat.logPath)}
+          />
+
+          <InfoRow
+            theme={theme}
+            label="Images Directory"
+            value={groupChat.imagesDir}
+            onCopy={() => copyToClipboard(groupChat.imagesDir)}
+          />
+        </div>
+
+        <div
+          className="border-t"
+          style={{ borderColor: theme.colors.border }}
         />
 
-        <InfoRow
-          theme={theme}
-          label="Moderator Session"
-          value={groupChat.moderatorSessionId || 'Not started'}
-          onCopy={
-            groupChat.moderatorSessionId
-              ? () => copyToClipboard(groupChat.moderatorSessionId)
-              : undefined
-          }
-        />
+        {/* Moderator Section */}
+        <div className="space-y-1">
+          <InfoRow
+            theme={theme}
+            label="Moderator Agent"
+            value={groupChat.moderatorAgentId}
+          />
+
+          <InfoRow
+            theme={theme}
+            label="Moderator Session"
+            value={groupChat.moderatorSessionId || 'Not started'}
+            onCopy={
+              groupChat.moderatorSessionId
+                ? () => copyToClipboard(groupChat.moderatorSessionId)
+                : undefined
+            }
+          />
+        </div>
 
         {groupChat.participants.length > 0 && (
           <>
             <div
-              className="border-t my-3"
+              className="border-t"
               style={{ borderColor: theme.colors.border }}
             />
 
-            <div className="pt-1">
+            <div>
               <span
                 className="text-sm font-medium"
                 style={{ color: theme.colors.textMain }}
@@ -170,7 +275,7 @@ export function GroupChatInfoOverlay({
         )}
 
         <div
-          className="border-t mt-4 pt-4"
+          className="border-t pt-4"
           style={{ borderColor: theme.colors.border }}
         >
           <button

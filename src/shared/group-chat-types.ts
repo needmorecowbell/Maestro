@@ -30,6 +30,7 @@ export interface GroupChat {
   participants: GroupChatParticipant[];
   logPath: string;
   imagesDir: string;
+  draftMessage?: string;
 }
 
 /**
@@ -39,6 +40,7 @@ export interface GroupChatMessage {
   timestamp: string;
   from: string;
   content: string;
+  readOnly?: boolean;
 }
 
 /**

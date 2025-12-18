@@ -115,6 +115,12 @@ export function useKeyboardNavigation(
     // Only handle when sidebar has focus
     if (focus !== 'sidebar') return false;
 
+    // Skip if event originated from an input element (text areas, inputs)
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+      return false;
+    }
+
     // Skip if Alt+Cmd+Arrow is pressed (layout toggle shortcut)
     const isToggleLayoutShortcut = e.altKey && (e.metaKey || e.ctrlKey) &&
       (e.key === 'ArrowLeft' || e.key === 'ArrowRight');

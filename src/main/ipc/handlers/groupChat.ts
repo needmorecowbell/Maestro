@@ -246,15 +246,16 @@ export function registerGroupChatHandlers(deps: GroupChatHandlerDependencies): v
   // Send a message to the moderator
   ipcMain.handle(
     'groupChat:sendToModerator',
-    withIpcErrorLogging(handlerOpts('sendToModerator'), async (id: string, message: string, images?: string[]): Promise<void> => {
+    withIpcErrorLogging(handlerOpts('sendToModerator'), async (id: string, message: string, images?: string[], readOnly?: boolean): Promise<void> => {
       const processManager = getProcessManager();
 
       // Route through the user message router which handles logging and forwarding
-      await routeUserMessage(id, message, processManager ?? undefined);
+      await routeUserMessage(id, message, processManager ?? undefined, readOnly);
 
       logger.debug(`Sent message to moderator in ${id}`, LOG_CONTEXT, {
         messageLength: message.length,
         imageCount: images?.length ?? 0,
+        readOnly: readOnly ?? false,
       });
     })
   );

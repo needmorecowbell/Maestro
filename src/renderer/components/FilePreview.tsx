@@ -1388,30 +1388,31 @@ export function FilePreview({ file, onClose, theme, markdownEditMode, setMarkdow
             dangerouslySetInnerHTML={{ __html: highlightMatches(file.content) }}
           />
         ) : isMarkdown ? (
-          <div className="prose prose-sm max-w-none" style={{ color: theme.colors.textMain }}>
+          <div className="file-preview-content prose prose-sm max-w-none" style={{ color: theme.colors.textMain }}>
+            {/* Scoped prose styles to avoid CSS conflicts with other prose containers */}
             <style>{`
-              .prose h1 { color: ${theme.colors.accent}; font-size: 2em; font-weight: bold; margin: 0.67em 0; }
-              .prose h2 { color: ${theme.colors.success}; font-size: 1.5em; font-weight: bold; margin: 0.75em 0; }
-              .prose h3 { color: ${theme.colors.warning}; font-size: 1.17em; font-weight: bold; margin: 0.83em 0; }
-              .prose h4 { color: ${theme.colors.textMain}; font-size: 1em; font-weight: bold; margin: 1em 0; opacity: 0.9; }
-              .prose h5 { color: ${theme.colors.textMain}; font-size: 0.83em; font-weight: bold; margin: 1.17em 0; opacity: 0.8; }
-              .prose h6 { color: ${theme.colors.textDim}; font-size: 0.67em; font-weight: bold; margin: 1.33em 0; }
-              .prose p { color: ${theme.colors.textMain}; margin: 0.5em 0; }
-              .prose ul, .prose ol { color: ${theme.colors.textMain}; margin: 0.5em 0; padding-left: 1.5em; }
-              .prose li { margin: 0.25em 0; }
-              .prose li:has(> input[type="checkbox"]) { list-style: none; margin-left: -1.5em; }
-              .prose code { background-color: ${theme.colors.bgActivity}; color: ${theme.colors.textMain}; padding: 0.2em 0.4em; border-radius: 3px; font-size: 0.9em; }
-              .prose pre { background-color: ${theme.colors.bgActivity}; color: ${theme.colors.textMain}; padding: 1em; border-radius: 6px; overflow-x: auto; }
-              .prose pre code { background: none; padding: 0; }
-              .prose blockquote { border-left: 4px solid ${theme.colors.border}; padding-left: 1em; margin: 0.5em 0; color: ${theme.colors.textDim}; }
-              .prose a { color: ${theme.colors.accent}; text-decoration: underline; }
-              .prose hr { border: none; border-top: 2px solid ${theme.colors.border}; margin: 1em 0; }
-              .prose table { border-collapse: collapse; width: 100%; margin: 0.5em 0; }
-              .prose th, .prose td { border: 1px solid ${theme.colors.border}; padding: 0.5em; text-align: left; }
-              .prose th { background-color: ${theme.colors.bgActivity}; font-weight: bold; }
-              .prose strong { font-weight: bold; }
-              .prose em { font-style: italic; }
-              .prose img { display: block; max-width: 100%; height: auto; }
+              .file-preview-content.prose h1 { color: ${theme.colors.accent}; font-size: 2em; font-weight: bold; margin: 0.67em 0; }
+              .file-preview-content.prose h2 { color: ${theme.colors.success}; font-size: 1.5em; font-weight: bold; margin: 0.75em 0; }
+              .file-preview-content.prose h3 { color: ${theme.colors.warning}; font-size: 1.17em; font-weight: bold; margin: 0.83em 0; }
+              .file-preview-content.prose h4 { color: ${theme.colors.textMain}; font-size: 1em; font-weight: bold; margin: 1em 0; opacity: 0.9; }
+              .file-preview-content.prose h5 { color: ${theme.colors.textMain}; font-size: 0.83em; font-weight: bold; margin: 1.17em 0; opacity: 0.8; }
+              .file-preview-content.prose h6 { color: ${theme.colors.textDim}; font-size: 0.67em; font-weight: bold; margin: 1.33em 0; }
+              .file-preview-content.prose p { color: ${theme.colors.textMain}; margin: 0.5em 0; }
+              .file-preview-content.prose ul, .file-preview-content.prose ol { color: ${theme.colors.textMain}; margin: 0.5em 0; padding-left: 1.5em; }
+              .file-preview-content.prose li { margin: 0.25em 0; }
+              .file-preview-content.prose li:has(> input[type="checkbox"]) { list-style: none; margin-left: -1.5em; }
+              .file-preview-content.prose code { background-color: ${theme.colors.bgActivity}; color: ${theme.colors.textMain}; padding: 0.2em 0.4em; border-radius: 3px; font-size: 0.9em; }
+              .file-preview-content.prose pre { background-color: ${theme.colors.bgActivity}; color: ${theme.colors.textMain}; padding: 1em; border-radius: 6px; overflow-x: auto; }
+              .file-preview-content.prose pre code { background: none; padding: 0; }
+              .file-preview-content.prose blockquote { border-left: 4px solid ${theme.colors.border}; padding-left: 1em; margin: 0.5em 0; color: ${theme.colors.textDim}; }
+              .file-preview-content.prose a { color: ${theme.colors.accent}; text-decoration: underline; }
+              .file-preview-content.prose hr { border: none; border-top: 2px solid ${theme.colors.border}; margin: 1em 0; }
+              .file-preview-content.prose table { border-collapse: collapse; width: 100%; margin: 0.5em 0; }
+              .file-preview-content.prose th, .file-preview-content.prose td { border: 1px solid ${theme.colors.border}; padding: 0.5em; text-align: left; }
+              .file-preview-content.prose th { background-color: ${theme.colors.bgActivity}; font-weight: bold; }
+              .file-preview-content.prose strong { font-weight: bold; }
+              .file-preview-content.prose em { font-style: italic; }
+              .file-preview-content.prose img { display: block; max-width: 100%; height: auto; }
             `}</style>
             <ReactMarkdown
               remarkPlugins={[

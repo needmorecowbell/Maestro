@@ -7,6 +7,7 @@
  */
 
 import { useRef, useEffect } from 'react';
+import { BookOpen } from 'lucide-react';
 import type { GroupChatMessage, GroupChatParticipant, GroupChatState, Theme } from '../types';
 
 interface GroupChatMessagesProps {
@@ -78,10 +79,17 @@ export function GroupChatMessages({
     >
       {messages.length === 0 ? (
         <div
-          className="flex items-center justify-center h-full text-sm"
-          style={{ color: theme.colors.textDim }}
+          className="flex items-center justify-center h-full"
         >
-          No messages yet. Start the conversation!
+          <div className="text-center max-w-md space-y-3">
+            <p className="text-sm" style={{ color: theme.colors.textDim }}>
+              Messages you send go directly to the <span style={{ color: theme.colors.warning }}>moderator</span>,
+              who orchestrates the conversation and decides when to involve other agents.
+            </p>
+            <p className="text-sm" style={{ color: theme.colors.textDim }}>
+              Use <span style={{ color: theme.colors.accent }}>@agent</span> to message a specific agent directly at any time.
+            </p>
+          </div>
         </div>
       ) : (
         messages.map((msg, index) => {
@@ -116,11 +124,24 @@ export function GroupChatMessages({
                   {msg.content}
                 </div>
 
-                {/* Timestamp */}
-                <div
-                  className="text-xs mt-1 opacity-50"
-                >
-                  {new Date(msg.timestamp).toLocaleTimeString()}
+                {/* Timestamp and read-only indicator */}
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-xs opacity-50">
+                    {new Date(msg.timestamp).toLocaleTimeString()}
+                  </span>
+                  {msg.readOnly && (
+                    <span
+                      className="text-xs flex items-center gap-1 px-1.5 py-0.5 rounded"
+                      style={{
+                        color: theme.colors.warning,
+                        backgroundColor: `${theme.colors.warning}15`,
+                      }}
+                      title="Read-only mode: no file changes were made"
+                    >
+                      <BookOpen className="w-3 h-3" />
+                      read-only
+                    </span>
+                  )}
                 </div>
               </div>
             </div>

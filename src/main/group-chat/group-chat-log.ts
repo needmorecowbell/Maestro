@@ -24,6 +24,7 @@ export interface GroupChatMessage {
   timestamp: string;
   from: string;
   content: string;
+  readOnly?: boolean;
 }
 
 /**
@@ -79,15 +80,20 @@ export function unescapeContent(escaped: string): string {
  * @param logPath - Path to the log file
  * @param from - Sender name (user, moderator, or participant name)
  * @param content - Message content
+ * @param readOnly - Optional flag indicating read-only mode
  */
 export async function appendToLog(
   logPath: string,
   from: string,
-  content: string
+  content: string,
+  readOnly?: boolean
 ): Promise<void> {
   const timestamp = new Date().toISOString();
   const escapedContent = escapeContent(content);
-  const line = `${timestamp}|${from}|${escapedContent}\n`;
+  // Format: TIMESTAMP|FROM|CONTENT or TIMESTAMP|FROM|CONTENT|readOnly
+  const line = readOnly
+    ? `${timestamp}|${from}|${escapedContent}|readOnly\n`
+    : `${timestamp}|${from}|${escapedContent}\n`;
 
   // Ensure directory exists
   await fs.mkdir(path.dirname(logPath), { recursive: true });
@@ -114,31 +120,37 @@ export async function readLog(logPath: string): Promise<GroupChatMessage[]> {
     const messages: GroupChatMessage[] = [];
 
     for (const line of lines) {
-      // Split only on first two unescaped pipes
-      // Find the first unescaped pipe (not preceded by backslash)
-      let firstPipe = -1;
-      let secondPipe = -1;
+      // Find unescaped pipes to split the line
+      const pipeIndices: number[] = [];
 
       for (let i = 0; i < line.length; i++) {
         if (line[i] === '|' && (i === 0 || line[i - 1] !== '\\')) {
-          if (firstPipe === -1) {
-            firstPipe = i;
-          } else if (secondPipe === -1) {
-            secondPipe = i;
-            break;
-          }
+          pipeIndices.push(i);
         }
       }
 
-      if (firstPipe !== -1 && secondPipe !== -1) {
-        const timestamp = line.substring(0, firstPipe);
-        const from = line.substring(firstPipe + 1, secondPipe);
-        const escapedContent = line.substring(secondPipe + 1);
+      // Need at least 2 pipes for TIMESTAMP|FROM|CONTENT
+      if (pipeIndices.length >= 2) {
+        const timestamp = line.substring(0, pipeIndices[0]);
+        const from = line.substring(pipeIndices[0] + 1, pipeIndices[1]);
+
+        // Check if there's a 4th field (readOnly flag)
+        let escapedContent: string;
+        let readOnly = false;
+
+        if (pipeIndices.length >= 3) {
+          escapedContent = line.substring(pipeIndices[1] + 1, pipeIndices[2]);
+          const flag = line.substring(pipeIndices[2] + 1);
+          readOnly = flag === 'readOnly';
+        } else {
+          escapedContent = line.substring(pipeIndices[1] + 1);
+        }
 
         messages.push({
           timestamp,
           from,
           content: unescapeContent(escapedContent),
+          ...(readOnly && { readOnly: true }),
         });
       }
     }

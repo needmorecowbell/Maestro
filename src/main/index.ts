@@ -12,7 +12,7 @@ import { tunnelManager } from './tunnel-manager';
 import { getThemeById } from './themes';
 import Store from 'electron-store';
 import { getHistoryManager } from './history-manager';
-import { registerGitHandlers, registerAutorunHandlers, registerPlaybooksHandlers, registerHistoryHandlers, registerAgentsHandlers, registerProcessHandlers, registerPersistenceHandlers, registerSystemHandlers, registerClaudeHandlers, registerAgentSessionsHandlers, setupLoggerEventForwarding } from './ipc/handlers';
+import { registerGitHandlers, registerAutorunHandlers, registerPlaybooksHandlers, registerHistoryHandlers, registerAgentsHandlers, registerProcessHandlers, registerPersistenceHandlers, registerSystemHandlers, registerClaudeHandlers, registerAgentSessionsHandlers, registerGroupChatHandlers, setupLoggerEventForwarding } from './ipc/handlers';
 import { initializeSessionStorages } from './storage';
 import { initializeOutputParsers } from './parsers';
 import { DEMO_MODE, DEMO_DATA_PATH } from './constants';
@@ -843,6 +843,12 @@ function setupIpcHandlers() {
   // This provides the new window.maestro.agentSessions.* API
   initializeSessionStorages();
   registerAgentSessionsHandlers({ getMainWindow: () => mainWindow });
+
+  // Register Group Chat handlers
+  registerGroupChatHandlers({
+    getMainWindow: () => mainWindow,
+    getProcessManager: () => processManager,
+  });
 
   // Setup logger event forwarding to renderer
   setupLoggerEventForwarding(() => mainWindow);

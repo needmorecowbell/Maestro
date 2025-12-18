@@ -5,8 +5,9 @@
  * and provides actions for rename, info, and close.
  */
 
-import { X, Info, Edit2 } from 'lucide-react';
-import type { Theme } from '../types';
+import { X, Info, Edit2, Columns } from 'lucide-react';
+import type { Theme, Shortcut } from '../types';
+import { formatShortcutKeys } from '../utils/shortcutFormatter';
 
 interface GroupChatHeaderProps {
   theme: Theme;
@@ -15,6 +16,9 @@ interface GroupChatHeaderProps {
   onClose: () => void;
   onRename: () => void;
   onShowInfo: () => void;
+  rightPanelOpen: boolean;
+  onToggleRightPanel: () => void;
+  shortcuts: Record<string, Shortcut>;
 }
 
 export function GroupChatHeader({
@@ -24,6 +28,9 @@ export function GroupChatHeader({
   onClose,
   onRename,
   onShowInfo,
+  rightPanelOpen,
+  onToggleRightPanel,
+  shortcuts,
 }: GroupChatHeaderProps): JSX.Element {
   return (
     <div
@@ -78,6 +85,15 @@ export function GroupChatHeader({
         >
           <X className="w-5 h-5" />
         </button>
+        {!rightPanelOpen && (
+          <button
+            onClick={onToggleRightPanel}
+            className="p-2 rounded hover:bg-white/5"
+            title={`Show right panel (${formatShortcutKeys(shortcuts.toggleRightPanel.keys)})`}
+          >
+            <Columns className="w-4 h-4" />
+          </button>
+        )}
       </div>
     </div>
   );

@@ -1148,7 +1148,7 @@ const AutoRunInner = forwardRef<AutoRunHandle, AutoRunProps>(function AutoRunInn
   return (
     <div
       ref={containerRef}
-      className="h-full flex flex-col outline-none relative"
+      className="autorun-panel h-full flex flex-col outline-none relative"
       tabIndex={-1}
       onKeyDown={(e) => {
         // CMD+E to toggle edit/preview (without Shift)

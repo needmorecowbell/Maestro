@@ -225,9 +225,6 @@ export function PromptComposerModal({
             </span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-xs opacity-50" style={{ color: theme.colors.textDim }}>
-              <span style={{ fontFamily: 'system-ui' }}>⌘</span> + Enter to send
-            </span>
             <button
               onClick={() => {
                 onSubmit(value);

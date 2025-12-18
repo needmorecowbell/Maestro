@@ -4,7 +4,7 @@
  * Appears below the Ungrouped Agents section in the left sidebar.
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Plus, MessageSquare, ChevronDown, ChevronRight, Edit3, Trash2 } from 'lucide-react';
 import type { Theme, GroupChat } from '../types';
 import { useClickOutside } from '../hooks';
@@ -113,12 +113,25 @@ export function GroupChatList({
   onRenameGroupChat,
   onDeleteGroupChat,
 }: GroupChatListProps): JSX.Element {
-  const [isExpanded, setIsExpanded] = useState(true);
+  // Default to collapsed if no group chats, expanded if there are any
+  const [isExpanded, setIsExpanded] = useState(groupChats.length > 0);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
     chatId: string;
   } | null>(null);
+
+  // Track previous count to detect when chats are added
+  const prevCountRef = useRef(groupChats.length);
+
+  // Auto-expand when a new chat is added
+  useEffect(() => {
+    if (groupChats.length > prevCountRef.current) {
+      // A chat was added, expand the list
+      setIsExpanded(true);
+    }
+    prevCountRef.current = groupChats.length;
+  }, [groupChats.length]);
 
   const handleContextMenu = (e: React.MouseEvent, chatId: string) => {
     e.preventDefault();
