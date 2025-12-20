@@ -383,7 +383,7 @@ const LogItemComponent = memo(({
             <p className="text-sm" style={{ color: theme.colors.textMain }}>
               {log.text}
             </p>
-            {log.agentError?.parsedJson && onShowErrorDetails && (
+            {!!log.agentError?.parsedJson && onShowErrorDetails && (
               <button
                 onClick={onShowErrorDetails}
                 className="self-start flex items-center gap-2 px-3 py-1.5 text-xs rounded border hover:opacity-80 transition-opacity"
