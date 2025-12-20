@@ -95,7 +95,7 @@ import { getContextColor } from './utils/theme';
 import { setActiveTab, createTab, closeTab, reopenClosedTab, getActiveTab, getWriteModeTab, navigateToNextTab, navigateToPrevTab, navigateToTabByIndex, navigateToLastTab, getInitialRenameValue } from './utils/tabHelpers';
 import { TAB_SHORTCUTS } from './constants/shortcuts';
 import { shouldOpenExternally, getAllFolderPaths, flattenTree } from './utils/fileExplorer';
-import type { FileNode } from './hooks/useFileExplorer';
+import type { FileNode } from './types/fileTree';
 import { substituteTemplateVariables } from './utils/templateVariables';
 import { validateNewSession } from './utils/sessionValidation';
 
@@ -1873,7 +1873,7 @@ export default function MaestroConsole() {
 
         if (commands && commands.length > 0) {
           // Convert to command objects and store on session
-          const commandObjects = commands.map(cmd => ({
+          const commandObjects = commands.map((cmd: string) => ({
             command: cmd.startsWith('/') ? cmd : `/${cmd}`,
             description: getSlashCommandDescription(cmd),
           }));
@@ -3286,7 +3286,7 @@ export default function MaestroConsole() {
       if (listResult.success) {
         const files = listResult.files || [];
         setAutoRunDocumentList(files);
-        setAutoRunDocumentTree((listResult.tree as Array<{ name: string; type: 'file' | 'folder'; path: string; children?: unknown[] }>) || []);
+        setAutoRunDocumentTree(listResult.tree || []);
 
         // Load task counts for all documents
         const counts = await loadTaskCounts(activeSession.autoRunFolderPath, files);
@@ -3336,7 +3336,7 @@ export default function MaestroConsole() {
       if (listResult.success) {
         const files = listResult.files || [];
         setAutoRunDocumentList(files);
-        setAutoRunDocumentTree((listResult.tree as Array<{ name: string; type: 'file' | 'folder'; path: string; children?: unknown[] }>) || []);
+        setAutoRunDocumentTree(listResult.tree || []);
 
         // Reload task counts for all documents
         const counts = await loadTaskCounts(folderPath, files);
