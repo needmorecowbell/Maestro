@@ -15,6 +15,8 @@ interface GroupChatHeaderProps {
   participantCount: number;
   /** Total accumulated cost from all participants (including moderator) */
   totalCost?: number;
+  /** True if one or more participants don't have cost data (makes total incomplete) */
+  costIncomplete?: boolean;
   onClose: () => void;
   onRename: () => void;
   onShowInfo: () => void;
@@ -28,6 +30,7 @@ export function GroupChatHeader({
   name,
   participantCount,
   totalCost,
+  costIncomplete,
   onClose,
   onRename,
   onShowInfo,
@@ -77,10 +80,13 @@ export function GroupChatHeader({
               backgroundColor: `${theme.colors.success}20`,
               color: theme.colors.success,
             }}
-            title="Total accumulated cost"
+            title={costIncomplete
+              ? "Total accumulated cost (incomplete: not all agents report cost data)"
+              : "Total accumulated cost"
+            }
           >
             <DollarSign className="w-3 h-3" />
-            {totalCost.toFixed(2)}
+            {totalCost.toFixed(2)}{costIncomplete && '*'}
           </span>
         )}
       </div>

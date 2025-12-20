@@ -6267,6 +6267,15 @@ export default function MaestroConsole() {
                 const modCost = moderatorUsage?.totalCost || 0;
                 return participantsCost + modCost;
               })()}
+              costIncomplete={(() => {
+                const chat = groupChats.find(c => c.id === activeGroupChatId);
+                const participants = chat?.participants || [];
+                // Check if any participant is missing cost data
+                const anyParticipantMissingCost = participants.some(p => p.totalCost === undefined || p.totalCost === null);
+                // Moderator is also considered - if no usage stats yet, cost is incomplete
+                const moderatorMissingCost = moderatorUsage?.totalCost === undefined || moderatorUsage?.totalCost === null;
+                return anyParticipantMissingCost || moderatorMissingCost;
+              })()}
               onSendMessage={handleSendGroupChatMessage}
               onClose={handleCloseGroupChat}
               onRename={() => setShowRenameGroupChatModal(activeGroupChatId)}
