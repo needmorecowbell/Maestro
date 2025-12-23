@@ -19,6 +19,7 @@ import { useThemeColors } from '../components/ThemeProvider';
 import { StatusDot, type SessionStatus } from '../components/Badge';
 import type { Session, GroupInfo } from '../hooks/useSessions';
 import { triggerHaptic, HAPTIC_PATTERNS } from './constants';
+import { truncatePath } from '../../shared/formatters';
 
 /**
  * Session card component for the All Sessions view
@@ -30,7 +31,12 @@ interface SessionCardProps {
   onSelect: (sessionId: string) => void;
 }
 
-function MobileSessionCard({ session, isActive, onSelect }: SessionCardProps) {
+interface MobileSessionCardPropsInternal extends SessionCardProps {
+  /** Display name (may include parent prefix for worktree children) */
+  displayName: string;
+}
+
+function MobileSessionCard({ session, isActive, onSelect, displayName }: MobileSessionCardPropsInternal) {
   const colors = useThemeColors();
 
   // Map session state to status for StatusDot
@@ -62,15 +68,6 @@ function MobileSessionCard({ session, isActive, onSelect }: SessionCardProps) {
     return toolTypeMap[session.toolType] || session.toolType;
   };
 
-  // Truncate path for display
-  const truncatePath = (path: string, maxLength: number = 40): string => {
-    if (path.length <= maxLength) return path;
-    const separator = path.includes('\\') ? '\\' : '/';
-    const parts = path.split(/[/\\]/).filter(Boolean);
-    if (parts.length <= 2) return `...${path.slice(-maxLength + 3)}`;
-    return `...${separator}${parts.slice(-2).join(separator)}`;
-  };
-
   const handleClick = useCallback(() => {
     triggerHaptic(HAPTIC_PATTERNS.tap);
     onSelect(session.id);
@@ -99,7 +96,7 @@ function MobileSessionCard({ session, isActive, onSelect }: SessionCardProps) {
         WebkitUserSelect: 'none',
       }}
       aria-pressed={isActive}
-      aria-label={`${session.name} session, ${getStatusLabel()}, ${session.inputMode} mode${isActive ? ', active' : ''}`}
+      aria-label={`${displayName} session, ${getStatusLabel()}, ${session.inputMode} mode${isActive ? ', active' : ''}`}
     >
       {/* Top row: Status dot, name, and mode badge */}
       <div
@@ -121,7 +118,7 @@ function MobileSessionCard({ session, isActive, onSelect }: SessionCardProps) {
             whiteSpace: 'nowrap',
           }}
         >
-          {session.name}
+          {displayName}
         </span>
         {/* Mode badge */}
         <span
@@ -189,10 +186,24 @@ function MobileSessionCard({ session, isActive, onSelect }: SessionCardProps) {
         }}
         title={session.cwd}
       >
-        {truncatePath(session.cwd)}
+        {truncatePath(session.cwd, 40)}
       </div>
     </button>
   );
+}
+
+/**
+ * Compute display name for a session
+ * For worktree children, prefixes with parent name: "ParentName: branch-name"
+ */
+function getSessionDisplayName(session: Session, sessionNameMap: Map<string, string>): string {
+  if (session.parentSessionId && session.worktreeBranch) {
+    const parentName = sessionNameMap.get(session.parentSessionId);
+    if (parentName) {
+      return `${parentName}: ${session.worktreeBranch}`;
+    }
+  }
+  return session.name;
 }
 
 /**
@@ -207,6 +218,8 @@ interface GroupSectionProps {
   onSelectSession: (sessionId: string) => void;
   isCollapsed: boolean;
   onToggleCollapse: (groupId: string) => void;
+  /** Map of session IDs to names for looking up parent names */
+  sessionNameMap: Map<string, string>;
 }
 
 function GroupSection({
@@ -218,6 +231,7 @@ function GroupSection({
   onSelectSession,
   isCollapsed,
   onToggleCollapse,
+  sessionNameMap,
 }: GroupSectionProps) {
   const colors = useThemeColors();
 
@@ -304,6 +318,7 @@ function GroupSection({
               session={session}
               isActive={session.id === activeSessionId}
               onSelect={onSelectSession}
+              displayName={getSessionDisplayName(session, sessionNameMap)}
             />
           ))}
         </div>
@@ -346,17 +361,31 @@ export function AllSessionsView({
   const [localSearchQuery, setLocalSearchQuery] = useState(searchQuery);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Filter sessions by search query
+  // Create a map of session IDs to names for worktree display name lookup
+  // Must be created before filtering so worktree children can be searched by display name
+  const sessionNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const session of sessions) {
+      map.set(session.id, session.name);
+    }
+    return map;
+  }, [sessions]);
+
+  // Filter sessions by search query (including worktree display names)
   const filteredSessions = useMemo(() => {
     if (!localSearchQuery.trim()) return sessions;
     const query = localSearchQuery.toLowerCase();
-    return sessions.filter(
-      (session) =>
+    return sessions.filter((session) => {
+      const displayName = getSessionDisplayName(session, sessionNameMap);
+      return (
+        displayName.toLowerCase().includes(query) ||
         session.name.toLowerCase().includes(query) ||
         session.cwd.toLowerCase().includes(query) ||
-        (session.toolType && session.toolType.toLowerCase().includes(query))
-    );
-  }, [sessions, localSearchQuery]);
+        (session.toolType && session.toolType.toLowerCase().includes(query)) ||
+        (session.worktreeBranch && session.worktreeBranch.toLowerCase().includes(query))
+      );
+    });
+  }, [sessions, localSearchQuery, sessionNameMap]);
 
   // Organize sessions by group, including a special "bookmarks" group
   const sessionsByGroup = useMemo((): Record<string, GroupInfo> => {
@@ -625,6 +654,7 @@ export function AllSessionsView({
                 session={session}
                 isActive={session.id === activeSessionId}
                 onSelect={handleSelectSession}
+                displayName={getSessionDisplayName(session, sessionNameMap)}
               />
             ))}
           </div>
@@ -643,6 +673,7 @@ export function AllSessionsView({
                 onSelectSession={handleSelectSession}
                 isCollapsed={collapsedGroups?.has(groupKey) ?? true}
                 onToggleCollapse={handleToggleCollapse}
+                sessionNameMap={sessionNameMap}
               />
             );
           })

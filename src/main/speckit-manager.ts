@@ -14,19 +14,17 @@ import { logger } from './utils/logger';
 
 const LOG_CONTEXT = '[SpecKit]';
 
-// GitHub raw content base URL
-const GITHUB_RAW_BASE = 'https://raw.githubusercontent.com/github/spec-kit';
-
-// Commands we bundle from upstream (excludes our custom 'implement')
-const UPSTREAM_COMMANDS = [
-  'constitution',
-  'specify',
-  'clarify',
-  'plan',
-  'tasks',
-  'analyze',
-  'checklist',
-  'taskstoissues',
+// All bundled spec-kit commands with their metadata
+const SPECKIT_COMMANDS = [
+  { id: 'constitution', command: '/speckit.constitution', description: 'Create or update the project constitution', isCustom: false },
+  { id: 'specify', command: '/speckit.specify', description: 'Create or update feature specification', isCustom: false },
+  { id: 'clarify', command: '/speckit.clarify', description: 'Identify underspecified areas and ask clarification questions', isCustom: false },
+  { id: 'plan', command: '/speckit.plan', description: 'Execute implementation planning workflow', isCustom: false },
+  { id: 'tasks', command: '/speckit.tasks', description: 'Generate actionable, dependency-ordered tasks', isCustom: false },
+  { id: 'analyze', command: '/speckit.analyze', description: 'Cross-artifact consistency and quality analysis', isCustom: false },
+  { id: 'checklist', command: '/speckit.checklist', description: 'Generate custom checklist for feature', isCustom: false },
+  { id: 'taskstoissues', command: '/speckit.taskstoissues', description: 'Convert tasks to GitHub issues', isCustom: false },
+  { id: 'implement', command: '/speckit.implement', description: 'Execute tasks using Maestro Auto Run with worktree support', isCustom: true },
 ] as const;
 
 export interface SpecKitCommand {
@@ -83,32 +81,65 @@ async function saveUserCustomizations(data: StoredData): Promise<void> {
 }
 
 /**
- * Get bundled prompts from the build
- * These are imported at build time via the index.ts
+ * Get the path to bundled prompts directory
+ * In development, this is src/prompts/speckit
+ * In production, this is in the app resources
+ */
+function getBundledPromptsPath(): string {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, 'prompts', 'speckit');
+  }
+  // In development, use the source directory
+  return path.join(__dirname, '..', '..', 'src', 'prompts', 'speckit');
+}
+
+/**
+ * Get bundled prompts by reading from disk
  */
 async function getBundledPrompts(): Promise<Record<string, { prompt: string; description: string; isCustom: boolean }>> {
-  // Dynamic import to get the bundled prompts
-  const speckit = await import('../prompts/speckit');
-
+  const promptsDir = getBundledPromptsPath();
   const result: Record<string, { prompt: string; description: string; isCustom: boolean }> = {};
 
-  for (const cmd of speckit.speckitCommands) {
-    result[cmd.id] = {
-      prompt: cmd.prompt,
-      description: cmd.description,
-      isCustom: cmd.isCustom,
-    };
+  for (const cmd of SPECKIT_COMMANDS) {
+    try {
+      const promptPath = path.join(promptsDir, `speckit.${cmd.id}.md`);
+      const prompt = await fs.readFile(promptPath, 'utf-8');
+      result[cmd.id] = {
+        prompt,
+        description: cmd.description,
+        isCustom: cmd.isCustom,
+      };
+    } catch (error) {
+      logger.warn(`Failed to load bundled prompt for ${cmd.id}: ${error}`, LOG_CONTEXT);
+      result[cmd.id] = {
+        prompt: `# ${cmd.id}\n\nPrompt not available.`,
+        description: cmd.description,
+        isCustom: cmd.isCustom,
+      };
+    }
   }
 
   return result;
 }
 
 /**
- * Get bundled metadata
+ * Get bundled metadata by reading from disk
  */
 async function getBundledMetadata(): Promise<SpecKitMetadata> {
-  const speckit = await import('../prompts/speckit');
-  return speckit.getSpeckitMetadata();
+  const promptsDir = getBundledPromptsPath();
+  try {
+    const metadataPath = path.join(promptsDir, 'metadata.json');
+    const content = await fs.readFile(metadataPath, 'utf-8');
+    return JSON.parse(content);
+  } catch {
+    // Return default metadata if file doesn't exist
+    return {
+      lastRefreshed: '2024-01-01T00:00:00Z',
+      commitSha: 'bundled',
+      sourceVersion: '0.0.90',
+      sourceUrl: 'https://github.com/github/spec-kit',
+    };
+  }
 }
 
 /**
@@ -190,14 +221,6 @@ export async function resetSpeckitPrompt(id: string): Promise<string> {
 }
 
 /**
- * Extract description from markdown frontmatter
- */
-function extractDescription(markdown: string): string {
-  const match = markdown.match(/^---\s*\n[\s\S]*?description:\s*(.+?)\n[\s\S]*?---/m);
-  return match?.[1]?.trim() || '';
-}
-
-/**
  * Fetch latest prompts from GitHub spec-kit repository
  * Updates all upstream commands except our custom 'implement'
  */
@@ -210,11 +233,14 @@ export async function refreshSpeckitPrompts(): Promise<SpecKitMetadata> {
     throw new Error(`Failed to fetch release info: ${releaseResponse.statusText}`);
   }
 
-  const releaseInfo = await releaseResponse.json();
-  const version = releaseInfo.tag_name as string;
+  const releaseInfo = await releaseResponse.json() as {
+    tag_name: string;
+    assets?: Array<{ name: string; browser_download_url: string }>;
+  };
+  const version = releaseInfo.tag_name;
 
   // Find the Claude template asset
-  const claudeAsset = releaseInfo.assets?.find((a: { name: string }) =>
+  const claudeAsset = releaseInfo.assets?.find((a) =>
     a.name.includes('claude') && a.name.endsWith('.zip')
   );
 
@@ -223,7 +249,7 @@ export async function refreshSpeckitPrompts(): Promise<SpecKitMetadata> {
   }
 
   // Download and extract the template
-  const downloadUrl = claudeAsset.browser_download_url as string;
+  const downloadUrl = claudeAsset.browser_download_url;
   logger.info(`Downloading ${version} from ${downloadUrl}`, LOG_CONTEXT);
 
   // We'll use the Electron net module for downloading

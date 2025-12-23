@@ -4,6 +4,14 @@ import type { Theme, GhCliStatus } from '../types';
 import { useLayerStack } from '../contexts/LayerStackContext';
 import { MODAL_PRIORITIES } from '../constants/modalPriorities';
 
+export interface PRDetails {
+  url: string;
+  title: string;
+  description: string;
+  sourceBranch: string;
+  targetBranch: string;
+}
+
 interface CreatePRModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -14,7 +22,7 @@ interface CreatePRModalProps {
   // Available branches for target selection
   availableBranches: string[];
   // Callback when PR is created
-  onPRCreated?: (prUrl: string) => void;
+  onPRCreated?: (details: PRDetails) => void;
 }
 
 /**
@@ -49,6 +57,8 @@ export function CreatePRModal({
   const [ghCliStatus, setGhCliStatus] = useState<GhCliStatus | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasUncommittedChanges, setHasUncommittedChanges] = useState(false);
+  const [uncommittedCount, setUncommittedCount] = useState(0);
 
   // Register with layer stack for Escape handling
   useEffect(() => {
@@ -65,10 +75,11 @@ export function CreatePRModal({
     }
   }, [isOpen, registerLayer, unregisterLayer]);
 
-  // Check gh CLI status on mount
+  // Check gh CLI status and uncommitted changes on mount
   useEffect(() => {
     if (isOpen) {
       checkGhCli();
+      checkUncommittedChanges();
       // Auto-populate title from branch name
       const branchTitle = worktreeBranch
         .replace(/[-_]/g, ' ')
@@ -76,7 +87,7 @@ export function CreatePRModal({
         .trim();
       setTitle(branchTitle || worktreeBranch);
     }
-  }, [isOpen, worktreeBranch]);
+  }, [isOpen, worktreeBranch, worktreePath]);
 
   // Set default target branch (prefer main, fallback to master)
   useEffect(() => {
@@ -100,6 +111,18 @@ export function CreatePRModal({
     }
   };
 
+  const checkUncommittedChanges = async () => {
+    try {
+      const result = await window.maestro.git.status(worktreePath);
+      const lines = result.stdout.trim().split('\n').filter((line: string) => line.length > 0);
+      setUncommittedCount(lines.length);
+      setHasUncommittedChanges(lines.length > 0);
+    } catch (err) {
+      setHasUncommittedChanges(false);
+      setUncommittedCount(0);
+    }
+  };
+
   const handleCreatePR = async () => {
     if (!ghCliStatus?.authenticated) return;
 
@@ -115,7 +138,13 @@ export function CreatePRModal({
       );
 
       if (result.success && result.prUrl) {
-        onPRCreated?.(result.prUrl);
+        onPRCreated?.({
+          url: result.prUrl,
+          title,
+          description,
+          sourceBranch: worktreeBranch,
+          targetBranch,
+        });
         onClose();
       } else {
         setError(result.error || 'Failed to create PR');
@@ -234,6 +263,27 @@ export function CreatePRModal({
           {/* Form (only shown when gh CLI is authenticated) */}
           {ghCliStatus?.authenticated && (
             <>
+              {/* Uncommitted changes warning */}
+              {hasUncommittedChanges && (
+                <div
+                  className="flex items-start gap-2 p-3 rounded border"
+                  style={{
+                    backgroundColor: theme.colors.warning + '10',
+                    borderColor: theme.colors.warning,
+                  }}
+                >
+                  <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" style={{ color: theme.colors.warning }} />
+                  <div className="text-sm">
+                    <p style={{ color: theme.colors.warning }}>
+                      {uncommittedCount} uncommitted change{uncommittedCount !== 1 ? 's' : ''}
+                    </p>
+                    <p className="mt-1" style={{ color: theme.colors.textDim }}>
+                      Only committed changes will be included in the PR. Uncommitted changes will not be pushed.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* From branch (read-only) */}
               <div>
                 <label className="text-xs font-medium mb-1.5 block" style={{ color: theme.colors.textDim }}>

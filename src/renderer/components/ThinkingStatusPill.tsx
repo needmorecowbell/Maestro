@@ -293,9 +293,12 @@ function ThinkingStatusPillInner({ sessions, theme, onSessionClick, namedSession
     return null;
   }
 
-  // Primary session is the first one (most recently started or active)
-  const primarySession = thinkingSessions[0];
-  const additionalSessions = thinkingSessions.slice(1);
+  // Primary session: prioritize the active session if it's thinking,
+  // otherwise fall back to first thinking session.
+  // This ensures Stop button stops the session the user is currently viewing.
+  const activeThinkingSession = thinkingSessions.find(s => s.id === activeSessionId);
+  const primarySession = activeThinkingSession || thinkingSessions[0];
+  const additionalSessions = thinkingSessions.filter(s => s.id !== primarySession.id);
   const hasMultiple = additionalSessions.length > 0;
 
   // Get tokens for current thinking cycle only (not cumulative context)
@@ -513,6 +516,9 @@ export const ThinkingStatusPill = memo(ThinkingStatusPillInner, (prevProps, next
     // Don't need to check thinking sessions when AutoRun is active
     return prevProps.theme === nextProps.theme;
   }
+
+  // Check if activeSessionId changed - this affects which session shows as primary
+  if (prevProps.activeSessionId !== nextProps.activeSessionId) return false;
 
   // Check if thinking sessions have changed
   const prevThinking = prevProps.sessions.filter(s => s.state === 'busy' && s.busySource === 'ai');
