@@ -135,7 +135,21 @@ describe('Claude IPC handlers', () => {
 
   describe('registration', () => {
     it('should register all claude handlers', () => {
-      // Based on reading the source file, these are all the handlers registered:
+      // All ipcMain.handle('claude:*') calls identified from src/main/ipc/handlers/claude.ts:
+      // Line 153:  ipcMain.handle('claude:listSessions', ...)        - List sessions for a project
+      // Line 316:  ipcMain.handle('claude:listSessionsPaginated', ...)  - Paginated session listing
+      // Line 504:  ipcMain.handle('claude:getProjectStats', ...)     - Get stats for a specific project
+      // Line 689:  ipcMain.handle('claude:getSessionTimestamps', ...)  - Get session timestamps for activity graphs
+      // Line 742:  ipcMain.handle('claude:getGlobalStats', ...)      - Get global stats across all projects
+      // Line 949:  ipcMain.handle('claude:readSessionMessages', ...)  - Read messages from a session
+      // Line 1025: ipcMain.handle('claude:deleteMessagePair', ...)   - Delete a message pair from session
+      // Line 1192: ipcMain.handle('claude:searchSessions', ...)      - Search sessions by query
+      // Line 1337: ipcMain.handle('claude:getCommands', ...)         - Get available slash commands
+      // Line 1422: ipcMain.handle('claude:registerSessionOrigin', ...)  - Register session origin (user/auto)
+      // Line 1438: ipcMain.handle('claude:updateSessionName', ...)   - Update session name
+      // Line 1459: ipcMain.handle('claude:updateSessionStarred', ...)  - Update session starred status
+      // Line 1480: ipcMain.handle('claude:getSessionOrigins', ...)   - Get session origins for a project
+      // Line 1488: ipcMain.handle('claude:getAllNamedSessions', ...)  - Get all sessions with names
       const expectedChannels = [
         'claude:listSessions',
         'claude:listSessionsPaginated',
@@ -157,7 +171,7 @@ describe('Claude IPC handlers', () => {
         expect(handlers.has(channel), `Handler for ${channel} should be registered`).toBe(true);
       }
 
-      // Verify total count matches
+      // Verify total count matches - ensures no handlers are added without updating this test
       expect(handlers.size).toBe(expectedChannels.length);
     });
   });
