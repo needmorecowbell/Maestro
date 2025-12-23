@@ -18,7 +18,8 @@ import analyzePrompt from './speckit.analyze.md?raw';
 import checklistPrompt from './speckit.checklist.md?raw';
 import tasksToIssuesPrompt from './speckit.taskstoissues.md?raw';
 
-// Custom Maestro implementation prompt
+// Custom Maestro prompts
+import helpPrompt from './speckit.help.md?raw';
 import implementPrompt from './speckit.implement.md?raw';
 
 // Metadata
@@ -43,6 +44,13 @@ export interface SpecKitMetadata {
  * All bundled spec-kit commands
  */
 export const speckitCommands: SpecKitCommandDefinition[] = [
+  {
+    id: 'help',
+    command: '/speckit.help',
+    description: 'Learn how to use spec-kit with Maestro',
+    prompt: helpPrompt,
+    isCustom: true,
+  },
   {
     id: 'constitution',
     command: '/speckit.constitution',
@@ -136,6 +144,7 @@ export function getSpeckitMetadata(): SpecKitMetadata {
 
 // Export individual prompts for direct access
 export {
+  helpPrompt,
   constitutionPrompt,
   specifyPrompt,
   clarifyPrompt,

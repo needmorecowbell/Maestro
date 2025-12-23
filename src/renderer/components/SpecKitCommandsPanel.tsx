@@ -165,16 +165,14 @@ export function SpecKitCommandsPanel({ theme }: SpecKitCommandsPanelProps) {
         </label>
         <p className="text-xs opacity-50" style={{ color: theme.colors.textDim }}>
           Bundled commands from{' '}
-          <a
-            href="https://github.com/github/spec-kit"
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            onClick={() => window.maestro.shell.openExternal('https://github.com/github/spec-kit')}
             className="underline hover:opacity-80 inline-flex items-center gap-1"
-            style={{ color: theme.colors.accent }}
+            style={{ color: theme.colors.accent, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
           >
             github/spec-kit
             <ExternalLink className="w-2.5 h-2.5" />
-          </a>
+          </button>
           {' '}for structured specification workflows.
         </p>
       </div>

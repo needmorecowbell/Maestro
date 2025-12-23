@@ -1,6 +1,6 @@
 {
   "name": "maestro",
-  "version": "0.11.2",
+  "version": "0.12.0",
   "description": "Run AI coding agents autonomously for days.",
   "main": "dist/main/index.js",
   "author": {
@@ -93,6 +93,10 @@
         {
           "from": "dist/cli/maestro-cli.js",
           "to": "maestro-cli.js"
+        },
+        {
+          "from": "src/prompts/speckit",
+          "to": "prompts/speckit"
         }
       ]
     },
@@ -117,6 +121,10 @@
         {
           "from": "dist/cli/maestro-cli.js",
           "to": "maestro-cli.js"
+        },
+        {
+          "from": "src/prompts/speckit",
+          "to": "prompts/speckit"
         }
       ]
     },
@@ -150,6 +158,10 @@
         {
           "from": "dist/cli/maestro-cli.js",
           "to": "maestro-cli.js"
+        },
+        {
+          "from": "src/prompts/speckit",
+          "to": "prompts/speckit"
         }
       ]
     },
