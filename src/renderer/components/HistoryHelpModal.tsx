@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { History, Play, Clock, DollarSign, BarChart2, CheckCircle, Bot, User, Eye, Layers } from 'lucide-react';
 import type { Theme } from '../types';
 import { MODAL_PRIORITIES } from '../constants/modalPriorities';
@@ -8,7 +9,45 @@ interface HistoryHelpModalProps {
   onClose: () => void;
 }
 
+/**
+ * Format the history path for display.
+ * Replaces home directory with ~ for shorter display.
+ */
+function formatHistoryPath(storagePath: string, homeDir: string): string {
+  // Detect Windows by checking for drive letter or backslash
+  const isWindows = /^[A-Za-z]:/.test(storagePath) || storagePath.includes('\\');
+  const separator = isWindows ? '\\' : '/';
+  const historySubpath = `history${separator}<sessionId>.json`;
+
+  let displayPath = storagePath;
+
+  // Replace home directory with ~ for cleaner display
+  if (homeDir && storagePath.startsWith(homeDir)) {
+    displayPath = '~' + storagePath.slice(homeDir.length);
+  }
+
+  // Ensure proper path separator
+  return `${displayPath}${separator}${historySubpath}`;
+}
+
 export function HistoryHelpModal({ theme, onClose }: HistoryHelpModalProps) {
+  const [historyPath, setHistoryPath] = useState<string>('');
+
+  useEffect(() => {
+    async function loadPath() {
+      try {
+        const [storagePath, homeDir] = await Promise.all([
+          window.maestro.sync.getCurrentStoragePath(),
+          window.maestro.fs.homeDir(),
+        ]);
+        setHistoryPath(formatHistoryPath(storagePath, homeDir));
+      } catch {
+        // Fallback to generic path if API unavailable
+        setHistoryPath('<storage-folder>/history/<sessionId>.json');
+      }
+    }
+    loadPath();
+  }, []);
   return (
     <Modal
       theme={theme}
@@ -286,7 +325,7 @@ export function HistoryHelpModal({ theme, onClose }: HistoryHelpModalProps) {
               <p>
                 <strong style={{ color: theme.colors.textMain }}>File location:</strong>{' '}
                 <code className="px-1.5 py-0.5 rounded text-[11px]" style={{ backgroundColor: theme.colors.bgActivity }}>
-                  ~/Library/Application Support/Maestro/history/{'<sessionId>'}.json
+                  {historyPath || 'Loading...'}
                 </code>
               </p>
               <p>

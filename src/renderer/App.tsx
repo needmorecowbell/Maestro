@@ -7785,6 +7785,11 @@ export default function MaestroConsole() {
             onTabChange={handleGroupChatRightTabChange}
             onJumpToMessage={handleJumpToGroupChatMessage}
             onColorsComputed={setGroupChatParticipantColors}
+            onJumpToSession={(sessionId) => {
+              // Dismiss group chat and switch to the participant's session
+              setActiveGroupChatId(null);
+              setActiveSessionId(sessionId);
+            }}
           />
         </>
       )}

@@ -5,6 +5,7 @@ import { useLayerStack } from '../contexts/LayerStackContext';
 import { MODAL_PRIORITIES } from '../constants/modalPriorities';
 import { formatElapsedTime } from '../utils/formatters';
 import { stripAnsiCodes } from '../../shared/stringUtils';
+import { MarkdownRenderer } from './MarkdownRenderer';
 
 // Double checkmark SVG component for validated entries
 const DoubleCheck = ({ className, style }: { className?: string; style?: React.CSSProperties }) => (
@@ -398,12 +399,11 @@ export function HistoryDetailModal({
           className="flex-1 overflow-y-auto px-6 py-5 scrollbar-thin"
           style={{ color: theme.colors.textMain }}
         >
-          <pre
-            className="whitespace-pre-wrap font-mono text-sm leading-relaxed"
-            style={{ color: theme.colors.textMain }}
-          >
-            {cleanResponse}
-          </pre>
+          <MarkdownRenderer
+            content={cleanResponse}
+            theme={theme}
+            onCopy={(text) => navigator.clipboard.writeText(text)}
+          />
         </div>
 
         {/* Footer */}

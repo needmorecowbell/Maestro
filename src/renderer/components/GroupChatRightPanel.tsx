@@ -53,6 +53,8 @@ interface GroupChatRightPanelProps {
   onJumpToMessage?: (timestamp: number) => void;
   /** Callback when participant colors are computed (for sharing with other components) */
   onColorsComputed?: (colors: Record<string, string>) => void;
+  /** Callback when user clicks to jump to a participant's session */
+  onJumpToSession?: (sessionId: string) => void;
 }
 
 export function GroupChatRightPanel({
@@ -75,6 +77,7 @@ export function GroupChatRightPanel({
   onTabChange,
   onJumpToMessage,
   onColorsComputed,
+  onJumpToSession,
 }: GroupChatRightPanelProps): JSX.Element | null {
   // Color preferences state
   const [colorPreferences, setColorPreferences] = useState<Record<string, number>>({});
@@ -282,6 +285,7 @@ export function GroupChatRightPanel({
             participant={moderatorParticipant}
             state={moderatorState}
             color={participantColors['Moderator']}
+            onJumpToSession={onJumpToSession}
           />
 
           {/* Separator between moderator and participants */}
@@ -314,6 +318,7 @@ export function GroupChatRightPanel({
                   participant={participant}
                   state={sessionState}
                   color={participantColors[participant.name]}
+                  onJumpToSession={onJumpToSession}
                 />
               );
             })

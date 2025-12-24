@@ -5,8 +5,7 @@
  * session ID, context usage, stats, and cost.
  */
 
-import { MessageSquare, Copy, Check, DollarSign } from 'lucide-react';
-import { useState, useCallback } from 'react';
+import { MessageSquare, ExternalLink, DollarSign } from 'lucide-react';
 import type { Theme, GroupChatParticipant, SessionState } from '../types';
 import { getStatusColor } from '../utils/theme';
 import { formatCost } from '../utils/formatters';
@@ -16,6 +15,8 @@ interface ParticipantCardProps {
   participant: GroupChatParticipant;
   state: SessionState;
   color?: string;
+  /** Callback when user clicks session ID pill to jump to the agent */
+  onJumpToSession?: (sessionId: string) => void;
 }
 
 /**
@@ -34,20 +35,17 @@ export function ParticipantCard({
   participant,
   state,
   color,
+  onJumpToSession,
 }: ParticipantCardProps): JSX.Element {
-  const [copied, setCopied] = useState(false);
-
   // Use agent's session ID (clean GUID) when available, otherwise show pending
   const agentSessionId = participant.agentSessionId;
   const isPending = !agentSessionId;
 
-  const copySessionId = useCallback(() => {
-    if (agentSessionId) {
-      navigator.clipboard.writeText(agentSessionId);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+  const handleJumpToSession = () => {
+    if (onJumpToSession && participant.sessionId) {
+      onJumpToSession(participant.sessionId);
     }
-  }, [agentSessionId]);
+  };
 
   // Determine if state should animate (busy or connecting)
   const shouldPulse = state === 'busy' || state === 'connecting';
@@ -107,23 +105,19 @@ export function ParticipantCard({
           </span>
         ) : (
           <button
-            onClick={copySessionId}
+            onClick={handleJumpToSession}
             className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full hover:opacity-80 transition-opacity cursor-pointer shrink-0"
             style={{
               backgroundColor: `${theme.colors.accent}20`,
               color: theme.colors.accent,
               border: `1px solid ${theme.colors.accent}40`,
             }}
-            title={`Session: ${agentSessionId}\nClick to copy`}
+            title={`Session: ${agentSessionId}\nClick to jump to agent`}
           >
             <span className="font-mono">
-              {agentSessionId.slice(0, 8)}
+              {agentSessionId.slice(0, 8).toUpperCase()}
             </span>
-            {copied ? (
-              <Check className="w-2.5 h-2.5" />
-            ) : (
-              <Copy className="w-2.5 h-2.5" />
-            )}
+            <ExternalLink className="w-2.5 h-2.5" />
           </button>
         )}
       </div>
