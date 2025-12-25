@@ -261,6 +261,8 @@ docs: documentation
 refactor: code refactoring
 ```
 
+**IMPORTANT**: Do NOT create a `CHANGELOG.md` file. This project does not use changelogs - all change documentation goes in commit messages and PR descriptions only.
+
 ## Session Interface
 
 Key fields on the Session object (abbreviated - see `src/renderer/types/index.ts` for full definition):
