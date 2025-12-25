@@ -41,6 +41,8 @@ export interface ModalContextValue {
   // New Instance Modal
   newInstanceModalOpen: boolean;
   setNewInstanceModalOpen: (open: boolean) => void;
+  duplicatingSessionId: string | null;
+  setDuplicatingSessionId: (id: string | null) => void;
 
   // Edit Agent Modal
   editAgentModalOpen: boolean;
@@ -278,6 +280,7 @@ export function ModalProvider({ children }: ModalProviderProps) {
 
   // New Instance Modal
   const [newInstanceModalOpen, setNewInstanceModalOpen] = useState(false);
+  const [duplicatingSessionId, setDuplicatingSessionId] = useState<string | null>(null);
 
   // Edit Agent Modal
   const [editAgentModalOpen, setEditAgentModalOpen] = useState(false);
@@ -457,6 +460,8 @@ export function ModalProvider({ children }: ModalProviderProps) {
     // New Instance Modal
     newInstanceModalOpen,
     setNewInstanceModalOpen,
+    duplicatingSessionId,
+    setDuplicatingSessionId,
 
     // Edit Agent Modal
     editAgentModalOpen,
@@ -669,7 +674,7 @@ export function ModalProvider({ children }: ModalProviderProps) {
     // Settings Modal
     settingsModalOpen, settingsTab, openSettings, closeSettings,
     // New Instance Modal
-    newInstanceModalOpen,
+    newInstanceModalOpen, duplicatingSessionId,
     // Edit Agent Modal
     editAgentModalOpen, editAgentSession,
     // Shortcuts Help Modal

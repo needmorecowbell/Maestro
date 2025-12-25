@@ -358,9 +358,13 @@ export interface AppSessionModalsProps {
     customPath?: string,
     customArgs?: string,
     customEnvVars?: Record<string, string>,
-    customModel?: string
+    customModel?: string,
+    customContextWindow?: number,
+    customProviderPath?: string,
+    sessionSshRemoteConfig?: { enabled: boolean; remoteId: string | null; workingDirOverride?: string }
   ) => void;
   existingSessions: Session[];
+  sourceSession?: Session; // For agent duplication
 
   // EditAgentModal
   editAgentModalOpen: boolean;
@@ -413,6 +417,7 @@ export function AppSessionModals({
   onCloseNewInstanceModal,
   onCreateSession,
   existingSessions,
+  sourceSession,
   // EditAgentModal
   editAgentModalOpen,
   onCloseEditAgentModal,
@@ -442,6 +447,7 @@ export function AppSessionModals({
         onCreate={onCreateSession}
         theme={theme}
         existingSessions={existingSessions}
+        sourceSession={sourceSession}
       />
 
       {/* --- EDIT AGENT MODAL --- */}
@@ -1674,9 +1680,13 @@ export interface AppModalsProps {
     customPath?: string,
     customArgs?: string,
     customEnvVars?: Record<string, string>,
-    customModel?: string
+    customModel?: string,
+    customContextWindow?: number,
+    customProviderPath?: string,
+    sessionSshRemoteConfig?: { enabled: boolean; remoteId: string | null; workingDirOverride?: string }
   ) => void;
   existingSessions: Session[];
+  duplicatingSessionId?: string | null; // Session ID to duplicate from
   editAgentModalOpen: boolean;
   onCloseEditAgentModal: () => void;
   onSaveEditAgent: (
@@ -1972,6 +1982,7 @@ export function AppModals(props: AppModalsProps) {
     onCloseNewInstanceModal,
     onCreateSession,
     existingSessions,
+    duplicatingSessionId,
     editAgentModalOpen,
     onCloseEditAgentModal,
     onSaveEditAgent,
@@ -2242,6 +2253,7 @@ export function AppModals(props: AppModalsProps) {
         onCloseNewInstanceModal={onCloseNewInstanceModal}
         onCreateSession={onCreateSession}
         existingSessions={existingSessions}
+        sourceSession={duplicatingSessionId ? sessions.find(s => s.id === duplicatingSessionId) : undefined}
         editAgentModalOpen={editAgentModalOpen}
         onCloseEditAgentModal={onCloseEditAgentModal}
         onSaveEditAgent={onSaveEditAgent}

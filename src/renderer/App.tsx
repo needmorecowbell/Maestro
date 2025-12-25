@@ -158,7 +158,7 @@ function MaestroConsoleInner() {
     // Settings Modal
     settingsModalOpen, setSettingsModalOpen, settingsTab, setSettingsTab,
     // New Instance Modal
-    newInstanceModalOpen, setNewInstanceModalOpen,
+    newInstanceModalOpen, setNewInstanceModalOpen, duplicatingSessionId, setDuplicatingSessionId,
     // Edit Agent Modal
     editAgentModalOpen, setEditAgentModalOpen, editAgentSession, setEditAgentSession,
     // Shortcuts Help Modal
@@ -513,7 +513,10 @@ function MaestroConsoleInner() {
   }, []);
 
   // AppSessionModals stable callbacks
-  const handleCloseNewInstanceModal = useCallback(() => setNewInstanceModalOpen(false), []);
+  const handleCloseNewInstanceModal = useCallback(() => {
+    setNewInstanceModalOpen(false);
+    setDuplicatingSessionId(null);
+  }, [setDuplicatingSessionId]);
   const handleCloseEditAgentModal = useCallback(() => {
     setEditAgentModalOpen(false);
     setEditAgentSession(null);
@@ -5525,6 +5528,8 @@ function MaestroConsoleInner() {
     customArgs?: string,
     customEnvVars?: Record<string, string>,
     customModel?: string,
+    customContextWindow?: number,
+    customProviderPath?: string,
     sessionSshRemoteConfig?: { enabled: boolean; remoteId: string | null; workingDirOverride?: string }
   ) => {
     // Get agent definition to get correct command
@@ -5626,6 +5631,8 @@ function MaestroConsoleInner() {
         customArgs,
         customEnvVars,
         customModel,
+        customContextWindow,
+        customProviderPath,
         // Per-session SSH remote config (takes precedence over agent-level SSH config)
         sessionSshRemoteConfig
       };
@@ -8477,6 +8484,7 @@ function MaestroConsoleInner() {
         onCloseNewInstanceModal={handleCloseNewInstanceModal}
         onCreateSession={createNewSession}
         existingSessions={sessionsForValidation}
+        duplicatingSessionId={duplicatingSessionId}
         editAgentModalOpen={editAgentModalOpen}
         onCloseEditAgentModal={handleCloseEditAgentModal}
         onSaveEditAgent={handleSaveEditAgent}
@@ -8923,6 +8931,9 @@ function MaestroConsoleInner() {
             groupChatStates={groupChatStates}
             allGroupChatParticipantStates={allGroupChatParticipantStates}
             sidebarContainerRef={sidebarContainerRef}
+            // Duplicate agent handlers
+            onNewAgentSession={addNewSession}
+            setDuplicatingSessionId={setDuplicatingSessionId}
           />
         </ErrorBoundary>
       )}
