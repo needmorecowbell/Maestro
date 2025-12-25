@@ -713,6 +713,107 @@ describe('InputArea', () => {
       // Should open slash command autocomplete for all agents
       expect(setSlashCommandOpen).toHaveBeenCalledWith(true);
     });
+
+    it('calls handleInputKeyDown when pressing arrow keys in input', () => {
+      const handleInputKeyDown = vi.fn();
+      const props = createDefaultProps({
+        slashCommandOpen: true,
+        inputValue: '/',
+        handleInputKeyDown,
+      });
+      render(<InputArea {...props} />);
+
+      // Slash commands ArrowDown/ArrowUp/Enter/Escape are handled in App.tsx handleInputKeyDown
+      // The InputArea should pass these events to the handler
+      const textarea = screen.getByRole('textbox');
+      fireEvent.keyDown(textarea, { key: 'ArrowDown' });
+      expect(handleInputKeyDown).toHaveBeenCalled();
+    });
+
+    it('shows empty state when no commands match filter', () => {
+      const props = createDefaultProps({
+        slashCommandOpen: true,
+        inputValue: '/xyz123nonexistent',
+        slashCommands: [
+          { command: '/clear', description: 'Clear chat history' },
+          { command: '/help', description: 'Show help', aiOnly: true },
+        ],
+      });
+      render(<InputArea {...props} />);
+
+      // When no commands match, the dropdown should not render any command items
+      expect(screen.queryByText('/clear')).not.toBeInTheDocument();
+      expect(screen.queryByText('/help')).not.toBeInTheDocument();
+    });
+
+    it('single click updates selection without closing dropdown', () => {
+      const setSelectedSlashCommandIndex = vi.fn();
+      const setSlashCommandOpen = vi.fn();
+      const setInputValue = vi.fn();
+      const props = createDefaultProps({
+        slashCommandOpen: true,
+        inputValue: '/',
+        setSelectedSlashCommandIndex,
+        setSlashCommandOpen,
+        setInputValue,
+      });
+      render(<InputArea {...props} />);
+
+      const helpCmd = screen.getByText('/help').closest('.px-4');
+      fireEvent.click(helpCmd!);
+
+      // Single click should update selection
+      expect(setSelectedSlashCommandIndex).toHaveBeenCalledWith(1);
+      // But should NOT close dropdown or fill input
+      expect(setSlashCommandOpen).not.toHaveBeenCalled();
+      expect(setInputValue).not.toHaveBeenCalled();
+    });
+
+    it('renders command description text', () => {
+      const props = createDefaultProps({
+        slashCommandOpen: true,
+        inputValue: '/',
+        slashCommands: [
+          { command: '/test', description: 'Test command description' },
+        ],
+      });
+      render(<InputArea {...props} />);
+
+      expect(screen.getByText('Test command description')).toBeInTheDocument();
+    });
+
+    it('applies correct styling to unselected items', () => {
+      const props = createDefaultProps({
+        slashCommandOpen: true,
+        inputValue: '/',
+        selectedSlashCommandIndex: 0, // First item selected
+      });
+      render(<InputArea {...props} />);
+
+      // The second item (/help) should NOT have accent background since index 0 is selected
+      const helpCmd = screen.getByText('/help').closest('.px-4');
+      // Unselected items don't have the accent color background
+      expect(helpCmd).not.toHaveStyle({ backgroundColor: mockTheme.colors.accent });
+      // First item (selected) should have accent background
+      const clearCmd = screen.getByText('/clear').closest('.px-4');
+      expect(clearCmd).toHaveStyle({ backgroundColor: mockTheme.colors.accent });
+    });
+
+    it('scrolls selected item into view via refs', () => {
+      // This test verifies the ref array for scroll-into-view is populated
+      const props = createDefaultProps({
+        slashCommandOpen: true,
+        inputValue: '/',
+        selectedSlashCommandIndex: 0,
+      });
+      render(<InputArea {...props} />);
+
+      // Items should be rendered (refs should be attached)
+      expect(screen.getByText('/clear')).toBeInTheDocument();
+      expect(screen.getByText('/help')).toBeInTheDocument();
+      // The scrollIntoView mock should have been called for selected item
+      expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
+    });
   });
 
   describe('Command History Modal', () => {
