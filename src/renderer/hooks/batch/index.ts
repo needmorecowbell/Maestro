@@ -43,3 +43,15 @@ export type {
   CreatePROptions,
   UseWorktreeManagerReturn,
 } from './useWorktreeManager';
+
+// Batch processing state machine
+export { transition, canTransition, getValidEvents, DEFAULT_MACHINE_CONTEXT } from './batchStateMachine';
+export type {
+  BatchProcessingState,
+  BatchMachineContext,
+  BatchEvent,
+  InitializePayload,
+  TaskCompletedPayload,
+  ErrorOccurredPayload,
+  LoopCompletedPayload,
+} from './batchStateMachine';
