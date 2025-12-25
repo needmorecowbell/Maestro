@@ -164,10 +164,17 @@ export interface BatchRunConfig {
   worktree?: WorktreeConfig;     // Optional worktree configuration
 }
 
+// Import BatchProcessingState for state machine integration
+import type { BatchProcessingState } from '../hooks/batch/batchStateMachine';
+
 // Batch processing state
 export interface BatchRunState {
   isRunning: boolean;
   isStopping: boolean; // Waiting for current task to finish before stopping
+
+  // State machine integration (Phase 11)
+  // Tracks explicit processing state for invariant checking and debugging
+  processingState?: BatchProcessingState;
 
   // Document-level progress (multi-document support)
   documents: string[];           // Ordered list of document filenames to process

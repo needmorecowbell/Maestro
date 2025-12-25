@@ -528,6 +528,9 @@ export function useBatchProcessor({
     // Store custom prompt for persistence
     setCustomPrompts(prev => ({ ...prev, [sessionId]: prompt }));
 
+    // State machine: INITIALIZING -> RUNNING (initialization complete)
+    dispatch({ type: 'SET_RUNNING', sessionId });
+
     // Collect Claude session IDs and track completion
     const agentSessionIds: string[] = [];
     let totalCompletedTasks = 0;
