@@ -101,22 +101,22 @@ npm run dev
 *Main screen with multiple agents and conversation*
 
 <p align="center">
+  <img src="docs/screenshots/group-chat.png" alt="Group Chat" width="800">
+</p>
+
+*Group Chat coordinates multiple AI agents in a single conversation*
+
+<p align="center">
   <img src="docs/screenshots/cmd-k-1.png" alt="Command Palette" width="800">
 </p>
 
-*Quick Actions palette for rapid navigation*
+*Quick Actions palette for rapid navigation (CTRL/CMD + K)*
 
 <p align="center">
   <img src="docs/screenshots/git-diff.png" alt="Git Diff Viewer" width="800">
 </p>
 
-*Side-by-side diff viewer with syntax highlighting*
-
-<p align="center">
-  <img src="docs/screenshots/themes.png" alt="Themes" width="800">
-</p>
-
-*12 beautiful themes to match your style*
+*Git diff viewer with syntax highlighting*
 
 [See more...](docs/screenshots/)
 

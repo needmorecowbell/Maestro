@@ -131,13 +131,168 @@ Images can be attached via drag-and-drop, paste, or the attachment button. The c
 
 ## Output Filtering
 
-Search and filter AI output with include/exclude modes, regex support, and per-response local filters.
+Filter and search through AI output to find specific content or hide noise.
+
+### Global Filter
+
+The global filter applies to all AI output in the current session.
+
+**To open the global filter:**
+- Click the filter icon in the output toolbar
+- The filter bar appears at the top of the output area
+
+### Per-Response Filters
+
+Each AI response has its own local filter. Hover over a response to reveal the filter icon, then click to open the filter bar for that specific response.
+
+### Filter Modes
+
+| Mode | Icon | Description |
+|------|------|-------------|
+| **Include** | ➕ (green) | Show only lines matching the query |
+| **Exclude** | ➖ (red) | Hide lines matching the query |
+
+Click the mode icon to toggle between Include and Exclude.
+
+### Text vs Regex Matching
+
+| Mode | Indicator | Description |
+|------|-----------|-------------|
+| **Plain text** | `Aa` | Case-insensitive substring matching |
+| **Regex** | `.*` | Regular expression pattern matching |
+
+Click the indicator to toggle between plain text and regex mode.
+
+### Filter Controls
+
+- **Query input** — Type your search term or regex pattern
+- **Esc** — Clear the filter and close the filter bar
+- **Click outside** — If the query is empty, the filter bar closes
+
+### Placeholders
+
+The placeholder text updates to reflect the current mode:
+- "Include by keyword" / "Exclude by keyword" for plain text
+- "Include by RegEx" / "Exclude by RegEx" for regex mode
+
+### Use Cases
+
+**Finding specific content:**
+- Set to **Include** mode with plain text
+- Type a keyword like "error" or "function"
+- Only matching lines are shown
+
+**Hiding verbose output:**
+- Set to **Exclude** mode with plain text
+- Type patterns like "debug" or "verbose"
+- Matching lines are hidden from view
+
+**Complex pattern matching:**
+- Enable **Regex** mode
+- Use patterns like `\berror\b` for word boundaries
+- Or `^\s*#` to match comment lines
 
 ## Command Interpreter
 
 The command interpreter can be focused for a clean, terminal-only experience when you collapse the left panel.
 
 ![Command interpreter](./screenshots/command-interpreter.png)
+
+## Agent Management
+
+Agents are the core of Maestro — each agent represents an AI coding assistant running in its own workspace.
+
+### Creating Agents
+
+**To create a new agent:**
+1. Press `Cmd+N` / `Ctrl+N`, or click the **+** button in the left panel
+2. Select an available AI provider (Claude Code, Codex, or OpenCode)
+3. Choose a working directory for the agent
+4. Optionally name the agent and configure advanced options
+
+**Advanced configuration options:**
+- **Nudge Message** — An initial prompt sent when the agent starts
+- **Custom Path** — Override the default executable path
+- **Custom Arguments** — Additional command-line arguments
+- **Environment Variables** — Custom environment variables for the agent process
+- **Model Selection** — Choose a specific model (if the provider supports it)
+
+### Editing Agents
+
+Right-click any agent in the left panel and select **Edit Agent...** to modify its configuration. You can change the name, nudge message, custom paths, arguments, environment variables, and model.
+
+### Deleting Agents
+
+Right-click an agent and select **Remove Agent** to delete it. This removes the agent from Maestro but does not delete any files or AI session data.
+
+### Agent Configuration via Quick Actions
+
+Use `Cmd+K` / `Ctrl+K` → "Edit Agent" to quickly access agent configuration for the current session.
+
+## Left Panel Operations
+
+The left panel (sidebar) contains your agent list, groups, and navigation controls.
+
+### Filtering and Search
+
+Press `Cmd+F` / `Ctrl+F` while the sidebar is focused to open the session filter. The filter:
+- Searches agent names and AI tab names
+- Automatically expands groups containing matches
+- Shows matching bookmarked agents
+- Searches worktree branch names
+
+### Bookmarks
+
+Pin important agents to the top of the list:
+- Right-click an agent → **Add Bookmark**
+- Or use the context menu to toggle bookmark status
+
+Bookmarked agents appear in a collapsible "Bookmarks" section at the top of the left panel.
+
+### Groups
+
+Organize agents into groups for better project management:
+
+**Creating groups:**
+- `Cmd+K` / `Ctrl+K` → "Create Group"
+- Groups have a name and emoji for visual identification
+
+**Moving agents to groups:**
+- Right-click an agent → **Move to Group** → Select target group
+- Or drag-and-drop agents between groups
+
+**Collapsing/Expanding:**
+- Click the group header to collapse or expand
+- Groups remember their collapsed state
+
+### Drag and Drop
+
+Rearrange agents by dragging them:
+- Drag agents between groups
+- Drag to reorder within a group
+- Drag to the "Ungrouped" section to remove from a group
+
+### Context Menu
+
+Right-click any agent for quick actions:
+- **Rename** — Change the agent's display name
+- **Edit Agent...** — Open configuration modal
+- **Add/Remove Bookmark** — Toggle bookmark status
+- **Move to Group** — Organize into groups
+- **Create Worktree** — Create a git worktree sub-agent (if configured)
+- **Configure Worktrees** — Set up worktree configuration
+- **Remove Agent** — Delete the agent from Maestro
+
+### Sidebar Width
+
+Drag the right edge of the sidebar to resize it. The width is persisted across sessions.
+
+### Collapsed Mode
+
+Click the sidebar toggle (`Cmd+B` / `Ctrl+B`) to collapse the sidebar to icon-only mode. In collapsed mode:
+- Agents show as icons with status indicators
+- Hover for agent name tooltip
+- Click to select an agent
 
 ## Session Management
 

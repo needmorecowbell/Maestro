@@ -32,6 +32,53 @@ When an update is available, you'll see:
 - **Download** button to get the latest release from GitHub
 - Option to enable/disable automatic update checks
 
+## Notifications & Sound
+
+Configure audio and visual notifications in **Settings** (`Cmd+,` / `Ctrl+,`) → **Notifications** tab.
+
+### OS Notifications
+
+Enable desktop notifications to be alerted when:
+- An AI task completes
+- A long-running command finishes
+- The agent requires attention
+
+**To enable:**
+1. Toggle **Enable OS Notifications** on
+2. Click **Test Notification** to verify it works
+
+### Audio Feedback (Text-to-Speech)
+
+Maestro can speak a brief summary when AI tasks complete using your system's text-to-speech.
+
+**To configure:**
+1. Toggle **Enable Audio Feedback** on
+2. Set the **TTS Command** — the command that accepts text via stdin:
+   - **macOS:** `say` (built-in)
+   - **Linux:** `espeak` or `festival --tts`
+   - **Windows:** Use a PowerShell script or third-party TTS tool
+3. Click **Test** to hear a sample message
+4. Click **Stop** to interrupt a running test
+
+**Piped commands:** You can pipe through multiple commands, e.g., `cmd1 | cmd2`.
+
+### Toast Notifications
+
+In-app toast notifications appear in the corner when events occur. Configure how long they stay visible:
+
+| Duration | Behavior |
+|----------|----------|
+| **Off** | Toasts are disabled entirely |
+| **5s / 10s / 20s / 30s** | Toast disappears after the specified time |
+| **Never** | Toast stays until manually dismissed |
+
+### When Notifications Trigger
+
+Notifications are sent when:
+- An AI task completes (OS notification + optional TTS)
+- A long-running command finishes (OS notification)
+- The LLM analysis generates a feedback synopsis (TTS only, if configured)
+
 ## Storage Location
 
 Settings are stored in:

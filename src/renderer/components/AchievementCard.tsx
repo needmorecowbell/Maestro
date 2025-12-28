@@ -13,6 +13,7 @@ import {
 } from '../constants/conductorBadges';
 import { MaestroSilhouette } from './MaestroSilhouette';
 import { formatTokensCompact } from '../utils/formatters';
+import maestroWandIcon from '../assets/icon-wand.png';
 
 /**
  * Circular progress ring with 11 segments that fill as badges are unlocked
@@ -447,6 +448,14 @@ export function AchievementCard({ theme, autoRunStats, globalStats, usageStats, 
     // Load GitHub logo for social icons
     const githubLogoImage = await loadImage('https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png');
 
+    // Load Maestro wand icon (local asset, doesn't need IPC fetch)
+    const wandIconImage = await new Promise<HTMLImageElement | null>((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+      img.src = maestroWandIcon;
+    });
+
     // Background gradient matching app icon (radial gradient from center)
     const bgGradient = ctx.createRadialGradient(
       width / 2, height / 2, 0,
@@ -506,53 +515,22 @@ export function AchievementCard({ theme, autoRunStats, globalStats, usageStats, 
       const badgeX = iconX + iconRadius - 6;
       const badgeY = iconY + iconRadius - 6;
 
-      // Draw badge background - purple/accent gradient
-      ctx.beginPath();
-      ctx.arc(badgeX, badgeY, badgeRadius, 0, Math.PI * 2);
-      const wandBadgeGradient = ctx.createRadialGradient(badgeX - 4, badgeY - 4, 0, badgeX, badgeY, badgeRadius);
-      wandBadgeGradient.addColorStop(0, '#C4B5FD');  // Light purple center
-      wandBadgeGradient.addColorStop(0.5, '#A78BFA');  // Medium purple
-      wandBadgeGradient.addColorStop(1, '#8B5CF6');  // Accent purple edge
-      ctx.fillStyle = wandBadgeGradient;
-      ctx.fill();
-      ctx.strokeStyle = '#DDD6FE';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-
-      // Draw Maestro wand shape
-      const ws = badgeRadius * 0.5;  // wand scale
-      ctx.strokeStyle = '#FFFFFF';
-      ctx.lineWidth = 2.5;
-      ctx.lineCap = 'round';
-      // Wand stick (diagonal line)
-      ctx.beginPath();
-      ctx.moveTo(badgeX + ws * 0.5, badgeY + ws * 0.5);
-      ctx.lineTo(badgeX - ws * 0.4, badgeY - ws * 0.4);
-      ctx.stroke();
-      // Sparkle at tip (star shape)
-      const starX = badgeX - ws * 0.5;
-      const starY = badgeY - ws * 0.5;
-      const starSize = ws * 0.4;
-      ctx.lineWidth = 1.5;
-      // Vertical line
-      ctx.beginPath();
-      ctx.moveTo(starX, starY - starSize);
-      ctx.lineTo(starX, starY + starSize);
-      ctx.stroke();
-      // Horizontal line
-      ctx.beginPath();
-      ctx.moveTo(starX - starSize, starY);
-      ctx.lineTo(starX + starSize, starY);
-      ctx.stroke();
-      // Diagonal lines (smaller)
-      ctx.beginPath();
-      ctx.moveTo(starX - starSize * 0.7, starY - starSize * 0.7);
-      ctx.lineTo(starX + starSize * 0.7, starY + starSize * 0.7);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(starX + starSize * 0.7, starY - starSize * 0.7);
-      ctx.lineTo(starX - starSize * 0.7, starY + starSize * 0.7);
-      ctx.stroke();
+      // Draw the actual Maestro wand icon in a circular clip
+      if (wandIconImage) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(badgeX, badgeY, badgeRadius, 0, Math.PI * 2);
+        ctx.closePath();
+        ctx.clip();
+        ctx.drawImage(wandIconImage, badgeX - badgeRadius, badgeY - badgeRadius, badgeRadius * 2, badgeRadius * 2);
+        ctx.restore();
+        // Add a subtle border
+        ctx.beginPath();
+        ctx.arc(badgeX, badgeY, badgeRadius, 0, Math.PI * 2);
+        ctx.strokeStyle = '#DDD6FE';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
     } else {
       // Default trophy icon with purple gradient background
       ctx.beginPath();
