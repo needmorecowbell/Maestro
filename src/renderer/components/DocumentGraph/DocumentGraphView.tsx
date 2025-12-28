@@ -8,6 +8,10 @@
  * - Background pattern (dots) with theme colors
  * - Loading and empty states
  * - Theme-aware styling throughout
+ *
+ * Performance optimizations:
+ * - Viewport culling: only renders nodes and edges visible in the viewport
+ *   (enabled via onlyRenderVisibleElements prop) to reduce DOM elements
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -673,6 +677,9 @@ function DocumentGraphViewInner({
                 type: 'smoothstep',
               }}
               proOptions={{ hideAttribution: true }}
+              // Performance optimization: only render nodes and edges visible in the viewport
+              // This reduces DOM elements and improves performance for large graphs
+              onlyRenderVisibleElements={true}
             >
               {/* Background Pattern */}
               <Background
