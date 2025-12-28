@@ -723,6 +723,28 @@ describe('system IPC handlers', () => {
 
       expect(logger.autorun).toHaveBeenCalledWith('Autorun message', 'TestContext', undefined);
     });
+
+    it('should log autorun message with full Auto Run workflow data', async () => {
+      const autorunData = {
+        documents: ['phase-1.md', 'phase-2.md'],
+        totalTasks: 10,
+        loopEnabled: true,
+        maxLoops: 3
+      };
+
+      const handler = handlers.get('logger:log');
+      await handler!({} as any, 'autorun', 'Auto Run started', 'MySession', autorunData);
+
+      expect(logger.autorun).toHaveBeenCalledWith('Auto Run started', 'MySession', autorunData);
+    });
+
+    it('should handle unknown log level gracefully via default case', async () => {
+      const handler = handlers.get('logger:log');
+      await handler!({} as any, 'unknown-level', 'Unknown level message', 'TestContext');
+
+      // Unknown levels fall through to default case which logs as info
+      expect(logger.info).toHaveBeenCalledWith('[unknown-level] Unknown level message', 'TestContext', undefined);
+    });
   });
 
   describe('logger:getLogs', () => {

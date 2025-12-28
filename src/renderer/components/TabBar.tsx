@@ -153,7 +153,7 @@ function Tab({
   const [isHovered, setIsHovered] = useState(false);
   const [overlayOpen, setOverlayOpen] = useState(false);
   const [showCopied, setShowCopied] = useState(false);
-  const [overlayPosition, setOverlayPosition] = useState<{ top: number; left: number } | null>(null);
+  const [overlayPosition, setOverlayPosition] = useState<{ top: number; left: number; tabWidth?: number } | null>(null);
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tabRef = useRef<HTMLDivElement>(null);
 
@@ -172,10 +172,12 @@ function Tab({
 
     // Open overlay after delay
     hoverTimeoutRef.current = setTimeout(() => {
-      // Calculate position for fixed overlay
+      // Calculate position for fixed overlay - connect directly to tab bottom
       if (tabRef.current) {
         const rect = tabRef.current.getBoundingClientRect();
-        setOverlayPosition({ top: rect.bottom + 4, left: rect.left });
+        // Position overlay directly at tab bottom (no gap) for connected appearance
+        // Store tab width for connector sizing
+        setOverlayPosition({ top: rect.bottom, left: rect.left, tabWidth: rect.width });
       }
       setOverlayOpen(true);
     }, 400);
@@ -406,11 +408,8 @@ function Tab({
       {/* Hover overlay with session info and actions - rendered via portal to escape stacking context */}
       {overlayOpen && overlayPosition && createPortal(
         <div
-          className="fixed z-[100] rounded-lg shadow-xl border overflow-hidden"
+          className="fixed z-[100]"
           style={{
-            backgroundColor: theme.colors.bgSidebar,
-            borderColor: theme.colors.border,
-            minWidth: '220px',
             top: overlayPosition.top,
             left: overlayPosition.left
           }}
@@ -430,6 +429,26 @@ function Tab({
             setIsHovered(false);
           }}
         >
+          {/* Connector tab that visually bridges the gap between tab and overlay */}
+          <div
+            style={{
+              width: overlayPosition.tabWidth || 100,
+              height: '6px',
+              backgroundColor: theme.colors.bgSidebar,
+              borderLeft: `1px solid ${theme.colors.border}`,
+              borderRight: `1px solid ${theme.colors.border}`,
+              marginBottom: '-1px' // Overlap with main overlay to hide seam
+            }}
+          />
+          {/* Main overlay content */}
+          <div
+            className="rounded-b-lg rounded-tr-lg shadow-xl border overflow-hidden"
+            style={{
+              backgroundColor: theme.colors.bgSidebar,
+              borderColor: theme.colors.border,
+              minWidth: '220px'
+            }}
+          >
           {/* Header with session name and ID - only show for tabs with sessions */}
           {tab.agentSessionId && (
             <div
@@ -622,6 +641,7 @@ function Tab({
                 Close Tabs to the Right
               </button>
             )}
+          </div>
           </div>
         </div>,
         document.body

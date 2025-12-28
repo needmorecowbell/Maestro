@@ -17,36 +17,40 @@
 import React from 'react';
 
 if (process.env.NODE_ENV === 'development') {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const whyDidYouRender = require('@welldone-software/why-did-you-render');
+  // Use dynamic import for ESM compatibility with Vite
+  import('@welldone-software/why-did-you-render').then((whyDidYouRenderModule) => {
+    const whyDidYouRender = whyDidYouRenderModule.default;
 
-  whyDidYouRender(React, {
-    // Track all pure components (React.memo, PureComponent)
-    // Set to true to see ALL unnecessary re-renders
-    trackAllPureComponents: true,
+    whyDidYouRender(React, {
+      // Track all pure components (React.memo, PureComponent)
+      // Set to true to see ALL unnecessary re-renders
+      trackAllPureComponents: true,
 
-    // Track React hooks like useMemo, useCallback
-    trackHooks: true,
+      // Track React hooks like useMemo, useCallback
+      trackHooks: true,
 
-    // Log to console (can also use custom notifier)
-    logOnDifferentValues: true,
+      // Log to console (can also use custom notifier)
+      logOnDifferentValues: true,
 
-    // Collapse logs by default (expand to see details)
-    collapseGroups: true,
+      // Collapse logs by default (expand to see details)
+      collapseGroups: true,
 
-    // Include component stack traces
-    include: [
-      // Add specific components to always track, e.g.:
-      // /^RightPanel/,
-      // /^AutoRun/,
-      // /^FilePreview/,
-    ],
+      // Include component stack traces
+      include: [
+        // Add specific components to always track, e.g.:
+        // /^RightPanel/,
+        // /^AutoRun/,
+        // /^FilePreview/,
+      ],
 
-    // Exclude noisy components you don't care about
-    exclude: [
-      /^BrowserRouter/,
-      /^Link/,
-      /^Route/,
-    ],
+      // Exclude noisy components you don't care about
+      exclude: [
+        /^BrowserRouter/,
+        /^Link/,
+        /^Route/,
+      ],
+    });
+  }).catch((err) => {
+    console.warn('[wdyr] Failed to load why-did-you-render:', err);
   });
 }

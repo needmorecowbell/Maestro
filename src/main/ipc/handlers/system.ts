@@ -249,6 +249,10 @@ export function registerSystemHandlers(deps: SystemHandlerDependencies): void {
       case 'autorun':
         logger.autorun(message, context, data);
         break;
+      default:
+        // Log unknown levels as info to prevent silent failures
+        logger.info(`[${level}] ${message}`, context, data);
+        break;
     }
   });
 
