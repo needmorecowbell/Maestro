@@ -378,19 +378,17 @@ export const MainPanel = React.memo(forwardRef<MainPanelHandle, MainPanelProps>(
   }, []);
 
   // Responsive breakpoints for hiding/simplifying widgets (progressive reduction as space shrinks)
-  // At widest: full display with "CONTEXT WINDOW" label and wide gauge
-  // Below 800px: "CONTEXT" label, gauge stays full width
+  // At widest: full display with "CONTEXT WINDOW" label and wide gauge (w-24)
+  // Below 800px: "CONTEXT" label + narrow gauge (w-16) together
   // Below 700px: compact git widget (file count only)
-  // Below 650px: narrow context gauge (w-16 instead of w-24)
   // Below 600px: git branch shows icon only (no text)
   // Below 550px: hide UUID pill
   // Below 500px: hide cost widget
   const showCostWidget = panelWidth > 500;
   const showUuidPill = panelWidth > 550;
   const useIconOnlyGitBranch = panelWidth < 600;
-  const useNarrowContextGauge = panelWidth < 650;
   const useCompactGitWidget = panelWidth < 700;
-  const useCompactContextLabel = panelWidth < 800;
+  const useCompactContext = panelWidth < 800; // Both label and gauge shrink together
 
   // Git status from centralized context (replaces local polling)
   // The context handles polling for all sessions and provides detailed data for the active session
@@ -723,9 +721,10 @@ export const MainPanel = React.memo(forwardRef<MainPanelHandle, MainPanelProps>(
                   <Wand2 className="w-4 h-4" />
                 )}
                 <span className="uppercase tracking-wider">
-                  {isCurrentSessionStopping ? 'Stopping...' : 'Auto'}
+                  {isCurrentSessionStopping ? 'Stopping' : 'Auto'}
                 </span>
-                {currentSessionBatchState && (
+                {/* Hide progress count when stopping - spinner is sufficient */}
+                {currentSessionBatchState && !isCurrentSessionStopping && (
                   <span className="text-[10px] opacity-80">
                     {currentSessionBatchState.completedTasks}/{currentSessionBatchState.totalTasks}
                   </span>
@@ -768,9 +767,9 @@ export const MainPanel = React.memo(forwardRef<MainPanelHandle, MainPanelProps>(
                 className="flex flex-col items-end mr-2 relative cursor-pointer"
                 {...contextTooltip.triggerHandlers}
               >
-                <span className="text-[10px] font-bold uppercase" style={{ color: theme.colors.textDim }}>{useCompactContextLabel ? 'Context' : 'Context Window'}</span>
-                {/* Gauge width: w-24 (96px) normally, w-16 (64px) when narrow */}
-                <div className={`${useNarrowContextGauge ? 'w-16' : 'w-24'} h-1.5 rounded-full mt-1 overflow-hidden`} style={{ backgroundColor: theme.colors.border }}>
+                <span className="text-[10px] font-bold uppercase" style={{ color: theme.colors.textDim }}>{useCompactContext ? 'Context' : 'Context Window'}</span>
+                {/* Gauge width: w-24 (96px) normally, w-16 (64px) when compact - both change together */}
+                <div className={`${useCompactContext ? 'w-16' : 'w-24'} h-1.5 rounded-full mt-1 overflow-hidden`} style={{ backgroundColor: theme.colors.border }}>
                   <div
                     className="h-full transition-all duration-500 ease-out"
                     style={{

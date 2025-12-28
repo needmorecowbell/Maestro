@@ -28,5 +28,7 @@ export default defineConfig(({ mode }) => ({
   server: {
     port: 5173,
     hmr: !disableHmr,
+    // Disable file watching entirely when HMR is disabled to prevent any reloads
+    watch: disableHmr ? null : undefined,
   },
 }));

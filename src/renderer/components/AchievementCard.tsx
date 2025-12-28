@@ -444,6 +444,9 @@ export function AchievementCard({ theme, autoRunStats, globalStats, usageStats, 
       avatarImage = await loadImage(`https://github.com/${githubUsername}.png?size=200`);
     }
 
+    // Load GitHub logo for social icons
+    const githubLogoImage = await loadImage('https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png');
+
     // Background gradient matching app icon (radial gradient from center)
     const bgGradient = ctx.createRadialGradient(
       width / 2, height / 2, 0,
@@ -498,42 +501,68 @@ export function AchievementCard({ theme, autoRunStats, globalStats, usageStats, 
       ctx.lineWidth = 3;
       ctx.stroke();
 
-      // Add a larger trophy badge in the bottom-right corner - BRIGHT and vibrant
+      // Add a larger trophy badge in the bottom-right corner - MAXIMUM BRIGHTNESS
       const badgeRadius = 18;
       const badgeX = iconX + iconRadius - 6;
       const badgeY = iconY + iconRadius - 6;
 
-      // Draw badge background - pure bright gold, no dimming
+      // Draw badge background - bright gold circle
       ctx.beginPath();
       ctx.arc(badgeX, badgeY, badgeRadius, 0, Math.PI * 2);
-      ctx.fillStyle = '#FFD700';  // Solid bright gold - no gradient that might dim it
+      const trophyBadgeGradient = ctx.createRadialGradient(badgeX - 4, badgeY - 4, 0, badgeX, badgeY, badgeRadius);
+      trophyBadgeGradient.addColorStop(0, '#FFFF99');
+      trophyBadgeGradient.addColorStop(0.4, '#FFE135');
+      trophyBadgeGradient.addColorStop(1, '#FFD700');
+      ctx.fillStyle = trophyBadgeGradient;
       ctx.fill();
-      // Bright gold border
-      ctx.strokeStyle = '#FFE55C';  // Even brighter gold border
+      ctx.strokeStyle = '#FFFF66';
       ctx.lineWidth = 2;
       ctx.stroke();
-      // Trophy emoji - larger and centered
-      ctx.font = '20px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('🏆', badgeX, badgeY + 1);
+
+      // Draw trophy shape manually with BRIGHT GOLD (not emoji)
+      const ts = badgeRadius * 0.55;  // trophy scale
+      ctx.fillStyle = '#1a1a2e';  // Dark color for contrast on gold background
+      ctx.beginPath();
+      // Cup body
+      ctx.moveTo(badgeX - ts * 0.6, badgeY - ts * 0.5);
+      ctx.quadraticCurveTo(badgeX - ts * 0.7, badgeY + ts * 0.1, badgeX - ts * 0.3, badgeY + ts * 0.4);
+      ctx.lineTo(badgeX + ts * 0.3, badgeY + ts * 0.4);
+      ctx.quadraticCurveTo(badgeX + ts * 0.7, badgeY + ts * 0.1, badgeX + ts * 0.6, badgeY - ts * 0.5);
+      ctx.closePath();
+      ctx.fill();
+      // Stem
+      ctx.fillRect(badgeX - ts * 0.12, badgeY + ts * 0.4, ts * 0.24, ts * 0.3);
+      // Base
+      ctx.fillRect(badgeX - ts * 0.35, badgeY + ts * 0.65, ts * 0.7, ts * 0.15);
     } else {
-      // Default trophy icon - BRIGHT gold circle, no overlay effects
+      // Default trophy icon - MAXIMUM BRIGHTNESS gold circle
       ctx.beginPath();
       ctx.arc(iconX, iconY, iconRadius, 0, Math.PI * 2);
-      // Pure bright gold - solid color instead of gradient to avoid dimming
-      ctx.fillStyle = '#FFD700';
+      const defaultTrophyGradient = ctx.createRadialGradient(iconX - 10, iconY - 10, 0, iconX, iconY, iconRadius);
+      defaultTrophyGradient.addColorStop(0, '#FFFF99');
+      defaultTrophyGradient.addColorStop(0.4, '#FFE135');
+      defaultTrophyGradient.addColorStop(1, '#FFD700');
+      ctx.fillStyle = defaultTrophyGradient;
       ctx.fill();
-      // Bright border for extra pop
-      ctx.strokeStyle = '#FFE55C';
+      ctx.strokeStyle = '#FFFF66';
       ctx.lineWidth = 3;
       ctx.stroke();
 
-      // Trophy emoji - larger
-      ctx.font = '38px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('🏆', iconX, iconY + 2);
+      // Draw trophy shape manually with dark color for contrast (not emoji)
+      const ts = iconRadius * 0.55;
+      ctx.fillStyle = '#1a1a2e';
+      ctx.beginPath();
+      // Cup body
+      ctx.moveTo(iconX - ts * 0.6, iconY - ts * 0.5);
+      ctx.quadraticCurveTo(iconX - ts * 0.7, iconY + ts * 0.1, iconX - ts * 0.3, iconY + ts * 0.4);
+      ctx.lineTo(iconX + ts * 0.3, iconY + ts * 0.4);
+      ctx.quadraticCurveTo(iconX + ts * 0.7, iconY + ts * 0.1, iconX + ts * 0.6, iconY - ts * 0.5);
+      ctx.closePath();
+      ctx.fill();
+      // Stem
+      ctx.fillRect(iconX - ts * 0.12, iconY + ts * 0.4, ts * 0.24, ts * 0.3);
+      // Base
+      ctx.fillRect(iconX - ts * 0.35, iconY + ts * 0.65, ts * 0.7, ts * 0.15);
     }
 
     // Title - show display name if personalized, otherwise generic title
@@ -543,7 +572,7 @@ export function AchievementCard({ theme, autoRunStats, globalStats, usageStats, 
     ctx.fillStyle = '#F472B6';
     ctx.textAlign = 'center';
     if (hasPersonalization && displayName) {
-      ctx.fillText(`${displayName.toUpperCase()}'S ACHIEVEMENTS`, width / 2, titleY);
+      ctx.fillText(displayName.toUpperCase(), width / 2, titleY);
     } else {
       ctx.fillText('MAESTRO ACHIEVEMENTS', width / 2, titleY);
     }
@@ -716,33 +745,28 @@ export function AchievementCard({ theme, autoRunStats, globalStats, usageStats, 
         const halfSize = size / 2;
 
         if (icon === 'github') {
-          // GitHub mark - the invertocat/octocat logo silhouette
-          // Draw white circle background
-          ctx.fillStyle = '#FFFFFF';
-          ctx.beginPath();
-          ctx.arc(x, y, halfSize, 0, Math.PI * 2);
-          ctx.fill();
-          // Draw the GitHub cat face shape in dark color
-          ctx.fillStyle = '#1a1a2e';
-          const s = halfSize * 0.85;  // Scale factor
-          ctx.beginPath();
-          // Start from top center, draw the cat head shape
-          ctx.moveTo(x, y - s * 0.75);  // Top center
-          // Left ear
-          ctx.lineTo(x - s * 0.4, y - s * 0.9);
-          ctx.lineTo(x - s * 0.55, y - s * 0.55);
-          // Left side of face
-          ctx.quadraticCurveTo(x - s * 0.95, y - s * 0.2, x - s * 0.75, y + s * 0.4);
-          // Bottom left
-          ctx.quadraticCurveTo(x - s * 0.5, y + s * 0.85, x, y + s * 0.75);
-          // Bottom right (mirror)
-          ctx.quadraticCurveTo(x + s * 0.5, y + s * 0.85, x + s * 0.75, y + s * 0.4);
-          // Right side of face
-          ctx.quadraticCurveTo(x + s * 0.95, y - s * 0.2, x + s * 0.55, y - s * 0.55);
-          // Right ear
-          ctx.lineTo(x + s * 0.4, y - s * 0.9);
-          ctx.closePath();
-          ctx.fill();
+          // Use the real GitHub logo if loaded, otherwise draw a circle with "GH"
+          if (githubLogoImage) {
+            // Draw the GitHub logo image in a circular clip
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(x, y, halfSize, 0, Math.PI * 2);
+            ctx.closePath();
+            ctx.clip();
+            ctx.drawImage(githubLogoImage, x - halfSize, y - halfSize, size, size);
+            ctx.restore();
+          } else {
+            // Fallback: white circle with "GH" text
+            ctx.fillStyle = '#FFFFFF';
+            ctx.beginPath();
+            ctx.arc(x, y, halfSize, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#1a1a2e';
+            ctx.font = `bold ${size * 0.45}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('GH', x, y + 1);
+          }
         } else if (icon === 'twitter') {
           // X/Twitter - simple X shape
           ctx.strokeStyle = '#FFFFFF';
@@ -826,17 +850,12 @@ export function AchievementCard({ theme, autoRunStats, globalStats, usageStats, 
       });
     }
 
-    // Footer with branding - positioned at bottom
-    const footerY = height - 28;
-    ctx.font = '600 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-    ctx.textAlign = 'center';
-    ctx.fillText('MAESTRO • Agent Orchestration Command Center', width / 2, footerY);
-
-    // Website link
-    ctx.font = '400 10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    // Footer with branding - single line at bottom
+    const footerY = height - 20;
+    ctx.font = '500 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
     ctx.fillStyle = 'rgba(139, 92, 246, 0.8)';
-    ctx.fillText('RunMaestro.ai', width / 2, footerY + 14);
+    ctx.textAlign = 'center';
+    ctx.fillText('RunMaestro.ai • Agent Orchestration Command Center', width / 2, footerY);
 
     return canvas;
   }, [currentBadge, autoRunStats.cumulativeTimeMs, autoRunStats.longestRunMs, globalStats, usageStats, handsOnTimeMs, wrapText, leaderboardRegistration, loadImage]);

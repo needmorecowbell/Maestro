@@ -363,7 +363,9 @@ export function useDocumentProcessor(): UseDocumentProcessorReturn {
 
           if (cleanFirstParagraph && cleanFirstParagraph.length > 10) {
             // Use first sentence or first 150 chars as short summary
-            const firstSentenceMatch = cleanFirstParagraph.match(/^[^.!?]+[.!?]/);
+            // Match sentence-ending punctuation followed by space+capital, newline, or end of string
+            // This avoids splitting on periods in file extensions like "file.tsx"
+            const firstSentenceMatch = cleanFirstParagraph.match(/^.+?[.!?](?=\s+[A-Z]|\s*\n|\s*$)/);
             shortSummary = firstSentenceMatch
               ? firstSentenceMatch[0].trim()
               : cleanFirstParagraph.substring(0, 150) + (cleanFirstParagraph.length > 150 ? '...' : '');

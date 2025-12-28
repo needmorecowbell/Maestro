@@ -328,8 +328,8 @@ export function LogViewer({ theme, onClose, logLevel = 'info', savedSelectedLeve
     >
       {/* Header */}
       <div
-        className="px-4 py-3 border-b flex items-center justify-between sticky top-0 z-10"
-        style={{ backgroundColor: theme.colors.bgMain, borderColor: theme.colors.border }}
+        className="px-4 border-b flex items-center justify-between sticky top-0 z-10 h-16 shrink-0"
+        style={{ backgroundColor: theme.colors.bgSidebar, borderColor: theme.colors.border }}
       >
         <div className="flex items-center gap-3">
           <h2 className="text-lg font-bold" style={{ color: theme.colors.textMain }}>

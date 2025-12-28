@@ -6,9 +6,8 @@ icon: palette
 
 Maestro ships with 12 carefully crafted themes. Screenshots below show each theme in action.
 
-For detailed theme specifications (colors, fonts, code block styles), see [THEMES.md](https://github.com/pedramamini/Maestro/blob/main/THEMES.md) on GitHub.
-
 ## Available Themes
+For a screenshot example of every option, see [THEMES.md](https://github.com/pedramamini/Maestro/blob/main/THEMES.md) on GitHub. You can also flip through the available themes at [RunMaestro.ai](https://runmaestro.ai).
 
 ![Themes](./screenshots/themes.png)
 

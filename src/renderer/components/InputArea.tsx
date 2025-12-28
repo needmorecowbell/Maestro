@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, startTransition, useRef, useCallback } from 'react';
+import React, { useEffect, useMemo, startTransition } from 'react';
 import { Terminal, Cpu, Keyboard, ImageIcon, X, ArrowUp, Eye, History, File, Folder, GitBranch, Tag, PenLine, Brain } from 'lucide-react';
 import type { Session, Theme, BatchRunState } from '../types';
 import type { TabCompletionSuggestion, TabCompletionFilter } from '../hooks';
