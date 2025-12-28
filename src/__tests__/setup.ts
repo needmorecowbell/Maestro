@@ -346,6 +346,19 @@ const mockMaestro = {
     migrateStorage: vi.fn().mockResolvedValue({ success: true, migratedCount: 0 }),
     resetToDefault: vi.fn().mockResolvedValue({ success: true }),
   },
+  stats: {
+    recordQuery: vi.fn().mockResolvedValue({ success: true }),
+    getAggregation: vi.fn().mockResolvedValue({
+      totalQueries: 0,
+      totalDuration: 0,
+      avgDuration: 0,
+      byAgent: {},
+      bySource: { user: 0, auto: 0 },
+      byDay: [],
+    }),
+    exportCsv: vi.fn().mockResolvedValue(''),
+    onStatsUpdate: vi.fn().mockReturnValue(() => {}),
+  },
 };
 
 Object.defineProperty(window, 'maestro', {
