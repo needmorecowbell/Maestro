@@ -77,7 +77,7 @@ export function GistPublishModal({
             type="button"
             onClick={onClose}
             disabled={isPublishing}
-            className="px-4 py-2 rounded border hover:bg-white/5 transition-colors outline-none focus:ring-2 focus:ring-offset-1"
+            className="px-4 py-2 rounded border hover:bg-white/5 transition-colors outline-none focus:ring-2 focus:ring-offset-1 whitespace-nowrap text-sm"
             style={{
               borderColor: theme.colors.border,
               color: theme.colors.textMain,
@@ -91,7 +91,7 @@ export function GistPublishModal({
               type="button"
               onClick={handlePublishPublic}
               disabled={isPublishing}
-              className="px-4 py-2 rounded border hover:bg-white/5 transition-colors outline-none focus:ring-2 focus:ring-offset-1"
+              className="px-4 py-2 rounded border hover:bg-white/5 transition-colors outline-none focus:ring-2 focus:ring-offset-1 whitespace-nowrap text-sm"
               style={{
                 borderColor: theme.colors.border,
                 color: theme.colors.textMain,
@@ -105,7 +105,7 @@ export function GistPublishModal({
               type="button"
               onClick={handlePublishSecret}
               disabled={isPublishing}
-              className="px-4 py-2 rounded transition-colors outline-none focus:ring-2 focus:ring-offset-1"
+              className="px-4 py-2 rounded transition-colors outline-none focus:ring-2 focus:ring-offset-1 whitespace-nowrap text-sm"
               style={{
                 backgroundColor: theme.colors.accent,
                 color: theme.colors.accentForeground,
