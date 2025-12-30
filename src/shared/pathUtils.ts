@@ -22,6 +22,7 @@ import * as path from 'path';
  * so this function provides consistent tilde handling across the codebase.
  *
  * @param filePath - Path that may start with ~ or ~/
+ * @param homeDir - Optional custom home directory (for testing/dependency injection)
  * @returns Expanded absolute path with ~ replaced by home directory
  *
  * @example
@@ -29,19 +30,22 @@ import * as path from 'path';
  * expandTilde('~/.ssh/id_rsa')   // '/Users/username/.ssh/id_rsa'
  * expandTilde('~')               // '/Users/username'
  * expandTilde('/absolute/path') // '/absolute/path' (unchanged)
+ * expandTilde('~/config', '/custom/home') // '/custom/home/config'
  * ```
  */
-export function expandTilde(filePath: string): string {
+export function expandTilde(filePath: string, homeDir?: string): string {
   if (!filePath) {
     return filePath;
   }
 
+  const home = homeDir ?? os.homedir();
+
   if (filePath === '~') {
-    return os.homedir();
+    return home;
   }
 
   if (filePath.startsWith('~/')) {
-    return path.join(os.homedir(), filePath.slice(2));
+    return path.join(home, filePath.slice(2));
   }
 
   return filePath;
