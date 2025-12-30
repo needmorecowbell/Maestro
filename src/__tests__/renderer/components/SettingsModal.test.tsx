@@ -777,7 +777,7 @@ describe('SettingsModal', () => {
   });
 
   describe('General tab - History toggle', () => {
-    it('should call setDefaultSaveToHistory when checkbox is changed', async () => {
+    it('should call setDefaultSaveToHistory when toggle switch is changed', async () => {
       const setDefaultSaveToHistory = vi.fn();
       render(<SettingsModal {...createDefaultProps({ setDefaultSaveToHistory, defaultSaveToHistory: true })} />);
 
@@ -785,10 +785,13 @@ describe('SettingsModal', () => {
         await vi.advanceTimersByTimeAsync(100);
       });
 
-      const historyCheckbox = screen.getByText('Enable "History" by default for new tabs').closest('label')?.querySelector('input[type="checkbox"]');
-      expect(historyCheckbox).toBeDefined();
+      // SettingCheckbox uses a button with role="switch" instead of input[type="checkbox"]
+      const titleElement = screen.getByText('Enable "History" by default for new tabs');
+      const toggleContainer = titleElement.closest('[role="button"]');
+      const toggleSwitch = toggleContainer?.querySelector('button[role="switch"]');
+      expect(toggleSwitch).toBeDefined();
 
-      fireEvent.click(historyCheckbox!);
+      fireEvent.click(toggleSwitch!);
       expect(setDefaultSaveToHistory).toHaveBeenCalledWith(false);
     });
   });
@@ -1031,7 +1034,7 @@ describe('SettingsModal', () => {
       expect(screen.getByText('Enable OS Notifications')).toBeInTheDocument();
     });
 
-    it('should call setOsNotificationsEnabled when checkbox is changed', async () => {
+    it('should call setOsNotificationsEnabled when toggle switch is changed', async () => {
       const setOsNotificationsEnabled = vi.fn();
       render(<SettingsModal {...createDefaultProps({ initialTab: 'notifications', setOsNotificationsEnabled, osNotificationsEnabled: true })} />);
 
@@ -1039,13 +1042,16 @@ describe('SettingsModal', () => {
         await vi.advanceTimersByTimeAsync(100);
       });
 
-      const checkbox = screen.getByText('Enable OS Notifications').closest('label')?.querySelector('input[type="checkbox"]');
-      fireEvent.click(checkbox!);
+      // SettingCheckbox uses a button with role="switch" instead of input[type="checkbox"]
+      const titleElement = screen.getByText('Enable OS Notifications');
+      const toggleContainer = titleElement.closest('[role="button"]');
+      const toggleSwitch = toggleContainer?.querySelector('button[role="switch"]');
+      fireEvent.click(toggleSwitch!);
 
       expect(setOsNotificationsEnabled).toHaveBeenCalledWith(false);
     });
 
-    it('should update checkbox state when prop changes (regression test for memo bug)', async () => {
+    it('should update toggle state when prop changes (regression test for memo bug)', async () => {
       // This test ensures the component re-renders when props change
       // A previous bug had an overly restrictive memo comparator that prevented re-renders
       const { rerender } = render(<SettingsModal {...createDefaultProps({ initialTab: 'notifications', osNotificationsEnabled: true })} />);
@@ -1054,9 +1060,11 @@ describe('SettingsModal', () => {
         await vi.advanceTimersByTimeAsync(100);
       });
 
-      // Verify initial checked state
-      const checkbox = screen.getByText('Enable OS Notifications').closest('label')?.querySelector('input[type="checkbox"]') as HTMLInputElement;
-      expect(checkbox.checked).toBe(true);
+      // SettingCheckbox uses a button with role="switch" and aria-checked instead of input[type="checkbox"]
+      const titleElement = screen.getByText('Enable OS Notifications');
+      const toggleContainer = titleElement.closest('[role="button"]');
+      const toggleSwitch = toggleContainer?.querySelector('button[role="switch"]') as HTMLButtonElement;
+      expect(toggleSwitch.getAttribute('aria-checked')).toBe('true');
 
       // Rerender with changed prop (simulating what happens after onChange)
       rerender(<SettingsModal {...createDefaultProps({ initialTab: 'notifications', osNotificationsEnabled: false })} />);
@@ -1065,8 +1073,8 @@ describe('SettingsModal', () => {
         await vi.advanceTimersByTimeAsync(50);
       });
 
-      // The checkbox should now be unchecked - this would fail with the old memo comparator
-      expect(checkbox.checked).toBe(false);
+      // The toggle should now be unchecked - this would fail with the old memo comparator
+      expect(toggleSwitch.getAttribute('aria-checked')).toBe('false');
     });
 
     it('should test notification when button is clicked', async () => {
@@ -1090,7 +1098,7 @@ describe('SettingsModal', () => {
       expect(screen.getByText('Enable Audio Feedback')).toBeInTheDocument();
     });
 
-    it('should call setAudioFeedbackEnabled when checkbox is changed', async () => {
+    it('should call setAudioFeedbackEnabled when toggle switch is changed', async () => {
       const setAudioFeedbackEnabled = vi.fn();
       render(<SettingsModal {...createDefaultProps({ initialTab: 'notifications', setAudioFeedbackEnabled, audioFeedbackEnabled: false })} />);
 
@@ -1098,8 +1106,11 @@ describe('SettingsModal', () => {
         await vi.advanceTimersByTimeAsync(100);
       });
 
-      const checkbox = screen.getByText('Enable Audio Feedback').closest('label')?.querySelector('input[type="checkbox"]');
-      fireEvent.click(checkbox!);
+      // SettingCheckbox uses a button with role="switch" instead of input[type="checkbox"]
+      const titleElement = screen.getByText('Enable Audio Feedback');
+      const toggleContainer = titleElement.closest('[role="button"]');
+      const toggleSwitch = toggleContainer?.querySelector('button[role="switch"]');
+      fireEvent.click(toggleSwitch!);
 
       expect(setAudioFeedbackEnabled).toHaveBeenCalledWith(true);
     });

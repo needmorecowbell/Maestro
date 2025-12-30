@@ -674,9 +674,17 @@ describe('UsageDashboardModal', () => {
       expect(mockOnStatsUpdate.mock.calls[0]).toBeDefined();
     });
 
-    it('refresh button does not show loading spinner that hides data', async () => {
+    it('real-time updates do not show loading spinner that hides data', async () => {
       const initialData = createSampleData();
+      const updatedData = { ...createSampleData(), totalQueries: 300 };
       mockGetAggregation.mockResolvedValueOnce(initialData);
+
+      // Store the callback for triggering updates
+      let statsCallback: (() => void) | null = null;
+      mockOnStatsUpdate.mockImplementation((callback: () => void) => {
+        statsCallback = callback;
+        return vi.fn();
+      });
 
       render(
         <UsageDashboardModal isOpen={true} onClose={onClose} theme={theme} />
@@ -688,22 +696,15 @@ describe('UsageDashboardModal', () => {
       });
 
       // Setup next fetch
-      mockGetAggregation.mockResolvedValueOnce(createSampleData());
+      mockGetAggregation.mockResolvedValueOnce(updatedData);
 
-      // Click the manual refresh button
-      const refreshButton = screen.getByTitle('Refresh');
-      fireEvent.click(refreshButton);
-
-      // Content should still be visible (refresh uses showRefresh=true path, not skeleton)
-      expect(screen.queryByTestId('dashboard-skeleton')).not.toBeInTheDocument();
-      expect(screen.getByTestId('usage-dashboard-content')).toBeInTheDocument();
-
-      // Wait for refresh to complete
-      await waitFor(() => {
-        expect(mockGetAggregation).toHaveBeenCalledTimes(2);
+      // Trigger real-time update via the stats callback
+      act(() => {
+        if (statsCallback) statsCallback();
       });
 
-      // After refresh completes, content should still be visible
+      // Content should still be visible (real-time updates don't show skeleton)
+      expect(screen.queryByTestId('dashboard-skeleton')).not.toBeInTheDocument();
       expect(screen.getByTestId('usage-dashboard-content')).toBeInTheDocument();
     });
 
@@ -731,10 +732,17 @@ describe('UsageDashboardModal', () => {
       expect(unsubscribeMock).toHaveBeenCalled();
     });
 
-    it('content persists when refresh is triggered after initial load', async () => {
+    it('content persists when real-time update is triggered after initial load', async () => {
       const initialData = createSampleData();
       const refreshedData = { ...createSampleData(), totalQueries: 300 };
       mockGetAggregation.mockResolvedValueOnce(initialData);
+
+      // Store the callback for triggering updates
+      let statsCallback: (() => void) | null = null;
+      mockOnStatsUpdate.mockImplementation((callback: () => void) => {
+        statsCallback = callback;
+        return vi.fn();
+      });
 
       render(
         <UsageDashboardModal isOpen={true} onClose={onClose} theme={theme} />
@@ -748,16 +756,13 @@ describe('UsageDashboardModal', () => {
       // Setup next fetch
       mockGetAggregation.mockResolvedValueOnce(refreshedData);
 
-      // Click refresh
-      fireEvent.click(screen.getByTitle('Refresh'));
-
-      // Critical: content should NOT disappear during refresh (no skeleton shown)
-      expect(screen.queryByTestId('dashboard-skeleton')).not.toBeInTheDocument();
-
-      // Wait for update to complete
-      await waitFor(() => {
-        expect(mockGetAggregation).toHaveBeenCalledTimes(2);
+      // Trigger real-time update via the stats callback
+      act(() => {
+        if (statsCallback) statsCallback();
       });
+
+      // Critical: content should NOT disappear during real-time update (no skeleton shown)
+      expect(screen.queryByTestId('dashboard-skeleton')).not.toBeInTheDocument();
 
       // Verify content still there
       expect(screen.getByTestId('usage-dashboard-content')).toBeInTheDocument();
@@ -810,6 +815,14 @@ describe('UsageDashboardModal', () => {
   });
 
   describe('New Data Visual Indicator', () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
     it('indicator does NOT appear for initial load', async () => {
       const initialData = createSampleData();
       mockGetAggregation.mockResolvedValue(initialData);
@@ -827,9 +840,16 @@ describe('UsageDashboardModal', () => {
       expect(screen.queryByTestId('new-data-indicator')).not.toBeInTheDocument();
     });
 
-    it('indicator appears after manual refresh completes', async () => {
+    it('indicator appears after real-time update completes', async () => {
       const initialData = createSampleData();
       mockGetAggregation.mockResolvedValue(initialData);
+
+      // Store the callback for triggering updates
+      let statsCallback: (() => void) | null = null;
+      mockOnStatsUpdate.mockImplementation((callback: () => void) => {
+        statsCallback = callback;
+        return vi.fn();
+      });
 
       render(
         <UsageDashboardModal isOpen={true} onClose={onClose} theme={theme} />
@@ -840,10 +860,13 @@ describe('UsageDashboardModal', () => {
         expect(screen.getByTestId('usage-dashboard-content')).toBeInTheDocument();
       });
 
-      // Click refresh button
-      fireEvent.click(screen.getByTitle('Refresh'));
+      // Trigger real-time update via the stats callback and wait for debounce
+      await act(async () => {
+        if (statsCallback) statsCallback();
+        await vi.advanceTimersByTimeAsync(1100);
+      });
 
-      // Wait for indicator to appear after refresh completes
+      // Wait for indicator to appear after update completes
       await waitFor(() => {
         expect(screen.getByTestId('new-data-indicator')).toBeInTheDocument();
       }, { timeout: 2000 });
@@ -856,6 +879,13 @@ describe('UsageDashboardModal', () => {
       const initialData = createSampleData();
       mockGetAggregation.mockResolvedValue(initialData);
 
+      // Store the callback for triggering updates
+      let statsCallback: (() => void) | null = null;
+      mockOnStatsUpdate.mockImplementation((callback: () => void) => {
+        statsCallback = callback;
+        return vi.fn();
+      });
+
       render(
         <UsageDashboardModal isOpen={true} onClose={onClose} theme={theme} />
       );
@@ -865,8 +895,11 @@ describe('UsageDashboardModal', () => {
         expect(screen.getByTestId('usage-dashboard-content')).toBeInTheDocument();
       });
 
-      // Click refresh button to trigger indicator
-      fireEvent.click(screen.getByTitle('Refresh'));
+      // Trigger real-time update via the stats callback and wait for debounce
+      await act(async () => {
+        if (statsCallback) statsCallback();
+        await vi.advanceTimersByTimeAsync(1100);
+      });
 
       // Wait for indicator
       await waitFor(() => {
@@ -880,6 +913,13 @@ describe('UsageDashboardModal', () => {
       const initialData = createSampleData();
       mockGetAggregation.mockResolvedValue(initialData);
 
+      // Store the callback for triggering updates
+      let statsCallback: (() => void) | null = null;
+      mockOnStatsUpdate.mockImplementation((callback: () => void) => {
+        statsCallback = callback;
+        return vi.fn();
+      });
+
       render(
         <UsageDashboardModal isOpen={true} onClose={onClose} theme={theme} />
       );
@@ -889,8 +929,11 @@ describe('UsageDashboardModal', () => {
         expect(screen.getByTestId('usage-dashboard-content')).toBeInTheDocument();
       });
 
-      // Click refresh button to trigger indicator
-      fireEvent.click(screen.getByTitle('Refresh'));
+      // Trigger real-time update via the stats callback and wait for debounce
+      await act(async () => {
+        if (statsCallback) statsCallback();
+        await vi.advanceTimersByTimeAsync(1100);
+      });
 
       // Wait for indicator with pulsing dot
       await waitFor(() => {
@@ -905,6 +948,13 @@ describe('UsageDashboardModal', () => {
       const initialData = createSampleData();
       mockGetAggregation.mockResolvedValue(initialData);
 
+      // Store the callback for triggering updates
+      let statsCallback: (() => void) | null = null;
+      mockOnStatsUpdate.mockImplementation((callback: () => void) => {
+        statsCallback = callback;
+        return vi.fn();
+      });
+
       render(
         <UsageDashboardModal isOpen={true} onClose={onClose} theme={theme} />
       );
@@ -914,8 +964,11 @@ describe('UsageDashboardModal', () => {
         expect(screen.getByTestId('usage-dashboard-content')).toBeInTheDocument();
       });
 
-      // Click refresh button to trigger indicator
-      fireEvent.click(screen.getByTitle('Refresh'));
+      // Trigger real-time update via the stats callback and wait for debounce
+      await act(async () => {
+        if (statsCallback) statsCallback();
+        await vi.advanceTimersByTimeAsync(1100);
+      });
 
       // Wait for indicator and check theme styling
       await waitFor(() => {
@@ -929,6 +982,13 @@ describe('UsageDashboardModal', () => {
       const initialData = createSampleData();
       mockGetAggregation.mockResolvedValue(initialData);
 
+      // Store the callback for triggering updates
+      let statsCallback: (() => void) | null = null;
+      mockOnStatsUpdate.mockImplementation((callback: () => void) => {
+        statsCallback = callback;
+        return vi.fn();
+      });
+
       render(
         <UsageDashboardModal isOpen={true} onClose={onClose} theme={theme} />
       );
@@ -938,8 +998,11 @@ describe('UsageDashboardModal', () => {
         expect(screen.getByTestId('usage-dashboard-content')).toBeInTheDocument();
       });
 
-      // Click refresh button to trigger indicator
-      fireEvent.click(screen.getByTitle('Refresh'));
+      // Trigger real-time update via the stats callback and wait for debounce
+      await act(async () => {
+        if (statsCallback) statsCallback();
+        await vi.advanceTimersByTimeAsync(1100);
+      });
 
       // Wait for indicator and check dot styling
       await waitFor(() => {

@@ -430,7 +430,7 @@ function FileExplorerPanelInner(props: FileExplorerPanelProps) {
   }, [session.fullPath, session.changedFiles, session.fileExplorerExpanded, session.id, previewFile?.path, activeFocus, activeRightTab, selectedFileIndex, theme, toggleFolder, setSessions, setSelectedFileIndex, setActiveFocus, handleFileClick, fileTreeFilter, handleContextMenu]);
 
   return (
-    <div className="space-y-2 relative">
+    <div className="flex flex-col h-full relative">
       {/* File Tree Filter */}
       {fileTreeFilterOpen && (
         <div className="mb-3 pt-4">
@@ -650,7 +650,7 @@ function FileExplorerPanelInner(props: FileExplorerPanelProps) {
       {/* Status bar at bottom */}
       {session.fileTreeStats && (
         <div
-          className="flex-shrink-0 flex items-center justify-center gap-3 px-3 py-1.5 text-xs rounded mt-2 mb-3"
+          className="flex-shrink-0 flex items-center justify-center gap-3 px-3 py-1.5 text-xs rounded mt-3 mb-[7px]"
           style={{
             backgroundColor: theme.colors.bgActivity,
             border: `1px solid ${theme.colors.border}`,

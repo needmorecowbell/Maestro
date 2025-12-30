@@ -7,6 +7,7 @@ import { validateNewSession, validateEditSession } from '../utils/sessionValidat
 import { FormInput } from './ui/FormInput';
 import { Modal, ModalFooter } from './ui/Modal';
 import { AgentConfigPanel } from './shared/AgentConfigPanel';
+import { SshRemoteSelector } from './shared/SshRemoteSelector';
 
 // Maximum character length for nudge message
 const NUDGE_MESSAGE_MAX_LENGTH = 1000;
@@ -575,15 +576,6 @@ export function NewInstanceModal({ isOpen, onClose, onCreate, theme, existingSes
                             onRefreshAgent={() => handleRefreshAgent(agent.id)}
                             refreshingAgent={refreshingAgent === agent.id}
                             showBuiltInEnvVars
-                            sshRemotes={sshRemotes}
-                            sshRemoteConfig={agentSshRemoteConfigs[agent.id]}
-                            onSshRemoteConfigChange={(config) => {
-                              setAgentSshRemoteConfigs(prev => ({
-                                ...prev,
-                                [agent.id]: config
-                              }));
-                            }}
-                            globalDefaultSshRemoteId={globalDefaultSshRemoteId}
                           />
                         </div>
                       )}
@@ -702,6 +694,22 @@ export function NewInstanceModal({ isOpen, onClose, onCreate, theme, existingSes
                 </div>
               </div>
             </div>
+          )}
+
+          {/* SSH Remote Execution - Top Level */}
+          {sshRemotes.length > 0 && selectedAgent && (
+            <SshRemoteSelector
+              theme={theme}
+              sshRemotes={sshRemotes}
+              sshRemoteConfig={agentSshRemoteConfigs[selectedAgent]}
+              onSshRemoteConfigChange={(config) => {
+                setAgentSshRemoteConfigs(prev => ({
+                  ...prev,
+                  [selectedAgent]: config
+                }));
+              }}
+              globalDefaultSshRemoteId={globalDefaultSshRemoteId}
+            />
           )}
 
           {/* Nudge Message */}
