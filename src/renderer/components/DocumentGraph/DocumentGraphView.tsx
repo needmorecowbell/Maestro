@@ -24,8 +24,6 @@ import {
   Sliders,
   Focus,
   AlertCircle,
-  Settings2,
-  RotateCcw,
 } from 'lucide-react';
 import type { Theme } from '../../types';
 import { useLayerStack } from '../../contexts/LayerStackContext';
@@ -33,7 +31,7 @@ import { MODAL_PRIORITIES } from '../../constants/modalPriorities';
 import { Modal, ModalFooter } from '../ui/Modal';
 import { useDebouncedCallback } from '../../hooks/utils';
 import { buildGraphData, ProgressData, GraphNodeData } from './graphDataBuilder';
-import { ForceGraph, ForceGraphNode, ForceGraphLink, convertToForceGraphData, ForcePhysicsSettings, DEFAULT_PHYSICS } from './ForceGraph';
+import { ForceGraph, ForceGraphNode, ForceGraphLink, convertToForceGraphData } from './ForceGraph';
 import { NodeContextMenu } from './NodeContextMenu';
 import { GraphLegend } from './GraphLegend';
 
@@ -113,8 +111,6 @@ export function DocumentGraphView({
   const [includeExternalLinks, setIncludeExternalLinks] = useState(defaultShowExternalLinks);
   const [neighborDepth, setNeighborDepth] = useState(defaultNeighborDepth);
   const [showDepthSlider, setShowDepthSlider] = useState(false);
-  const [showPhysicsPanel, setShowPhysicsPanel] = useState(false);
-  const [physics, setPhysics] = useState<ForcePhysicsSettings>(DEFAULT_PHYSICS);
 
   // Selection state
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -810,159 +806,6 @@ export function DocumentGraphView({
               External
             </button>
 
-            {/* Physics Settings */}
-            <div className="relative">
-              <button
-                onClick={() => setShowPhysicsPanel(!showPhysicsPanel)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm transition-colors"
-                style={{
-                  backgroundColor: showPhysicsPanel ? `${theme.colors.accent}25` : `${theme.colors.accent}10`,
-                  color: showPhysicsPanel ? theme.colors.accent : theme.colors.textDim,
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = `${theme.colors.accent}30`)}
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.backgroundColor = showPhysicsPanel
-                    ? `${theme.colors.accent}25`
-                    : `${theme.colors.accent}10`)
-                }
-                title="Adjust graph physics settings"
-              >
-                <Settings2 className="w-4 h-4" />
-                Forces
-              </button>
-
-              {showPhysicsPanel && (
-                <div
-                  className="absolute top-full right-0 mt-2 p-4 rounded-lg shadow-lg z-50"
-                  style={{
-                    backgroundColor: theme.colors.bgActivity,
-                    border: `1px solid ${theme.colors.border}`,
-                    minWidth: 260,
-                  }}
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-sm font-medium" style={{ color: theme.colors.textMain }}>
-                      Force Settings
-                    </span>
-                    <button
-                      onClick={() => setPhysics(DEFAULT_PHYSICS)}
-                      className="flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors"
-                      style={{
-                        backgroundColor: `${theme.colors.accent}15`,
-                        color: theme.colors.textDim,
-                      }}
-                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = `${theme.colors.accent}25`)}
-                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = `${theme.colors.accent}15`)}
-                      title="Reset to default settings"
-                    >
-                      <RotateCcw className="w-3 h-3" />
-                      Reset
-                    </button>
-                  </div>
-
-                  {/* Center Force */}
-                  <div className="mb-3">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs" style={{ color: theme.colors.textDim }}>
-                        Center Force
-                      </span>
-                      <span className="text-xs font-mono" style={{ color: theme.colors.textMain }}>
-                        {physics.centerForce.toFixed(2)}
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.05"
-                      value={physics.centerForce}
-                      onChange={(e) => setPhysics(prev => ({ ...prev, centerForce: parseFloat(e.target.value) }))}
-                      className="w-full"
-                      style={{ accentColor: theme.colors.accent }}
-                    />
-                    <p className="text-xs mt-0.5" style={{ color: theme.colors.textDim, opacity: 0.7 }}>
-                      Pulls nodes toward the center
-                    </p>
-                  </div>
-
-                  {/* Repel Force */}
-                  <div className="mb-3">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs" style={{ color: theme.colors.textDim }}>
-                        Repel Force
-                      </span>
-                      <span className="text-xs font-mono" style={{ color: theme.colors.textMain }}>
-                        {physics.repelForce}
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="500"
-                      step="10"
-                      value={physics.repelForce}
-                      onChange={(e) => setPhysics(prev => ({ ...prev, repelForce: parseInt(e.target.value, 10) }))}
-                      className="w-full"
-                      style={{ accentColor: theme.colors.accent }}
-                    />
-                    <p className="text-xs mt-0.5" style={{ color: theme.colors.textDim, opacity: 0.7 }}>
-                      Pushes nodes apart
-                    </p>
-                  </div>
-
-                  {/* Link Force */}
-                  <div className="mb-3">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs" style={{ color: theme.colors.textDim }}>
-                        Link Force
-                      </span>
-                      <span className="text-xs font-mono" style={{ color: theme.colors.textMain }}>
-                        {physics.linkForce.toFixed(2)}
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.05"
-                      value={physics.linkForce}
-                      onChange={(e) => setPhysics(prev => ({ ...prev, linkForce: parseFloat(e.target.value) }))}
-                      className="w-full"
-                      style={{ accentColor: theme.colors.accent }}
-                    />
-                    <p className="text-xs mt-0.5" style={{ color: theme.colors.textDim, opacity: 0.7 }}>
-                      Pulls connected nodes together
-                    </p>
-                  </div>
-
-                  {/* Link Distance */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs" style={{ color: theme.colors.textDim }}>
-                        Link Distance
-                      </span>
-                      <span className="text-xs font-mono" style={{ color: theme.colors.textMain }}>
-                        {physics.linkDistance}px
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min="10"
-                      max="200"
-                      step="5"
-                      value={physics.linkDistance}
-                      onChange={(e) => setPhysics(prev => ({ ...prev, linkDistance: parseInt(e.target.value, 10) }))}
-                      className="w-full"
-                      style={{ accentColor: theme.colors.accent }}
-                    />
-                    <p className="text-xs mt-0.5" style={{ color: theme.colors.textDim, opacity: 0.7 }}>
-                      Target distance between connected nodes
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-
             {/* Refresh Button */}
             <button
               onClick={() => loadGraphData()}
@@ -1119,7 +962,6 @@ export function DocumentGraphView({
               neighborDepth={neighborDepth}
               focusFilePath={activeFocusFile}
               onFocusConsumed={handleFocusConsumed}
-              physics={physics}
             />
           )}
 
@@ -1227,13 +1069,10 @@ export function DocumentGraphView({
       )}
 
       {/* Click outside dropdowns to close them */}
-      {(showDepthSlider || showPhysicsPanel) && (
+      {showDepthSlider && (
         <div
           className="fixed inset-0 z-40"
-          onClick={() => {
-            setShowDepthSlider(false);
-            setShowPhysicsPanel(false);
-          }}
+          onClick={() => setShowDepthSlider(false)}
         />
       )}
     </div>
