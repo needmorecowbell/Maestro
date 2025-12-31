@@ -620,22 +620,32 @@ export const SSH_ERROR_PATTERNS: AgentErrorPatterns = {
 
   agent_crashed: [
     {
-      // Agent command not found on remote host
-      pattern: /bash:.*command not found|zsh:.*command not found|sh:.*command not found/i,
-      message: 'Agent command not found on remote host. Ensure the agent is installed on the remote machine.',
+      // Agent command not found (shell reports command not found)
+      // bash/sh format: "bash: claude: command not found"
+      // zsh format: "zsh: command not found: claude"
+      pattern: /bash:.*claude.*command not found|sh:.*claude.*command not found|zsh:.*command not found:.*claude/i,
+      message: 'Claude command not found. Ensure Claude Code is installed.',
       recoverable: false,
     },
     {
-      // Generic command not found (without shell prefix)
-      pattern: /command not found:/i,
-      message: 'Command not found on remote host. The agent may not be installed.',
+      // Agent command not found for other agents
+      pattern: /bash:.*opencode.*command not found|sh:.*opencode.*command not found|zsh:.*command not found:.*opencode/i,
+      message: 'OpenCode command not found. Ensure OpenCode is installed.',
       recoverable: false,
     },
     {
-      // No such file or directory (agent binary missing)
-      // Matches patterns like: "/usr/local/bin/claude: No such file or directory"
-      pattern: /claude.*no such file or directory|opencode.*no such file or directory|codex.*no such file or directory/i,
-      message: 'Agent binary not found on remote host. Install the agent on the remote machine.',
+      // Agent command not found for codex
+      pattern: /bash:.*codex.*command not found|sh:.*codex.*command not found|zsh:.*command not found:.*codex/i,
+      message: 'Codex command not found. Ensure Codex is installed.',
+      recoverable: false,
+    },
+    {
+      // Agent binary missing (executable file not found at path)
+      // More specific pattern: requires path-like structure before the binary name
+      // Matches: "/usr/local/bin/claude: No such file or directory"
+      // Does NOT match: "claude: error: File 'foo.txt': No such file or directory" (normal file errors)
+      pattern: /\/[^\s:]*\/(claude|opencode|codex):\s*No such file or directory/i,
+      message: 'Agent binary not found at the specified path. Ensure the agent is installed.',
       recoverable: false,
     },
     {

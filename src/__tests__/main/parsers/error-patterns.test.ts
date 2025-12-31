@@ -646,10 +646,22 @@ describe('error-patterns', () => {
         expect(result?.type).toBe('agent_crashed');
       });
 
-      it('should match generic "command not found:"', () => {
-        const result = matchSshErrorPattern('command not found: opencode');
+      it('should match "bash: opencode: command not found"', () => {
+        const result = matchSshErrorPattern('bash: opencode: command not found');
         expect(result).not.toBeNull();
         expect(result?.type).toBe('agent_crashed');
+      });
+
+      it('should match "bash: codex: command not found"', () => {
+        const result = matchSshErrorPattern('bash: codex: command not found');
+        expect(result).not.toBeNull();
+        expect(result?.type).toBe('agent_crashed');
+      });
+
+      it('should NOT match generic "command not found:" without shell prefix', () => {
+        // Generic "command not found:" is too broad and was removed to avoid false positives
+        const result = matchSshErrorPattern('command not found: something');
+        expect(result).toBeNull();
       });
 
       it('should match "no such file or directory" for agent binaries', () => {
@@ -703,6 +715,19 @@ describe('error-patterns', () => {
       it('should return null for unrelated file errors', () => {
         // Should not match generic "no such file" - only agent-specific
         const result = matchSshErrorPattern('cat: somefile.txt: No such file or directory');
+        expect(result).toBeNull();
+      });
+
+      it('should return null for normal Claude file access errors', () => {
+        // This was a bug - the old pattern matched any "claude.*no such file"
+        // which would incorrectly trigger for normal file read errors
+        const result = matchSshErrorPattern('claude: error: File somefile.txt: No such file or directory');
+        expect(result).toBeNull();
+      });
+
+      it('should return null for Claude working with files that dont exist', () => {
+        // Another variant of the bug - file errors containing "claude" somewhere
+        const result = matchSshErrorPattern('Error reading claude-config.json: No such file or directory');
         expect(result).toBeNull();
       });
     });
