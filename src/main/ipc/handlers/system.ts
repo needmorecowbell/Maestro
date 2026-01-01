@@ -517,8 +517,13 @@ export function registerSystemHandlers(deps: SystemHandlerDependencies): void {
 export function setupLoggerEventForwarding(getMainWindow: () => BrowserWindow | null): void {
   logger.on('newLog', (entry) => {
     const mainWindow = getMainWindow();
-    if (mainWindow) {
-      mainWindow.webContents.send('logger:newLog', entry);
+    // Safely send - handle cases where renderer is disposed (GPU crash, window closing)
+    try {
+      if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents && !mainWindow.webContents.isDestroyed()) {
+        mainWindow.webContents.send('logger:newLog', entry);
+      }
+    } catch {
+      // Silently ignore - renderer not available
     }
   });
 }

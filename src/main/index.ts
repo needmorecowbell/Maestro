@@ -301,6 +301,23 @@ let agentDetector: AgentDetector | null = null;
 let cliActivityWatcher: fsSync.FSWatcher | null = null;
 
 /**
+ * Safely send IPC message to renderer.
+ * Handles cases where the renderer has been disposed (e.g., GPU crash, window closing).
+ * This prevents "Render frame was disposed before WebFrameMain could be accessed" errors.
+ */
+function safeSend(channel: string, ...args: unknown[]): void {
+  try {
+    if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents && !mainWindow.webContents.isDestroyed()) {
+      mainWindow.webContents.send(channel, ...args);
+    }
+  } catch (error) {
+    // Silently ignore - renderer is not available
+    // This can happen during GPU crashes, window closing, or app shutdown
+    logger.debug(`Failed to send IPC message to renderer: ${channel}`, 'IPC', { error: String(error) });
+  }
+}
+
+/**
  * Create and configure the web server with all necessary callbacks.
  * Called when user enables the web interface.
  */
@@ -2564,7 +2581,7 @@ function setupProcessListeners() {
         return; // Don't send to regular process:data handler
       }
 
-      mainWindow?.webContents.send('process:data', sessionId, data);
+      safeSend('process:data', sessionId, data);
 
       // Broadcast to web clients - extract base session ID (remove -ai or -terminal suffix)
       // IMPORTANT: Skip PTY terminal output (-terminal suffix) as it contains raw ANSI codes.
@@ -2811,7 +2828,7 @@ function setupProcessListeners() {
         return;
       }
 
-      mainWindow?.webContents.send('process:exit', sessionId, code);
+      safeSend('process:exit', sessionId, code);
 
       // Broadcast exit to web clients
       if (webServer) {
@@ -2861,34 +2878,34 @@ function setupProcessListeners() {
         // Don't return - still send to renderer for logging purposes
       }
 
-      mainWindow?.webContents.send('process:session-id', sessionId, agentSessionId);
+      safeSend('process:session-id', sessionId, agentSessionId);
     });
 
     // Handle slash commands from Claude Code init message
     processManager.on('slash-commands', (sessionId: string, slashCommands: string[]) => {
-      mainWindow?.webContents.send('process:slash-commands', sessionId, slashCommands);
+      safeSend('process:slash-commands', sessionId, slashCommands);
     });
 
     // Handle thinking/streaming content chunks from AI agents
     // Emitted when agents produce partial text events (isPartial: true)
     // Renderer decides whether to display based on tab's showThinking setting
     processManager.on('thinking-chunk', (sessionId: string, content: string) => {
-      mainWindow?.webContents.send('process:thinking-chunk', sessionId, content);
+      safeSend('process:thinking-chunk', sessionId, content);
     });
 
     // Handle tool execution events (OpenCode, Codex)
     processManager.on('tool-execution', (sessionId: string, toolEvent: { toolName: string; state?: unknown; timestamp: number }) => {
-      mainWindow?.webContents.send('process:tool-execution', sessionId, toolEvent);
+      safeSend('process:tool-execution', sessionId, toolEvent);
     });
 
     // Handle stderr separately from runCommand (for clean command execution)
     processManager.on('stderr', (sessionId: string, data: string) => {
-      mainWindow?.webContents.send('process:stderr', sessionId, data);
+      safeSend('process:stderr', sessionId, data);
     });
 
     // Handle command exit (from runCommand - separate from PTY exit)
     processManager.on('command-exit', (sessionId: string, code: number) => {
-      mainWindow?.webContents.send('process:command-exit', sessionId, code);
+      safeSend('process:command-exit', sessionId, code);
     });
 
     // Handle usage statistics from AI responses
@@ -2950,7 +2967,7 @@ function setupProcessListeners() {
         });
       }
 
-      mainWindow?.webContents.send('process:usage', sessionId, usageStats);
+      safeSend('process:usage', sessionId, usageStats);
     });
 
     // Handle agent errors (auth expired, token exhaustion, rate limits, etc.)
@@ -2975,7 +2992,7 @@ function setupProcessListeners() {
         message: agentError.message,
         recoverable: agentError.recoverable,
       });
-      mainWindow?.webContents.send('agent:error', sessionId, agentError);
+      safeSend('agent:error', sessionId, agentError);
     });
 
     // Handle query-complete events for stats tracking
@@ -3008,7 +3025,7 @@ function setupProcessListeners() {
             duration: queryData.duration,
           });
           // Broadcast stats update to renderer for real-time dashboard refresh
-          mainWindow?.webContents.send('stats:updated');
+          safeSend('stats:updated');
         }
       } catch (error) {
         logger.error(`Failed to record query event: ${error}`, '[Stats]', {
