@@ -47,6 +47,7 @@ const DEFAULT_SSH_OPTIONS: Record<string, string> = {
   ConnectTimeout: '10', // Connection timeout in seconds
   ClearAllForwardings: 'yes', // Disable port forwarding from SSH config (avoids "Address already in use" errors)
   RequestTTY: 'force', // Force TTY allocation - required for Claude Code's --print mode to produce output
+  LogLevel: 'ERROR', // Suppress SSH warnings like "Pseudo-terminal will not be allocated..."
 };
 
 /**

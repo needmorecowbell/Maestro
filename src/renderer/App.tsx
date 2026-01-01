@@ -5212,13 +5212,13 @@ function MaestroConsoleInner() {
   }, []);
 
   // Load task counts for all documents
-  const loadTaskCounts = useCallback(async (folderPath: string, documents: string[]) => {
+  const loadTaskCounts = useCallback(async (folderPath: string, documents: string[], sshRemoteId?: string) => {
     const counts = new Map<string, { completed: number; total: number }>();
 
     // Load content and count tasks for each document in parallel
     await Promise.all(documents.map(async (docPath) => {
       try {
-        const result = await window.maestro.autorun.readDoc(folderPath, docPath + '.md');
+        const result = await window.maestro.autorun.readDoc(folderPath, docPath + '.md', sshRemoteId);
         if (result.success && result.content) {
           const taskCount = countTasksInContent(result.content);
           if (taskCount.total > 0) {
@@ -5244,16 +5244,19 @@ function MaestroConsoleInner() {
         return;
       }
 
+      // Get SSH remote ID for remote sessions (check both runtime and config values)
+      const sshRemoteId = activeSession.sshRemoteId || activeSession.sessionSshRemoteConfig?.remoteId || undefined;
+
       // Load document list
       setAutoRunIsLoadingDocuments(true);
-      const listResult = await window.maestro.autorun.listDocs(activeSession.autoRunFolderPath);
+      const listResult = await window.maestro.autorun.listDocs(activeSession.autoRunFolderPath, sshRemoteId);
       if (listResult.success) {
         const files = listResult.files || [];
         setAutoRunDocumentList(files);
         setAutoRunDocumentTree(listResult.tree || []);
 
         // Load task counts for all documents
-        const counts = await loadTaskCounts(activeSession.autoRunFolderPath, files);
+        const counts = await loadTaskCounts(activeSession.autoRunFolderPath, files, sshRemoteId);
         setAutoRunDocumentTaskCounts(counts);
       }
       setAutoRunIsLoadingDocuments(false);
@@ -5263,7 +5266,8 @@ function MaestroConsoleInner() {
       if (activeSession.autoRunSelectedFile) {
         const contentResult = await window.maestro.autorun.readDoc(
           activeSession.autoRunFolderPath,
-          activeSession.autoRunSelectedFile + '.md'
+          activeSession.autoRunSelectedFile + '.md',
+          sshRemoteId
         );
         const newContent = contentResult.success ? (contentResult.content || '') : '';
         setSessions(prev => prev.map(s =>
@@ -5275,35 +5279,39 @@ function MaestroConsoleInner() {
     };
 
     loadAutoRunData();
-  }, [activeSessionId, activeSession?.autoRunFolderPath, activeSession?.autoRunSelectedFile, loadTaskCounts]);
+  }, [activeSessionId, activeSession?.autoRunFolderPath, activeSession?.autoRunSelectedFile, activeSession?.sshRemoteId, activeSession?.sessionSshRemoteConfig, loadTaskCounts]);
 
   // File watching for Auto Run - watch whenever a folder is configured
   // Updates reflect immediately whether from batch runs, terminal commands, or external editors
+  // Note: For SSH remote sessions, file watching via chokidar is not available.
+  // The backend returns isRemote: true and the UI should use polling instead.
   useEffect(() => {
     const sessionId = activeSession?.id;
     const folderPath = activeSession?.autoRunFolderPath;
     const selectedFile = activeSession?.autoRunSelectedFile;
+    // Get SSH remote ID for remote sessions (check both runtime and config values)
+    const sshRemoteId = activeSession?.sshRemoteId || activeSession?.sessionSshRemoteConfig?.remoteId || undefined;
 
     // Only watch if folder is set
     if (!folderPath || !sessionId) return;
 
-    // Start watching the folder
-    window.maestro.autorun.watchFolder(folderPath);
+    // Start watching the folder (for remote sessions, this returns isRemote: true)
+    window.maestro.autorun.watchFolder(folderPath, sshRemoteId);
 
-    // Listen for file change events
+    // Listen for file change events (only triggered for local sessions)
     const unsubscribe = window.maestro.autorun.onFileChanged(async (data) => {
       // Only respond to changes in the current folder
       if (data.folderPath !== folderPath) return;
 
       // Reload document list for any change (in case files added/removed)
-      const listResult = await window.maestro.autorun.listDocs(folderPath);
+      const listResult = await window.maestro.autorun.listDocs(folderPath, sshRemoteId);
       if (listResult.success) {
         const files = listResult.files || [];
         setAutoRunDocumentList(files);
         setAutoRunDocumentTree(listResult.tree || []);
 
         // Reload task counts for all documents
-        const counts = await loadTaskCounts(folderPath, files);
+        const counts = await loadTaskCounts(folderPath, files, sshRemoteId);
         setAutoRunDocumentTaskCounts(counts);
       }
 
@@ -5312,7 +5320,8 @@ function MaestroConsoleInner() {
       if (selectedFile && data.filename === selectedFile) {
         const contentResult = await window.maestro.autorun.readDoc(
           folderPath,
-          selectedFile + '.md'
+          selectedFile + '.md',
+          sshRemoteId
         );
         if (contentResult.success) {
           // Update content in the specific session that owns this folder
@@ -5334,7 +5343,7 @@ function MaestroConsoleInner() {
       window.maestro.autorun.unwatchFolder(folderPath);
       unsubscribe();
     };
-  }, [activeSession?.id, activeSession?.autoRunFolderPath, activeSession?.autoRunSelectedFile, loadTaskCounts]);
+  }, [activeSession?.id, activeSession?.autoRunFolderPath, activeSession?.autoRunSelectedFile, activeSession?.sshRemoteId, activeSession?.sessionSshRemoteConfig, loadTaskCounts]);
 
   // Auto-scroll logs
   const activeTabLogs = activeSession ? getActiveTab(activeSession)?.logs : undefined;
@@ -6045,6 +6054,9 @@ function MaestroConsoleInner() {
     // Close any open dropdowns when switching modes
     setTabCompletionOpen(false);
     setSlashCommandOpen(false);
+    // Focus input after mode switch
+    setActiveFocus('main');
+    setTimeout(() => inputRef.current?.focus(), 0);
   };
 
   // Toggle unread tabs filter with save/restore of active tab

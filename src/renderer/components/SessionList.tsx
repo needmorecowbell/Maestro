@@ -577,19 +577,28 @@ function SessionTooltipContent({
       )}
       <div className="flex items-center gap-2 mb-2">
         <span className="text-xs font-bold" style={{ color: theme.colors.textMain }}>{session.name}</span>
+        {/* Remote Indicator - shown for SSH sessions */}
+        {session.toolType !== 'terminal' && session.sessionSshRemoteConfig?.enabled && (
+          <span
+            className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase"
+            style={{
+              backgroundColor: theme.colors.warning + '30',
+              color: theme.colors.warning
+            }}
+          >
+            REMOTE
+          </span>
+        )}
+        {/* Git vs Local Indicator */}
         {session.toolType !== 'terminal' && (
           <span
             className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase"
             style={{
-              backgroundColor: session.sessionSshRemoteConfig?.enabled
-                ? theme.colors.warning + '30'
-                : session.isGitRepo ? theme.colors.accent + '30' : theme.colors.textDim + '20',
-              color: session.sessionSshRemoteConfig?.enabled
-                ? theme.colors.warning
-                : session.isGitRepo ? theme.colors.accent : theme.colors.textDim
+              backgroundColor: session.isGitRepo ? theme.colors.accent + '30' : theme.colors.textDim + '20',
+              color: session.isGitRepo ? theme.colors.accent : theme.colors.textDim
             }}
           >
-            {session.sessionSshRemoteConfig?.enabled ? 'REMOTE' : session.isGitRepo ? 'GIT' : 'LOCAL'}
+            {session.isGitRepo ? 'GIT' : 'LOCAL'}
           </span>
         )}
         {/* AUTO Mode Indicator */}

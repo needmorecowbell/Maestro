@@ -193,23 +193,31 @@ export const SessionItem = memo(function SessionItem({
           </div>
         )}
 
-        {/* Git vs Local/Remote Indicator */}
+        {/* Remote Indicator - shown for SSH sessions */}
+        {showGitLocalBadge && session.sessionSshRemoteConfig?.enabled && (
+          <div
+            className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase"
+            style={{
+              backgroundColor: theme.colors.warning + '30',
+              color: theme.colors.warning
+            }}
+            title="Running on remote host via SSH"
+          >
+            REMOTE
+          </div>
+        )}
+
+        {/* Git vs Local Indicator */}
         {showGitLocalBadge && (
           <div
             className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase"
             style={{
-              backgroundColor: session.sessionSshRemoteConfig?.enabled
-                ? theme.colors.warning + '30'
-                : session.isGitRepo ? theme.colors.accent + '30' : theme.colors.textDim + '20',
-              color: session.sessionSshRemoteConfig?.enabled
-                ? theme.colors.warning
-                : session.isGitRepo ? theme.colors.accent : theme.colors.textDim
+              backgroundColor: session.isGitRepo ? theme.colors.accent + '30' : theme.colors.textDim + '20',
+              color: session.isGitRepo ? theme.colors.accent : theme.colors.textDim
             }}
-            title={session.sessionSshRemoteConfig?.enabled
-              ? 'Running on remote host via SSH'
-              : session.isGitRepo ? 'Git repository' : 'Local directory (not a git repo)'}
+            title={session.isGitRepo ? 'Git repository' : 'Local directory (not a git repo)'}
           >
-            {session.sessionSshRemoteConfig?.enabled ? 'REMOTE' : session.isGitRepo ? 'GIT' : 'LOCAL'}
+            {session.isGitRepo ? 'GIT' : 'LOCAL'}
           </div>
         )}
 

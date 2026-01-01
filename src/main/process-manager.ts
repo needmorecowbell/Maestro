@@ -1102,6 +1102,21 @@ export class ProcessManager extends EventEmitter {
             // Strip ANSI codes and only emit if there's actual content
             const cleanedStderr = stripAllAnsiCodes(stderrData).trim();
             if (cleanedStderr) {
+              // Filter out known SSH informational messages that aren't actual errors
+              // These can appear even with LogLevel=ERROR on some SSH versions
+              const sshInfoPatterns = [
+                /^Pseudo-terminal will not be allocated/i,
+                /^Warning: Permanently added .* to the list of known hosts/i,
+              ];
+              const isKnownSshInfo = sshInfoPatterns.some(pattern => pattern.test(cleanedStderr));
+              if (isKnownSshInfo) {
+                logger.debug('[ProcessManager] Suppressing known SSH info message', 'ProcessManager', {
+                  sessionId,
+                  message: cleanedStderr.substring(0, 100),
+                });
+                return;
+              }
+
               // Emit to separate 'stderr' event for AI processes (consistent with runCommand)
               this.emit('stderr', sessionId, cleanedStderr);
             }

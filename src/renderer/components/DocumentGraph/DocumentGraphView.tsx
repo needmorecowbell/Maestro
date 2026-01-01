@@ -600,17 +600,6 @@ export function DocumentGraphView({
     setNeighborDepth(newDepth);
     onNeighborDepthChange?.(newDepth);
   }, [onNeighborDepthChange]);
-  /**
-   * Focus on selected node
-   */
-  const handleFocusOnNode = useCallback(() => {
-    if (selectedNode?.nodeType === 'document' && selectedNode.filePath) {
-      setActiveFocusFile(selectedNode.filePath);
-      if (neighborDepth === 0) {
-        setNeighborDepth(2);
-      }
-    }
-  }, [selectedNode, neighborDepth]);
 
   /**
    * Handle load more
@@ -1048,24 +1037,6 @@ export function DocumentGraphView({
                 </div>
               )}
             </div>
-
-            {/* Focus on Selected */}
-            {selectedNode?.nodeType === 'document' && (
-              <button
-                onClick={handleFocusOnNode}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm transition-colors"
-                style={{
-                  backgroundColor: `${theme.colors.accent}15`,
-                  color: theme.colors.textMain,
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = `${theme.colors.accent}25`)}
-                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = `${theme.colors.accent}15`)}
-                title="Focus view on selected document"
-              >
-                <Focus className="w-4 h-4" />
-                Focus
-              </button>
-            )}
 
             {/* External Links Toggle */}
             <button
