@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, memo,
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeSlug from 'rehype-slug';
-import { Eye, Edit, Play, Square, HelpCircle, Loader2, Image, X, Search, ChevronDown, ChevronRight, FolderOpen, FileText, RefreshCw, Maximize2, AlertTriangle, SkipForward, XCircle, RotateCcw, LayoutGrid } from 'lucide-react';
+import { Eye, Edit, Play, Square, HelpCircle, Loader2, Image, X, Search, ChevronDown, ChevronRight, FolderOpen, FileText, RefreshCw, Maximize2, AlertTriangle, SkipForward, XCircle, RotateCcw, LayoutGrid, CheckSquare } from 'lucide-react';
 import { getEncoder, formatTokenCount } from '../utils/tokenCounter';
 import type { BatchRunState, SessionState, Theme, Shortcut } from '../types';
 import type { FileNode } from '../types/fileTree';
@@ -1307,20 +1307,70 @@ const AutoRunInner = forwardRef<AutoRunHandle, AutoRunProps>(function AutoRunInn
         }
       }}
     >
-      {/* No folder selected - show centered button only */}
+      {/* No folder selected - show setup content inline */}
       {!folderPath && (
-        <div className="flex-1 flex items-center justify-center">
-          <button
-            onClick={onOpenSetup}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors hover:opacity-90"
-            style={{
-              backgroundColor: theme.colors.accent,
-              color: theme.colors.accentForeground,
-            }}
-          >
-            <FolderOpen className="w-3.5 h-3.5" />
-            Select Auto Run Folder
-          </button>
+        <div className="flex-1 flex flex-col items-center justify-center px-4">
+          <div className="max-w-sm space-y-4">
+            {/* Explanation */}
+            <p className="text-sm leading-relaxed text-center" style={{ color: theme.colors.textMain }}>
+              Auto Run lets you manage and execute Markdown documents containing open tasks.
+              Select a folder that contains your task documents.
+            </p>
+
+            {/* Feature list */}
+            <div className="space-y-3">
+              <div className="flex items-start gap-3">
+                <FileText className="w-5 h-5 mt-0.5 flex-shrink-0" style={{ color: theme.colors.accent }} />
+                <div>
+                  <div className="text-sm font-medium" style={{ color: theme.colors.textMain }}>
+                    Markdown Documents
+                  </div>
+                  <div className="text-xs" style={{ color: theme.colors.textDim }}>
+                    Each .md file in your folder becomes a runnable document
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <CheckSquare className="w-5 h-5 mt-0.5 flex-shrink-0" style={{ color: theme.colors.accent }} />
+                <div>
+                  <div className="text-sm font-medium" style={{ color: theme.colors.textMain }}>
+                    Checkbox Tasks
+                  </div>
+                  <div className="text-xs" style={{ color: theme.colors.textDim }}>
+                    Use markdown checkboxes (- [ ]) to define tasks that can be automated
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <Play className="w-5 h-5 mt-0.5 flex-shrink-0" style={{ color: theme.colors.accent }} />
+                <div>
+                  <div className="text-sm font-medium" style={{ color: theme.colors.textMain }}>
+                    Batch Execution
+                  </div>
+                  <div className="text-xs" style={{ color: theme.colors.textDim }}>
+                    Run multiple documents in sequence with loop and reset options
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Select Folder Button */}
+            <div className="pt-2 flex justify-center">
+              <button
+                onClick={onOpenSetup}
+                className="flex items-center gap-1.5 px-4 py-2 rounded text-sm font-medium transition-colors hover:opacity-90"
+                style={{
+                  backgroundColor: theme.colors.accent,
+                  color: theme.colors.accentForeground,
+                }}
+              >
+                <FolderOpen className="w-4 h-4" />
+                Select Auto Run Folder
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

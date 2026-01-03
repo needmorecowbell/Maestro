@@ -294,9 +294,27 @@ export function useAutoRunHandlers(
   }, [activeSession?.autoRunFolderPath, activeSession?.sshRemoteId, activeSession?.sessionSshRemoteConfig?.remoteId, autoRunDocumentList.length, setAutoRunDocumentList, setAutoRunDocumentTree, setAutoRunIsLoadingDocuments, setSuccessFlashNotification]);
 
   // Auto Run open setup handler
-  const handleAutoRunOpenSetup = useCallback(() => {
-    setAutoRunSetupModalOpen(true);
-  }, [setAutoRunSetupModalOpen]);
+  // If no folder is configured, directly open folder picker
+  // If folder exists, open modal to allow changing it
+  const handleAutoRunOpenSetup = useCallback(async () => {
+    if (activeSession?.autoRunFolderPath) {
+      // Folder exists - open modal to change it
+      setAutoRunSetupModalOpen(true);
+    } else {
+      // No folder - directly open folder picker
+      const sshRemoteId = getSshRemoteId(activeSession);
+      if (sshRemoteId) {
+        // SSH remote session - must use modal for path input (no folder picker)
+        setAutoRunSetupModalOpen(true);
+      } else {
+        // Local session - use native folder picker
+        const folder = await window.maestro.dialog.selectFolder();
+        if (folder) {
+          handleAutoRunFolderSelected(folder);
+        }
+      }
+    }
+  }, [activeSession?.autoRunFolderPath, activeSession, setAutoRunSetupModalOpen, handleAutoRunFolderSelected]);
 
   // Auto Run create new document handler
   const handleAutoRunCreateDocument = useCallback(async (filename: string): Promise<boolean> => {

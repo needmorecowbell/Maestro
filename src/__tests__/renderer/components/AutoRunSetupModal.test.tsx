@@ -95,26 +95,6 @@ describe('AutoRunSetupModal', () => {
       });
 
       expect(screen.getByRole('dialog')).toBeInTheDocument();
-      expect(screen.getByText('Set Up Auto Run')).toBeInTheDocument();
-    });
-
-    it('renders with "Change Auto Run Folder" title when currentFolder is provided', async () => {
-      const onClose = vi.fn();
-      const onFolderSelected = vi.fn();
-
-      renderWithLayerStack(
-        <AutoRunSetupModal
-          theme={theme}
-          onClose={onClose}
-          onFolderSelected={onFolderSelected}
-          currentFolder="/existing/folder"
-        />
-      );
-
-      await act(async () => {
-        await vi.runAllTimersAsync();
-      });
-
       expect(screen.getByText('Change Auto Run Folder')).toBeInTheDocument();
     });
 
@@ -136,7 +116,7 @@ describe('AutoRunSetupModal', () => {
 
       const dialog = screen.getByRole('dialog');
       expect(dialog).toHaveAttribute('aria-modal', 'true');
-      expect(dialog).toHaveAttribute('aria-label', 'Set Up Auto Run');
+      expect(dialog).toHaveAttribute('aria-label', 'Change Auto Run Folder');
     });
 
     it('renders close button with X icon', async () => {
@@ -1661,7 +1641,7 @@ describe('AutoRunSetupModal', () => {
         await vi.runAllTimersAsync();
       });
 
-      expect(screen.getByRole('heading', { name: 'Set Up Auto Run' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Change Auto Run Folder' })).toBeInTheDocument();
     });
 
     it('has labeled input field', async () => {

@@ -8,7 +8,7 @@ interface AutoRunSetupModalProps {
   theme: Theme;
   onClose: () => void;
   onFolderSelected: (folderPath: string) => void;
-  currentFolder?: string; // If changing existing folder
+  currentFolder?: string; // Current folder path (for changing existing folder)
   sessionName?: string; // Name of the agent session
   sshRemoteId?: string; // SSH remote ID if agent uses remote execution
   sshRemoteHost?: string; // SSH remote host for tooltip display
@@ -135,13 +135,11 @@ export function AutoRunSetupModal({ theme, onClose, onFolderSelected, currentFol
     }
   };
 
-  const modalTitle = currentFolder ? 'Change Auto Run Folder' : 'Set Up Auto Run';
-
   return (
     <div onKeyDown={handleKeyDown}>
       <Modal
         theme={theme}
-        title={modalTitle}
+        title="Change Auto Run Folder"
         priority={MODAL_PRIORITIES.AUTORUN_SETUP}
         onClose={onClose}
         width={520}
