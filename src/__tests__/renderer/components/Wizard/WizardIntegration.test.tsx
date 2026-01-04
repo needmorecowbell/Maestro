@@ -104,6 +104,9 @@ vi.mock('lucide-react', () => ({
   Trash2: ({ className, style }: { className?: string; style?: React.CSSProperties }) => (
     <svg data-testid="trash-icon" className={className} style={style} />
   ),
+  Brain: ({ className, style }: { className?: string; style?: React.CSSProperties }) => (
+    <svg data-testid="brain-icon" className={className} style={style} />
+  ),
 }));
 
 // Mock react-markdown

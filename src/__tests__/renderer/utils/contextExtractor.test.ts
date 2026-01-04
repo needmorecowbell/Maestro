@@ -213,7 +213,9 @@ describe('formatLogsForGrooming', () => {
 
   describe('file content stripping', () => {
     it('should strip full file contents from code blocks with file paths', () => {
-      const fileContent = 'line\n'.repeat(20); // 20 lines - above threshold
+      // 'line\n'.repeat(20) creates "line\n" 20 times, which when split by \n gives 21 elements
+      // (20 "line" elements + 1 empty string from trailing newline)
+      const fileContent = 'line\n'.repeat(20);
       const logs: LogEntry[] = [
         createMockLog({
           source: 'ai',
@@ -224,7 +226,7 @@ describe('formatLogsForGrooming', () => {
       const result = formatLogsForGrooming(logs);
 
       expect(result).toContain('[File: src/utils/helper.ts');
-      expect(result).toContain('20 lines');
+      expect(result).toContain('21 lines');
       expect(result).toContain('content available on disk');
       expect(result).not.toContain(fileContent);
     });
