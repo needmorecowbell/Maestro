@@ -8875,7 +8875,10 @@ You are taking over this conversation. Based on the context above, provide a bri
     recordShortcutUsage, onKeyboardMasteryLevelUp,
 
     // Edit agent modal
-    setEditAgentSession, setEditAgentModalOpen
+    setEditAgentSession, setEditAgentModalOpen,
+
+    // Auto Run state for keyboard handler
+    activeBatchRunState
 
   };
 

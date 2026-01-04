@@ -703,7 +703,7 @@ export function DocumentEditor({
         ) : (
           <div
             ref={previewRef}
-            className={`${proseClassPrefix} h-full overflow-y-auto border rounded p-4 prose prose-sm max-w-none outline-none`}
+            className={`${proseClassPrefix} h-full overflow-y-auto border rounded p-4 outline-none`}
             tabIndex={0}
             onKeyDown={(e) => {
               if ((e.metaKey || e.ctrlKey) && e.key === 'e') {
@@ -719,13 +719,15 @@ export function DocumentEditor({
             }}
           >
             <style>{proseStyles}</style>
-            <ReactMarkdown
-              remarkPlugins={REMARK_PLUGINS}
-              rehypePlugins={REHYPE_PLUGINS}
-              components={markdownComponents}
-            >
-              {content || '*No content yet.*'}
-            </ReactMarkdown>
+            <div className="prose prose-sm max-w-none">
+              <ReactMarkdown
+                remarkPlugins={REMARK_PLUGINS}
+                rehypePlugins={REHYPE_PLUGINS}
+                components={markdownComponents}
+              >
+                {content || '*No content yet.*'}
+              </ReactMarkdown>
+            </div>
           </div>
         )}
       </div>

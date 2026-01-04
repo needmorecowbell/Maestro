@@ -223,6 +223,26 @@ function DocumentReview({
     }, 50);
   }, []);
 
+  // Global Cmd+E handler - attaches to container to work regardless of focus
+  // Uses capture phase to intercept the event before any child elements
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // Toggle edit/preview with Cmd+E
+      if ((e.metaKey || e.ctrlKey) && e.key === 'e' && !e.shiftKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        handleModeChange(mode === 'edit' ? 'preview' : 'edit');
+      }
+    };
+
+    // Use capture phase to handle the event before it reaches any child elements
+    container.addEventListener('keydown', handleGlobalKeyDown, true);
+    return () => container.removeEventListener('keydown', handleGlobalKeyDown, true);
+  }, [mode, handleModeChange]);
+
   // Handle adding attachment
   const handleAddAttachment = useCallback(
     (filename: string, dataUrl: string) => {
@@ -322,17 +342,10 @@ function DocumentReview({
     ]
   );
 
-  // Handle keyboard navigation
+  // Handle keyboard navigation (Tab and Enter for buttons)
+  // Note: Cmd+E is handled by the global capture-phase handler above
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      // Global ⌘E to toggle edit/preview mode
-      if ((e.metaKey || e.ctrlKey) && e.key === 'e') {
-        e.preventDefault();
-        e.stopPropagation();
-        handleModeChange(mode === 'edit' ? 'preview' : 'edit');
-        return;
-      }
-
       // Tab between buttons
       if (e.key === 'Tab') {
         const focusedElement = document.activeElement;
@@ -354,7 +367,7 @@ function DocumentReview({
         }
       }
     },
-    [handleLaunch, handleModeChange, launchingButton, mode]
+    [handleLaunch, launchingButton]
   );
 
   // Task count

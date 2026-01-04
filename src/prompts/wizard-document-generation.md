@@ -7,8 +7,8 @@ Based on the project discovery conversation below, create a series of Auto Run d
 ## File Access Restrictions
 
 **WRITE ACCESS (Limited):**
-You may ONLY create files in the Initiation subfolder:
-`{{DIRECTORY_PATH}}/{{AUTO_RUN_FOLDER_NAME}}/Initiation/`
+You may ONLY create files in the Auto Run folder:
+`{{DIRECTORY_PATH}}/{{AUTO_RUN_FOLDER_NAME}}/`
 
 Do NOT write, create, or modify files anywhere else.
 
@@ -88,14 +88,12 @@ Good task examples (specific and actionable):
 Use your Write tool to save each phase document immediately after you finish writing it. This way, files appear in real-time for the user.
 
 File naming convention:
-- `{{DIRECTORY_PATH}}/{{AUTO_RUN_FOLDER_NAME}}/Initiation/Phase-01-[Description].md`
-- `{{DIRECTORY_PATH}}/{{AUTO_RUN_FOLDER_NAME}}/Initiation/Phase-02-[Description].md`
+- `{{DIRECTORY_PATH}}/{{AUTO_RUN_FOLDER_NAME}}/Phase-01-[Description].md`
+- `{{DIRECTORY_PATH}}/{{AUTO_RUN_FOLDER_NAME}}/Phase-02-[Description].md`
 - Continue the pattern for additional phases...
 
 **Working Folder**: If any phase needs to create temporary files, scratch work, or intermediate outputs, use:
-`{{DIRECTORY_PATH}}/{{AUTO_RUN_FOLDER_NAME}}/Initiation/Working/`
-
-This keeps all wizard-generated content organized within the Initiation subfolder.
+`{{DIRECTORY_PATH}}/{{AUTO_RUN_FOLDER_NAME}}/Working/`
 
 **IMPORTANT**: Write files one at a time, IN ORDER (Phase-01 first, then Phase-02, etc.). Do NOT wait until you've finished all documents to write them - save each one as soon as it's complete.
 

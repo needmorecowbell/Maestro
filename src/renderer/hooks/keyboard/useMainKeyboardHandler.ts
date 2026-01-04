@@ -351,12 +351,15 @@ export function useMainKeyboardHandler(): UseMainKeyboardHandlerReturn {
         // Toggle markdown raw mode for AI message history
         // Skip when in AutoRun panel (it has its own Cmd+E handler for edit/preview toggle)
         // Skip when FilePreview is open (it handles its own Cmd+E)
+        // Skip when Auto Run is running (editing is locked)
         // Check both state-based detection AND DOM-based detection for robustness
         const isInAutoRunPanel = ctx.activeFocus === 'right' && ctx.activeRightTab === 'autorun';
         // Also check if the focused element is within an autorun panel (handles edge cases where activeFocus state may be stale)
         const activeElement = document.activeElement;
         const isInAutoRunDOM = activeElement?.closest('[data-tour="autorun-panel"]') !== null;
-        if (!isInAutoRunPanel && !isInAutoRunDOM && !ctx.previewFile) {
+        // Check if Auto Run is running and editing is locked (running without worktree)
+        const isAutoRunLocked = ctx.activeBatchRunState?.isRunning && !ctx.activeBatchRunState?.worktreeActive;
+        if (!isInAutoRunPanel && !isInAutoRunDOM && !ctx.previewFile && !isAutoRunLocked) {
           e.preventDefault();
           ctx.setMarkdownEditMode(!ctx.markdownEditMode);
           trackShortcut('toggleMarkdownMode');
