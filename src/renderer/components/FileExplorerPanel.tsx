@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { ChevronRight, ChevronDown, ChevronUp, Folder, RefreshCw, Check, Eye, EyeOff, Target, Copy, ExternalLink, Server, GitBranch, Clock, RotateCw, FileText, Edit2, Trash2, AlertTriangle } from 'lucide-react';
+import { ChevronRight, ChevronDown, ChevronUp, Folder, RefreshCw, Check, Eye, EyeOff, Target, Copy, ExternalLink, Server, GitBranch, Clock, RotateCw, FileText, Edit2, Trash2, AlertTriangle, Loader2 } from 'lucide-react';
 import type { Session, Theme, FocusArea } from '../types';
 import type { FileNode } from '../types/fileTree';
 import type { FileTreeChanges } from '../utils/fileExplorer';
@@ -51,6 +51,70 @@ function RetryCountdown({
         <RotateCw className="w-3.5 h-3.5" />
         Retry Now
       </button>
+    </div>
+  );
+}
+
+/**
+ * FileTreeLoadingProgress component - shows streaming progress during file tree load.
+ * Particularly useful for slow SSH connections where the full tree walk can take time.
+ */
+function FileTreeLoadingProgress({
+  theme,
+  progress,
+  isRemote,
+}: {
+  theme: Theme;
+  progress?: {
+    directoriesScanned: number;
+    filesFound: number;
+    currentDirectory: string;
+  };
+  isRemote: boolean;
+}) {
+  // Extract just the folder name from the full path for display
+  const currentFolder = progress?.currentDirectory
+    ? progress.currentDirectory.split('/').pop() || progress.currentDirectory
+    : '';
+
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 py-8">
+      {/* Animated spinner */}
+      <Loader2
+        className="w-6 h-6 animate-spin"
+        style={{ color: theme.colors.accent }}
+      />
+
+      {/* Status text */}
+      <div className="text-center">
+        <div className="text-xs" style={{ color: theme.colors.textMain }}>
+          {isRemote ? 'Loading remote files...' : 'Loading files...'}
+        </div>
+
+        {/* Progress counters - shown when we have progress data */}
+        {progress && (progress.directoriesScanned > 0 || progress.filesFound > 0) && (
+          <div
+            className="text-xs mt-2 font-mono"
+            style={{ color: theme.colors.textDim }}
+          >
+            <span style={{ color: theme.colors.accent }}>{progress.filesFound.toLocaleString()}</span>
+            {' files in '}
+            <span style={{ color: theme.colors.accent }}>{progress.directoriesScanned.toLocaleString()}</span>
+            {' folders'}
+          </div>
+        )}
+
+        {/* Current directory being scanned - truncated */}
+        {currentFolder && (
+          <div
+            className="text-[10px] mt-1.5 max-w-[200px] truncate opacity-60"
+            style={{ color: theme.colors.textDim }}
+            title={progress?.currentDirectory}
+          >
+            scanning: {currentFolder}/
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -878,8 +942,13 @@ function FileExplorerPanelInner(props: FileExplorerPanelProps) {
         </div>
       ) : (
         <>
-          {(!session.fileTree || session.fileTree.length === 0) && (
-            <div className="text-xs opacity-50 italic">Loading files...</div>
+          {/* Show loading progress when file tree is loading */}
+          {(session.fileTreeLoading || (!session.fileTree || session.fileTree.length === 0)) && (
+            <FileTreeLoadingProgress
+              theme={theme}
+              progress={session.fileTreeLoadingProgress}
+              isRemote={!!(session.sshRemoteId || session.sessionSshRemoteConfig?.enabled)}
+            />
           )}
           {flattenedTree.length > 0 && (
             <div

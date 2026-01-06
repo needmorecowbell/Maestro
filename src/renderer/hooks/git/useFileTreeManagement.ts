@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { RightPanelHandle } from '../../components/RightPanel';
 import type { Session } from '../../types';
 import type { FileNode } from '../../types/fileTree';
-import { loadFileTree, compareFileTrees, type FileTreeChanges, type SshContext } from '../../utils/fileExplorer';
+import { loadFileTree, compareFileTrees, type FileTreeChanges, type SshContext, type FileTreeProgress } from '../../utils/fileExplorer';
 import { fuzzyMatch } from '../../utils/search';
 import { gitService } from '../../services/git';
 
@@ -227,13 +227,14 @@ export function useFileTreeManagement(
    * Load file tree when active session changes.
    * Only loads if file tree is empty AND not in error backoff period.
    * Passes SSH context for remote sessions to enable remote operations (Phase 2+).
+   * Shows streaming progress updates during loading (useful for slow SSH connections).
    */
   useEffect(() => {
     const session = sessions.find(s => s.id === activeSessionId);
     if (!session) return;
 
-    // Only load if file tree is empty
-    if (!session.fileTree || session.fileTree.length === 0) {
+    // Only load if file tree is empty and not already loading
+    if ((!session.fileTree || session.fileTree.length === 0) && !session.fileTreeLoading) {
       // Check if we're in a retry backoff period
       if (session.fileTreeRetryAt && Date.now() < session.fileTreeRetryAt) {
         // Schedule retry when backoff expires (if not already scheduled)
@@ -257,8 +258,36 @@ export function useFileTreeManagement(
       // Use projectRoot for file tree (consistent with Files tab header)
       const treeRoot = session.projectRoot || session.cwd;
 
+      // Mark as loading before starting
+      setSessions(prev => prev.map(s =>
+        s.id === activeSessionId ? {
+          ...s,
+          fileTreeLoading: true,
+          fileTreeLoadingProgress: undefined
+        } : s
+      ));
+
+      // Progress callback for streaming updates during SSH load
+      const onProgress = (progress: FileTreeProgress) => {
+        setSessions(prev => prev.map(s =>
+          s.id === activeSessionId ? {
+            ...s,
+            fileTreeLoadingProgress: {
+              directoriesScanned: progress.directoriesScanned,
+              filesFound: progress.filesFound,
+              currentDirectory: progress.currentDirectory,
+            }
+          } : s
+        ));
+      };
+
+      // Load tree with progress callback for SSH sessions
+      const treePromise = sshContext
+        ? loadFileTree(treeRoot, 10, 0, sshContext, onProgress)
+        : loadFileTree(treeRoot, 10, 0, sshContext);
+
       Promise.all([
-        loadFileTree(treeRoot, 10, 0, sshContext),
+        treePromise,
         window.maestro.fs.directorySize(treeRoot, sshContext?.sshRemoteId)
       ]).then(([tree, stats]) => {
         setSessions(prev => prev.map(s =>
@@ -267,6 +296,8 @@ export function useFileTreeManagement(
             fileTree: tree,
             fileTreeError: undefined,
             fileTreeRetryAt: undefined,
+            fileTreeLoading: false,
+            fileTreeLoadingProgress: undefined,
             fileTreeStats: {
               fileCount: stats.fileCount,
               folderCount: stats.folderCount,
@@ -283,6 +314,8 @@ export function useFileTreeManagement(
             fileTree: [],
             fileTreeError: `Cannot access directory: ${treeRoot}\n${errorMsg}`,
             fileTreeRetryAt: Date.now() + FILE_TREE_RETRY_DELAY_MS,
+            fileTreeLoading: false,
+            fileTreeLoadingProgress: undefined,
             fileTreeStats: undefined
           } : s
         ));

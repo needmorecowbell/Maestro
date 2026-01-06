@@ -88,6 +88,13 @@ export function NewInstanceModal({ isOpen, onClose, onCreate, theme, existingSes
   // SSH Remote configuration
   const [sshRemotes, setSshRemotes] = useState<SshRemoteConfig[]>([]);
   const [agentSshRemoteConfigs, setAgentSshRemoteConfigs] = useState<Record<string, AgentSshRemoteConfig>>({});
+  // Remote path validation state (only used when SSH is enabled)
+  const [remotePathValidation, setRemotePathValidation] = useState<{
+    checking: boolean;
+    valid: boolean;
+    isDirectory: boolean;
+    error?: string;
+  }>({ checking: false, valid: false, isDirectory: false });
 
   const nameInputRef = useRef<HTMLInputElement>(null);
 
@@ -118,6 +125,84 @@ export function NewInstanceModal({ isOpen, onClose, onCreate, theme, existingSes
   useEffect(() => {
     setDirectoryWarningAcknowledged(false);
   }, [workingDir]);
+
+  // Check if SSH remote is enabled for the selected agent (moved up for use in validation effect)
+  const isSshEnabled = useMemo(() => {
+    if (!selectedAgent) return false;
+    const config = agentSshRemoteConfigs[selectedAgent];
+    return config?.enabled && !!config?.remoteId;
+  }, [selectedAgent, agentSshRemoteConfigs]);
+
+  // Get SSH remote host for display (moved up for use in validation)
+  const sshRemoteHost = useMemo(() => {
+    if (!isSshEnabled || !selectedAgent) return undefined;
+    const config = agentSshRemoteConfigs[selectedAgent];
+    if (!config?.remoteId) return undefined;
+    const remote = sshRemotes.find(r => r.id === config.remoteId);
+    return remote?.host;
+  }, [isSshEnabled, selectedAgent, agentSshRemoteConfigs, sshRemotes]);
+
+  // Validate remote path when SSH is enabled (debounced)
+  useEffect(() => {
+    // Only validate when SSH is enabled
+    if (!isSshEnabled) {
+      setRemotePathValidation({ checking: false, valid: false, isDirectory: false });
+      return;
+    }
+
+    const trimmedPath = workingDir.trim();
+    if (!trimmedPath) {
+      setRemotePathValidation({ checking: false, valid: false, isDirectory: false });
+      return;
+    }
+
+    // Get the SSH remote ID for this agent
+    const config = agentSshRemoteConfigs[selectedAgent] || agentSshRemoteConfigs['_pending_'];
+    const sshRemoteId = config?.remoteId;
+    if (!sshRemoteId) {
+      setRemotePathValidation({ checking: false, valid: false, isDirectory: false });
+      return;
+    }
+
+    // Debounce the validation
+    const timeoutId = setTimeout(async () => {
+      setRemotePathValidation(prev => ({ ...prev, checking: true }));
+
+      try {
+        const stat = await window.maestro.fs.stat(trimmedPath, sshRemoteId);
+        if (stat && stat.isDirectory) {
+          setRemotePathValidation({
+            checking: false,
+            valid: true,
+            isDirectory: true,
+          });
+        } else if (stat && stat.isFile) {
+          setRemotePathValidation({
+            checking: false,
+            valid: false,
+            isDirectory: false,
+            error: 'Path is a file, not a directory',
+          });
+        } else {
+          setRemotePathValidation({
+            checking: false,
+            valid: false,
+            isDirectory: false,
+            error: 'Path not found or not accessible',
+          });
+        }
+      } catch {
+        setRemotePathValidation({
+          checking: false,
+          valid: false,
+          isDirectory: false,
+          error: 'Path not found or not accessible',
+        });
+      }
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [workingDir, isSshEnabled, selectedAgent, agentSshRemoteConfigs]);
 
   // Define handlers first before they're used in effects
   const loadAgents = async (source?: Session) => {
@@ -335,22 +420,6 @@ export function NewInstanceModal({ isOpen, onClose, onCreate, theme, existingSes
     });
   }, [instanceName, selectedAgent, workingDir, nudgeMessage, customAgentPaths, customAgentArgs, customAgentEnvVars, agentConfigs, agentSshRemoteConfigs, onCreate, onClose, expandTilde, existingSessions]);
 
-  // Check if SSH remote is enabled for the selected agent
-  const isSshEnabled = useMemo(() => {
-    if (!selectedAgent) return false;
-    const config = agentSshRemoteConfigs[selectedAgent];
-    return config?.enabled && !!config?.remoteId;
-  }, [selectedAgent, agentSshRemoteConfigs]);
-
-  // Get SSH remote host for display
-  const sshRemoteHost = useMemo(() => {
-    if (!isSshEnabled || !selectedAgent) return undefined;
-    const config = agentSshRemoteConfigs[selectedAgent];
-    if (!config?.remoteId) return undefined;
-    const remote = sshRemotes.find(r => r.id === config.remoteId);
-    return remote?.host;
-  }, [isSshEnabled, selectedAgent, agentSshRemoteConfigs, sshRemotes]);
-
   // Check if form is valid for submission
   const isFormValid = useMemo(() => {
     const hasWarningThatNeedsAck = validation.warning && !directoryWarningAcknowledged;
@@ -360,13 +429,16 @@ export function NewInstanceModal({ isOpen, onClose, onCreate, theme, existingSes
     // 2. User specified a custom path for it
     const hasCustomPath = customAgentPaths[selectedAgent]?.trim();
     const isAgentUsable = agent?.available || !!hasCustomPath;
+    // For SSH sessions, require remote path validation to succeed
+    const remotePathOk = !isSshEnabled || remotePathValidation.valid;
     return selectedAgent &&
            isAgentUsable &&
            workingDir.trim() &&
            instanceName.trim() &&
            validation.valid &&
-           !hasWarningThatNeedsAck;
-  }, [selectedAgent, agents, workingDir, instanceName, validation.valid, validation.warning, directoryWarningAcknowledged, customAgentPaths]);
+           !hasWarningThatNeedsAck &&
+           remotePathOk;
+  }, [selectedAgent, agents, workingDir, instanceName, validation.valid, validation.warning, directoryWarningAcknowledged, customAgentPaths, isSshEnabled, remotePathValidation.valid]);
 
   // Handle keyboard shortcuts
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -776,6 +848,31 @@ export function NewInstanceModal({ isOpen, onClose, onCreate, theme, existingSes
             }
           />
 
+          {/* Remote path validation status (only shown when SSH is enabled) */}
+          {isSshEnabled && workingDir.trim() && (
+            <div className="mt-2 text-xs flex items-center gap-1.5">
+              {remotePathValidation.checking ? (
+                <>
+                  <div
+                    className="w-3 h-3 border-2 border-t-transparent rounded-full animate-spin"
+                    style={{ borderColor: theme.colors.textDim, borderTopColor: 'transparent' }}
+                  />
+                  <span style={{ color: theme.colors.textDim }}>Checking remote path...</span>
+                </>
+              ) : remotePathValidation.valid ? (
+                <>
+                  <Check className="w-3.5 h-3.5" style={{ color: theme.colors.success }} />
+                  <span style={{ color: theme.colors.success }}>Remote directory found</span>
+                </>
+              ) : remotePathValidation.error ? (
+                <>
+                  <X className="w-3.5 h-3.5" style={{ color: theme.colors.error }} />
+                  <span style={{ color: theme.colors.error }}>{remotePathValidation.error}</span>
+                </>
+              ) : null}
+            </div>
+          )}
+
           {/* Directory Warning with Acknowledgment */}
           {validation.warning && validation.warningField === 'directory' && (
             <div
@@ -887,6 +984,13 @@ export function EditAgentModal({ isOpen, onClose, onSave, theme, session, existi
   // SSH Remote configuration
   const [sshRemotes, setSshRemotes] = useState<SshRemoteConfig[]>([]);
   const [sshRemoteConfig, setSshRemoteConfig] = useState<AgentSshRemoteConfig | undefined>(undefined);
+  // Remote path validation state (validates projectRoot exists on remote when SSH enabled)
+  const [remotePathValidation, setRemotePathValidation] = useState<{
+    checking: boolean;
+    valid: boolean;
+    isDirectory: boolean;
+    error?: string;
+  }>({ checking: false, valid: false, isDirectory: false });
 
   const nameInputRef = useRef<HTMLInputElement>(null);
 
@@ -974,6 +1078,80 @@ export function EditAgentModal({ isOpen, onClose, onSave, theme, session, existi
     return validateEditSession(name, session.id, existingSessions);
   }, [instanceName, session, existingSessions]);
 
+  // Check if SSH remote is enabled
+  const isSshEnabled = useMemo(() => {
+    return sshRemoteConfig?.enabled && !!sshRemoteConfig?.remoteId;
+  }, [sshRemoteConfig]);
+
+  // Get SSH remote host for display
+  const sshRemoteHost = useMemo(() => {
+    if (!isSshEnabled) return undefined;
+    const remoteId = sshRemoteConfig?.remoteId;
+    if (!remoteId) return undefined;
+    const remote = sshRemotes.find(r => r.id === remoteId);
+    return remote?.host;
+  }, [isSshEnabled, sshRemoteConfig?.remoteId, sshRemotes]);
+
+  // Validate remote path when SSH is enabled (debounced)
+  useEffect(() => {
+    // Only validate when SSH is enabled and we have a session
+    if (!isSshEnabled || !session) {
+      setRemotePathValidation({ checking: false, valid: false, isDirectory: false });
+      return;
+    }
+
+    const projectRoot = session.projectRoot;
+    if (!projectRoot) {
+      setRemotePathValidation({ checking: false, valid: false, isDirectory: false });
+      return;
+    }
+
+    const sshRemoteId = sshRemoteConfig?.remoteId;
+    if (!sshRemoteId) {
+      setRemotePathValidation({ checking: false, valid: false, isDirectory: false });
+      return;
+    }
+
+    // Debounce the validation (useful when user is switching remotes)
+    const timeoutId = setTimeout(async () => {
+      setRemotePathValidation(prev => ({ ...prev, checking: true }));
+
+      try {
+        const stat = await window.maestro.fs.stat(projectRoot, sshRemoteId);
+        if (stat && stat.isDirectory) {
+          setRemotePathValidation({
+            checking: false,
+            valid: true,
+            isDirectory: true,
+          });
+        } else if (stat && stat.isFile) {
+          setRemotePathValidation({
+            checking: false,
+            valid: false,
+            isDirectory: false,
+            error: 'Path is a file, not a directory',
+          });
+        } else {
+          setRemotePathValidation({
+            checking: false,
+            valid: false,
+            isDirectory: false,
+            error: 'Path not found on remote',
+          });
+        }
+      } catch {
+        setRemotePathValidation({
+          checking: false,
+          valid: false,
+          isDirectory: false,
+          error: 'Path not found on remote',
+        });
+      }
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [isSshEnabled, session, sshRemoteConfig?.remoteId]);
+
   const handleSave = useCallback(() => {
     if (!session) return;
     const name = instanceName.trim();
@@ -1045,8 +1223,10 @@ export function EditAgentModal({ isOpen, onClose, onSave, theme, session, existi
 
   // Check if form is valid for submission
   const isFormValid = useMemo(() => {
-    return instanceName.trim() && validation.valid;
-  }, [instanceName, validation.valid]);
+    // For SSH sessions, require remote path validation to succeed
+    const remotePathOk = !isSshEnabled || remotePathValidation.valid;
+    return instanceName.trim() && validation.valid && remotePathOk;
+  }, [instanceName, validation.valid, isSshEnabled, remotePathValidation.valid]);
 
   // Handle keyboard shortcuts
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -1182,6 +1362,36 @@ export function EditAgentModal({ isOpen, onClose, onSave, theme, session, existi
             <p className="mt-1 text-xs" style={{ color: theme.colors.textDim }}>
               Directory cannot be changed. Create a new agent for a different directory.
             </p>
+            {/* Remote path validation status (only shown when SSH is enabled) */}
+            {isSshEnabled && (
+              <div className="mt-2 text-xs flex items-center gap-1.5">
+                {remotePathValidation.checking ? (
+                  <>
+                    <div
+                      className="w-3 h-3 border-2 border-t-transparent rounded-full animate-spin"
+                      style={{ borderColor: theme.colors.textDim, borderTopColor: 'transparent' }}
+                    />
+                    <span style={{ color: theme.colors.textDim }}>
+                      Checking path on {sshRemoteHost || 'remote'}...
+                    </span>
+                  </>
+                ) : remotePathValidation.valid ? (
+                  <>
+                    <Check className="w-3.5 h-3.5" style={{ color: theme.colors.success }} />
+                    <span style={{ color: theme.colors.success }}>
+                      Directory found on {sshRemoteHost || 'remote'}
+                    </span>
+                  </>
+                ) : remotePathValidation.error ? (
+                  <>
+                    <X className="w-3.5 h-3.5" style={{ color: theme.colors.error }} />
+                    <span style={{ color: theme.colors.error }}>
+                      {remotePathValidation.error}{sshRemoteHost ? ` (${sshRemoteHost})` : ''}
+                    </span>
+                  </>
+                ) : null}
+              </div>
+            )}
           </div>
 
           {/* Nudge Message */}

@@ -489,6 +489,16 @@ export interface Session {
     folderCount: number;
     totalSize: number;
   };
+  /** Loading progress for file tree (shown during slow SSH connections) */
+  fileTreeLoadingProgress?: {
+    directoriesScanned: number;
+    filesFound: number;
+    currentDirectory: string;
+  };
+  /** Whether file tree is currently loading (true = initial load, false = loaded or error) */
+  fileTreeLoading?: boolean;
+  /** Unix timestamp (seconds) of last successful file tree scan - used for incremental refresh */
+  fileTreeLastScanTime?: number;
   // Shell state tracking
   shellCwd?: string;
   // Command history (separate for each mode)

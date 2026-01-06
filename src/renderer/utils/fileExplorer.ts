@@ -61,23 +61,83 @@ export interface SshContext {
 }
 
 /**
+ * Progress callback for streaming file tree loading updates.
+ * Provides real-time feedback during slow SSH directory walks.
+ */
+export interface FileTreeProgress {
+  /** Total directories scanned so far */
+  directoriesScanned: number;
+  /** Total files found so far */
+  filesFound: number;
+  /** Current directory being scanned */
+  currentDirectory: string;
+  /** Partial tree built so far (can be used for progressive display) */
+  partialTree?: FileTreeNode[];
+}
+
+export type FileTreeProgressCallback = (progress: FileTreeProgress) => void;
+
+/**
+ * Internal state for tracking progress during recursive file tree loading.
+ */
+interface LoadingState {
+  directoriesScanned: number;
+  filesFound: number;
+  onProgress?: FileTreeProgressCallback;
+}
+
+/**
  * Load file tree from directory recursively
  * @param dirPath - The directory path to load
  * @param maxDepth - Maximum recursion depth (default: 10)
  * @param currentDepth - Current recursion depth (internal use)
  * @param sshContext - Optional SSH context for remote file operations
+ * @param onProgress - Optional callback for progress updates (useful for SSH)
  */
 export async function loadFileTree(
   dirPath: string,
   maxDepth = 10,
   currentDepth = 0,
-  sshContext?: SshContext
+  sshContext?: SshContext,
+  onProgress?: FileTreeProgressCallback
+): Promise<FileTreeNode[]> {
+  // Initialize loading state at the top level
+  const state: LoadingState = {
+    directoriesScanned: 0,
+    filesFound: 0,
+    onProgress,
+  };
+
+  return loadFileTreeRecursive(dirPath, maxDepth, currentDepth, sshContext, state);
+}
+
+/**
+ * Internal recursive implementation with shared state for progress tracking.
+ */
+async function loadFileTreeRecursive(
+  dirPath: string,
+  maxDepth: number,
+  currentDepth: number,
+  sshContext: SshContext | undefined,
+  state: LoadingState
 ): Promise<FileTreeNode[]> {
   if (currentDepth >= maxDepth) return [];
 
   try {
     const entries = await window.maestro.fs.readDir(dirPath, sshContext?.sshRemoteId);
     const tree: FileTreeNode[] = [];
+
+    // Update progress: we've scanned a directory
+    state.directoriesScanned++;
+
+    // Report progress with current directory being scanned
+    if (state.onProgress) {
+      state.onProgress({
+        directoriesScanned: state.directoriesScanned,
+        filesFound: state.filesFound,
+        currentDirectory: dirPath,
+      });
+    }
 
     for (const entry of entries) {
       // Skip common ignore patterns (but allow hidden files/directories starting with .)
@@ -86,17 +146,33 @@ export async function loadFileTree(
       }
 
       if (entry.isDirectory) {
-        const children = await loadFileTree(`${dirPath}/${entry.name}`, maxDepth, currentDepth + 1, sshContext);
+        const children = await loadFileTreeRecursive(
+          `${dirPath}/${entry.name}`,
+          maxDepth,
+          currentDepth + 1,
+          sshContext,
+          state
+        );
         tree.push({
           name: entry.name,
           type: 'folder',
           children
         });
       } else if (entry.isFile) {
+        state.filesFound++;
         tree.push({
           name: entry.name,
           type: 'file'
         });
+
+        // Report progress periodically for files (every 10 files to avoid too many updates)
+        if (state.onProgress && state.filesFound % 10 === 0) {
+          state.onProgress({
+            directoriesScanned: state.directoriesScanned,
+            filesFound: state.filesFound,
+            currentDirectory: dirPath,
+          });
+        }
       }
     }
 

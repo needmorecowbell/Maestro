@@ -696,3 +696,133 @@ export async function countItemsRemote(
     data: { fileCount, folderCount },
   };
 }
+
+/**
+ * Result of an incremental file scan showing changes since last check.
+ */
+export interface IncrementalScanResult {
+  /** Files added or modified since the reference time */
+  added: string[];
+  /** Files deleted since the reference time (requires full paths from previous scan) */
+  deleted: string[];
+  /** Whether any changes were detected */
+  hasChanges: boolean;
+  /** Timestamp of this scan (use for next incremental scan) */
+  scanTime: number;
+}
+
+/**
+ * Perform an incremental scan to find files changed since a reference time.
+ * Uses `find -newer` with a temporary marker file for efficient delta detection.
+ *
+ * This is much faster than a full directory walk for large remote filesystems,
+ * especially over slow SSH connections. On subsequent refreshes, only files
+ * modified since the last scan are returned.
+ *
+ * Note: This cannot detect deletions directly. For deletion detection, the caller
+ * should compare the returned paths against the previous file list.
+ *
+ * @param dirPath Directory to scan
+ * @param sshRemote SSH remote configuration
+ * @param sinceTimestamp Unix timestamp (seconds) to find changes after
+ * @param deps Optional dependencies for testing
+ * @returns List of changed file paths (relative to dirPath)
+ */
+export async function incrementalScanRemote(
+  dirPath: string,
+  sshRemote: SshRemoteConfig,
+  sinceTimestamp: number,
+  deps: RemoteFsDeps = defaultDeps
+): Promise<RemoteFsResult<IncrementalScanResult>> {
+  const escapedPath = shellEscape(dirPath);
+  const scanTime = Math.floor(Date.now() / 1000);
+
+  // Use find with -newermt to find files modified after the given timestamp
+  // -newermt accepts a date string in ISO format
+  // We exclude common patterns like node_modules and __pycache__
+  const isoDate = new Date(sinceTimestamp * 1000).toISOString();
+  const remoteCommand = `find ${escapedPath} -newermt "${isoDate}" -type f \\( ! -path "*/node_modules/*" ! -path "*/__pycache__/*" \\) 2>/dev/null || true`;
+
+  const result = await execRemoteCommand(sshRemote, remoteCommand, deps);
+
+  // find returns exit code 0 even with no matches, errors go to stderr
+  if (result.exitCode !== 0 && result.stderr) {
+    return {
+      success: false,
+      error: result.stderr,
+    };
+  }
+
+  // Parse the output - each line is a full path
+  const lines = result.stdout.trim().split('\n').filter(Boolean);
+
+  // Convert to paths relative to dirPath
+  const added = lines
+    .map((line) => {
+      // Remove the dirPath prefix to get relative path
+      if (line.startsWith(dirPath)) {
+        return line.substring(dirPath.length).replace(/^\//, '');
+      }
+      return line;
+    })
+    .filter(Boolean);
+
+  return {
+    success: true,
+    data: {
+      added,
+      deleted: [], // Caller must detect deletions by comparing with previous state
+      hasChanges: added.length > 0,
+      scanTime,
+    },
+  };
+}
+
+/**
+ * Get all file paths in a directory (for establishing baseline for incremental scans).
+ * Uses find to list all files, which is faster than recursive readDir for large trees.
+ *
+ * @param dirPath Directory to scan
+ * @param sshRemote SSH remote configuration
+ * @param maxDepth Maximum depth to scan (default: 10)
+ * @param deps Optional dependencies for testing
+ * @returns List of all file paths (relative to dirPath)
+ */
+export async function listAllFilesRemote(
+  dirPath: string,
+  sshRemote: SshRemoteConfig,
+  maxDepth: number = 10,
+  deps: RemoteFsDeps = defaultDeps
+): Promise<RemoteFsResult<string[]>> {
+  const escapedPath = shellEscape(dirPath);
+
+  // Use find with -maxdepth to list all files
+  // Exclude node_modules and __pycache__
+  const remoteCommand = `find ${escapedPath} -maxdepth ${maxDepth} -type f \\( ! -path "*/node_modules/*" ! -path "*/__pycache__/*" \\) 2>/dev/null || true`;
+
+  const result = await execRemoteCommand(sshRemote, remoteCommand, deps);
+
+  if (result.exitCode !== 0 && result.stderr) {
+    return {
+      success: false,
+      error: result.stderr,
+    };
+  }
+
+  const lines = result.stdout.trim().split('\n').filter(Boolean);
+
+  // Convert to paths relative to dirPath
+  const files = lines
+    .map((line) => {
+      if (line.startsWith(dirPath)) {
+        return line.substring(dirPath.length).replace(/^\//, '');
+      }
+      return line;
+    })
+    .filter(Boolean);
+
+  return {
+    success: true,
+    data: files,
+  };
+}

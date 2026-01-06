@@ -1124,7 +1124,7 @@ export function MindMap({
           ? `${theme.colors.textDim}44`
           : `${theme.colors.textDim}66`;
 
-      const lineWidth = isHighlighted ? 2 : 1.5;
+      const lineWidth = isHighlighted ? 3 : 1.5;
 
       // Calculate connection points based on node positions
       let sourceX = sourceNode.x;
@@ -1576,6 +1576,8 @@ export function convertToMindMapData(
       const docData = node.data as DocumentNodeData;
       // Use description (frontmatter) or contentPreview (plaintext) for display
       const previewText = docData.description || docData.contentPreview;
+      // Extract filename without extension for the label (node header)
+      const filename = docData.filePath?.split('/').pop()?.replace(/\.md$/i, '') || docData.title;
       mindMapNode = {
         id: node.id,
         x: 0,
@@ -1585,7 +1587,7 @@ export function convertToMindMapData(
         depth: 0,
         side: 'center' as const,
         nodeType: 'document' as const,
-        label: docData.title,
+        label: filename,
         filePath: docData.filePath,
         description: docData.description,
         contentPreview: docData.contentPreview,

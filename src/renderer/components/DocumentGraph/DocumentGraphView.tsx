@@ -1471,10 +1471,6 @@ export function DocumentGraphView({
               )}
             </div>
           )}
-
-          <span style={{ opacity: 0.7 }}>
-            Click to select • Double-click or Enter to focus • O to open • Arrow keys to navigate • Esc to close
-          </span>
         </div>
       </div>
 

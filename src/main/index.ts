@@ -1325,16 +1325,18 @@ function setupIpcHandlers() {
       if (!sshConfig) {
         throw new Error(`SSH remote not found: ${sshRemoteId}`);
       }
-      const result = await directorySizeRemote(dirPath, sshConfig);
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to get remote directory size');
+      // Fetch size and counts in parallel for SSH remotes
+      const [sizeResult, countResult] = await Promise.all([
+        directorySizeRemote(dirPath, sshConfig),
+        countItemsRemote(dirPath, sshConfig),
+      ]);
+      if (!sizeResult.success) {
+        throw new Error(sizeResult.error || 'Failed to get remote directory size');
       }
-      // Remote directorySizeRemote only returns totalSize (via du -sb)
-      // File/folder counts are not available without recursive listing
       return {
-        totalSize: result.data!,
-        fileCount: 0, // Not available from remote du command
-        folderCount: 0, // Not available from remote du command
+        totalSize: sizeResult.data!,
+        fileCount: countResult.success ? countResult.data!.fileCount : 0,
+        folderCount: countResult.success ? countResult.data!.folderCount : 0,
       };
     }
 
