@@ -4888,6 +4888,29 @@ You are taking over this conversation. Based on the context above, provide a bri
         // Parse the synopsis response
         const parsed = parseSynopsis(result.response);
 
+        // Check if AI indicated nothing meaningful to report
+        if (parsed.nothingToReport) {
+          // Update the pending log to indicate nothing to report
+          setSessions(prev => prev.map(s => {
+            if (s.id !== activeSession.id) return s;
+            return {
+              ...s,
+              aiTabs: s.aiTabs.map(tab => {
+                if (tab.id !== activeTab.id) return tab;
+                return {
+                  ...tab,
+                  logs: tab.logs.map(log =>
+                    log.id === pendingLog.id
+                      ? { ...log, text: 'Nothing to report - no history entry created.' }
+                      : log
+                  ),
+                };
+              }),
+            };
+          }));
+          return;
+        }
+
         // Get group info for the history entry
         const group = groups.find(g => g.id === activeSession.groupId);
         const groupName = group?.name || 'Ungrouped';
