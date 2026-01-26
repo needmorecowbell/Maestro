@@ -29,6 +29,7 @@ import { TourOverlay } from './components/Wizard/tour';
 import { CONDUCTOR_BADGES, getBadgeForTime } from './constants/conductorBadges';
 import { EmptyStateView } from './components/EmptyStateView';
 import { MarketplaceModal } from './components/MarketplaceModal';
+import { SymphonyModal, type SymphonyContributionData } from './components/SymphonyModal';
 import { DocumentGraphView } from './components/DocumentGraph/DocumentGraphView';
 import { DeleteAgentConfirmModal } from './components/DeleteAgentConfirmModal';
 
@@ -12635,6 +12636,176 @@ You are taking over this conversation. Based on the context above, provide a bri
 						onImportComplete={handleMarketplaceImportComplete}
 					/>
 				)}
+
+				{/* --- SYMPHONY MODAL --- */}
+				<SymphonyModal
+					theme={theme}
+					isOpen={symphonyModalOpen}
+					onClose={() => setSymphonyModalOpen(false)}
+					onStartContribution={async (data: SymphonyContributionData) => {
+						console.log('[Symphony] Creating session for contribution:', data);
+
+						// Get agent definition
+						const agent = await window.maestro.agents.get(data.agentType);
+						if (!agent) {
+							console.error(`Agent not found: ${data.agentType}`);
+							addToast({
+								type: 'error',
+								title: 'Symphony Error',
+								message: `Agent not found: ${data.agentType}`,
+							});
+							return;
+						}
+
+						// Validate uniqueness
+						const validation = validateNewSession(
+							data.sessionName,
+							data.localPath,
+							data.agentType as ToolType,
+							sessions
+						);
+						if (!validation.valid) {
+							console.error(`Session validation failed: ${validation.error}`);
+							addToast({
+								type: 'error',
+								title: 'Session Creation Failed',
+								message: validation.error || 'Cannot create duplicate session',
+							});
+							return;
+						}
+
+						const newId = generateId();
+						const initialTabId = generateId();
+
+						// Check git repo status
+						const isGitRepo = await gitService.isRepo(data.localPath);
+						let gitBranches: string[] | undefined;
+						let gitTags: string[] | undefined;
+						let gitRefsCacheTime: number | undefined;
+
+						if (isGitRepo) {
+							[gitBranches, gitTags] = await Promise.all([
+								gitService.getBranches(data.localPath),
+								gitService.getTags(data.localPath),
+							]);
+							gitRefsCacheTime = Date.now();
+						}
+
+						// Create initial tab
+						const initialTab: AITab = {
+							id: initialTabId,
+							agentSessionId: null,
+							name: null,
+							starred: false,
+							logs: [],
+							inputValue: '',
+							stagedImages: [],
+							createdAt: Date.now(),
+							state: 'idle',
+							saveToHistory: defaultSaveToHistory,
+						};
+
+						// Create session with Symphony metadata
+						const newSession: Session = {
+							id: newId,
+							name: data.sessionName,
+							toolType: data.agentType as ToolType,
+							state: 'idle',
+							cwd: data.localPath,
+							fullPath: data.localPath,
+							projectRoot: data.localPath,
+							isGitRepo,
+							gitBranches,
+							gitTags,
+							gitRefsCacheTime,
+							aiLogs: [],
+							shellLogs: [
+								{
+									id: generateId(),
+									timestamp: Date.now(),
+									source: 'system',
+									text: 'Shell Session Ready.',
+								},
+							],
+							workLog: [],
+							contextUsage: 0,
+							inputMode: 'ai',
+							aiPid: 0,
+							terminalPid: 0,
+							port: 3000 + Math.floor(Math.random() * 100),
+							isLive: false,
+							changedFiles: [],
+							fileTree: [],
+							fileExplorerExpanded: [],
+							fileExplorerScrollPos: 0,
+							fileTreeAutoRefreshInterval: 180,
+							shellCwd: data.localPath,
+							aiCommandHistory: [],
+							shellCommandHistory: [],
+							executionQueue: [],
+							activeTimeMs: 0,
+							aiTabs: [initialTab],
+							activeTabId: initialTabId,
+							closedTabHistory: [],
+							// Custom agent config
+							customPath: data.customPath,
+							customArgs: data.customArgs,
+							customEnvVars: data.customEnvVars,
+							// Auto Run setup - use autoRunPath from contribution
+							autoRunFolderPath: data.autoRunPath,
+							// Symphony metadata for tracking
+							symphonyMetadata: {
+								isSymphonySession: true,
+								contributionId: data.contributionId,
+								repoSlug: data.repo.slug,
+								issueNumber: data.issue.number,
+								issueTitle: data.issue.title,
+								documentPaths: data.issue.documentPaths.map((d) => d.path),
+								status: 'running',
+							},
+						};
+
+						setSessions((prev) => [...prev, newSession]);
+						setActiveSessionId(newId);
+						setSymphonyModalOpen(false);
+
+						// Register active contribution in Symphony persistent state
+						// This makes it show up in the Active tab of the Symphony modal
+						window.maestro.symphony
+							.registerActive({
+								contributionId: data.contributionId,
+								sessionId: newId,
+								repoSlug: data.repo.slug,
+								repoName: data.repo.name,
+								issueNumber: data.issue.number,
+								issueTitle: data.issue.title,
+								localPath: data.localPath,
+								branchName: data.branchName || '',
+								totalDocuments: data.issue.documentPaths.length,
+								agentType: data.agentType,
+							})
+							.catch((err: unknown) => {
+								console.error('[Symphony] Failed to register active contribution:', err);
+							});
+
+						// Track stats
+						updateGlobalStats({ totalSessions: 1 });
+						window.maestro.stats.recordSessionCreated({
+							sessionId: newId,
+							agentType: data.agentType,
+							projectPath: data.localPath,
+							createdAt: Date.now(),
+							isRemote: false,
+						});
+
+						// Focus input
+						setActiveFocus('main');
+						setTimeout(() => inputRef.current?.focus(), 50);
+
+						// Switch to Auto Run tab so user sees the documents
+						setActiveRightTab('autorun');
+					}}
+				/>
 
 				{/* --- GIST PUBLISH MODAL --- */}
 				{/* Supports both file preview and tab context gist publishing */}
