@@ -7893,13 +7893,6 @@ You are taking over this conversation. Based on the context above, provide a bri
 		loadTaskCounts,
 	]);
 
-	// Auto-scroll logs
-	// PERF: Use memoized activeTab instead of calling getActiveTab() again
-	const activeTabLogs = activeTab?.logs;
-	useEffect(() => {
-		logsEndRef.current?.scrollIntoView({ behavior: 'instant' });
-	}, [activeTabLogs, activeSession?.shellLogs, activeSession?.inputMode]);
-
 	// --- ACTIONS ---
 	const cycleSession = (dir: 'next' | 'prev') => {
 		// Build the visual order of items as they appear in the sidebar.
