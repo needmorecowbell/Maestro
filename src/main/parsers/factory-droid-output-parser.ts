@@ -58,6 +58,21 @@ interface FactoryStreamMessage {
 }
 
 /**
+ * Type guard to validate parsed JSON matches FactoryStreamMessage structure
+ */
+function isFactoryStreamMessage(data: unknown): data is FactoryStreamMessage {
+	if (typeof data !== 'object' || data === null) {
+		return false;
+	}
+	const obj = data as Record<string, unknown>;
+	// Must have a valid type field
+	return (
+		typeof obj.type === 'string' &&
+		['system', 'message', 'completion', 'error'].includes(obj.type)
+	);
+}
+
+/**
  * Factory Droid Output Parser Implementation
  *
  * Transforms Factory Droid's stream-json format into normalized ParsedEvents.
@@ -74,7 +89,20 @@ export class FactoryDroidOutputParser implements AgentOutputParser {
 		}
 
 		try {
-			const data: FactoryStreamMessage = JSON.parse(line);
+			const parsed: unknown = JSON.parse(line);
+
+			// Validate the parsed JSON matches expected structure
+			if (!isFactoryStreamMessage(parsed)) {
+				// Valid JSON but not a Factory message - return as raw text
+				return {
+					type: 'text',
+					text: line,
+					isPartial: true,
+					raw: parsed,
+				};
+			}
+
+			const data = parsed;
 
 			switch (data.type) {
 				case 'system':

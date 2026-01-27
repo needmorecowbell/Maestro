@@ -106,8 +106,9 @@ interface FactorySettings {
  */
 function encodeProjectPath(projectPath: string): string {
 	// Normalize and encode: /Users/octavia/proj -> -Users-octavia-proj
+	// Handle both forward slashes (Unix) and backslashes (Windows)
 	const normalized = path.resolve(projectPath);
-	return normalized.replace(/\//g, '-');
+	return normalized.replace(/[\\/]/g, '-');
 }
 
 /**
@@ -117,7 +118,8 @@ async function readJsonFile<T>(filePath: string): Promise<T | null> {
 	try {
 		const content = await fs.readFile(filePath, 'utf-8');
 		return JSON.parse(content) as T;
-	} catch {
+	} catch (error) {
+		logger.debug(`Failed to read JSON file: ${filePath}`, LOG_CONTEXT, { error });
 		return null;
 	}
 }
@@ -171,13 +173,14 @@ export class FactoryDroidSessionStorage implements AgentSessionStorage {
 					if (parsed.type === 'message' && parsed.message) {
 						messages.push(parsed as FactoryMessage);
 					}
-				} catch {
-					// Skip unparseable lines
+				} catch (error) {
+					logger.debug('Skipping unparseable JSONL line', LOG_CONTEXT, { error });
 				}
 			}
 
 			return messages;
-		} catch {
+		} catch (error) {
+			logger.debug(`Failed to load session messages: ${sessionPath}`, LOG_CONTEXT, { error });
 			return [];
 		}
 	}
@@ -529,7 +532,8 @@ export class FactoryDroidSessionStorage implements AgentSessionStorage {
 					} else {
 						newLines.push(line);
 					}
-				} catch {
+				} catch (error) {
+					logger.debug('Skipping unparseable line during deletion', LOG_CONTEXT, { error });
 					newLines.push(line);
 				}
 			}
