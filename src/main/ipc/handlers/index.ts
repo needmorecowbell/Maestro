@@ -171,7 +171,7 @@ export function registerAllHandlers(deps: HandlerDependencies): void {
 		agentConfigsStore: deps.agentConfigsStore,
 		settingsStore: deps.settingsStore,
 		getMainWindow: deps.getMainWindow,
-    sessionsStore: deps.sessionsStore,
+		sessionsStore: deps.sessionsStore,
 	});
 	registerPersistenceHandlers({
 		settingsStore: deps.settingsStore,
