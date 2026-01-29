@@ -108,6 +108,16 @@ export const AGENT_ARTIFACTS: Record<ToolType, string[]> = {
 		'opus',
 		'haiku',
 	],
+	aider: [
+		// Slash commands
+		'/help',
+		'/clear',
+		'/model',
+		'/settings',
+		// Brand references
+		'Aider',
+		'aider',
+	],
 	terminal: [
 		// Terminal has no agent-specific artifacts
 	],
@@ -146,6 +156,12 @@ export const AGENT_TARGET_NOTES: Record<ToolType, string> = {
     It does not have direct file system or terminal access.
     Code examples should be presented as text for the user to apply.
   `,
+	aider: `
+    Aider is an AI pair programming tool.
+    It supports multiple AI models and providers.
+    It can read and edit files, run commands, and work with git.
+    It uses a conversational interface for code changes.
+  `,
 	terminal: `
     Terminal is a raw shell interface.
     It executes shell commands directly without AI interpretation.
@@ -162,6 +178,7 @@ export function getAgentDisplayName(agentType: ToolType): string {
 		codex: 'OpenAI Codex',
 		'factory-droid': 'Factory Droid',
 		claude: 'Claude',
+		aider: 'Aider',
 		terminal: 'Terminal',
 	};
 	return names[agentType] || agentType;

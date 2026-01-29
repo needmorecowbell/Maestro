@@ -714,16 +714,6 @@ export class AgentDetector {
 				path.join(appData, 'npm', 'droid.cmd'),
 				path.join(localAppData, 'npm', 'droid.cmd'),
 			],
-			droid: [
-				// Factory Droid installation paths
-				path.join(home, '.factory', 'bin', 'droid.exe'),
-				path.join(localAppData, 'Factory', 'droid.exe'),
-				path.join(appData, 'Factory', 'droid.exe'),
-				path.join(home, '.local', 'bin', 'droid.exe'),
-				// npm global installation
-				path.join(appData, 'npm', 'droid.cmd'),
-				path.join(localAppData, 'npm', 'droid.cmd'),
-			],
 		};
 
 		const pathsToCheck = knownPaths[binaryName] || [];
@@ -802,15 +792,6 @@ export class AgentDetector {
 				'/usr/local/bin/gemini',
 				// Add paths from Node version managers (nvm, fnm, volta, etc.)
 				...versionManagerPaths.map((p) => path.join(p, 'gemini')),
-			],
-			droid: [
-				// Factory Droid installation paths
-				path.join(home, '.factory', 'bin', 'droid'),
-				path.join(home, '.local', 'bin', 'droid'),
-				'/opt/homebrew/bin/droid',
-				'/usr/local/bin/droid',
-				// Add paths from Node version managers (in case installed via npm)
-				...versionManagerPaths.map((p) => path.join(p, 'droid')),
 			],
 			droid: [
 				// Factory Droid installation paths

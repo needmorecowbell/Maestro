@@ -41,9 +41,7 @@ export const AGENT_ICONS: Record<string, string> = {
 
 	// Open-source alternatives
 	opencode: '📟',
-
-	// Enterprise
-	'factory-droid': '🏭',
+	aider: '🤖',
 
 	// Enterprise
 	'factory-droid': '🏭',

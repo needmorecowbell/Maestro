@@ -113,6 +113,7 @@ export function getProviderDisplayName(toolType: ToolType): string {
 		claude: 'Claude',
 		opencode: 'OpenCode',
 		codex: 'Codex',
+		aider: 'Aider',
 		'factory-droid': 'Factory Droid',
 		terminal: 'Terminal',
 	};
