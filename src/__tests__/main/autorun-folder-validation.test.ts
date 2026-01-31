@@ -364,23 +364,26 @@ describe('Auto Run Folder Validation', () => {
 
 			it('should handle path.join with potentially malicious input', () => {
 				const folderPath = '/test/autorun';
-				// path.join is dangerous with absolute paths in the second argument
+				// path.join normalizes paths by stripping leading slashes from subsequent arguments
+				// This means path.join('/test/autorun', '/etc/passwd') returns '/test/autorun/etc/passwd'
+				// which is actually WITHIN the folder - this is NOT a security issue with path.join
 				const maliciousInput = process.platform === 'win32' ? 'C:\\etc\\passwd' : '/etc/passwd';
 				const joined = path.join(folderPath, maliciousInput);
 
-				// On Unix, path.join treats absolute second arg as root
-				// On Windows, path.join concatenates since the second arg is not considered absolute in the same way
+				// On both platforms, path.join concatenates (stripping leading slashes)
+				// The result is within the folder, so validation passes
 				if (process.platform === 'win32') {
 					// On Windows, the result is concatenated
 					expect(joined).toBe('\\test\\autorun\\C:\\etc\\passwd');
-					expect(validatePathWithinFolder(joined, folderPath)).toBe(true); // It's still within the folder
+					expect(validatePathWithinFolder(joined, folderPath)).toBe(true);
 				} else {
-					// On Unix, path.join with absolute second arg gives the absolute path
+					// On Unix, path.join strips leading slash and concatenates
 					expect(joined).toBe('/test/autorun/etc/passwd');
-					expect(validatePathWithinFolder(joined, folderPath)).toBe(false);
+					// This is actually within the folder, so it passes validation
+					expect(validatePathWithinFolder(joined, folderPath)).toBe(true);
 				}
 
-				// But if someone bypasses join and uses the raw path:
+				// The real danger is if someone bypasses join and uses the raw absolute path directly:
 				expect(validatePathWithinFolder(maliciousInput, folderPath)).toBe(false);
 			});
 		});

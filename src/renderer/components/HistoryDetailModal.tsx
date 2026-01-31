@@ -229,21 +229,29 @@ export function HistoryDetailModal({
 			>
 				{/* Header */}
 				<div
-					className="flex flex-col px-6 py-4 border-b shrink-0 gap-3"
+					className="relative px-6 py-4 border-b shrink-0"
 					style={{ borderColor: theme.colors.border }}
 				>
-					{/* Session Name - prominent header when available */}
-					{entry.sessionName && (
-						<h2
-							className="text-lg font-bold truncate"
-							style={{ color: theme.colors.textMain }}
-							title={entry.sessionName}
-						>
-							{entry.sessionName}
-						</h2>
-					)}
+					{/* Close button - absolute top right */}
+					<button
+						onClick={onClose}
+						className="absolute top-4 right-4 p-1 rounded hover:bg-white/10 transition-colors"
+					>
+						<X className="w-5 h-5" style={{ color: theme.colors.textDim }} />
+					</button>
 
-					<div className="flex items-center justify-between">
+					<div className="flex flex-col gap-3 pr-8">
+						{/* Session Name - prominent header when available */}
+						{entry.sessionName && (
+							<h2
+								className="text-lg font-bold truncate"
+								style={{ color: theme.colors.textMain }}
+								title={entry.sessionName}
+							>
+								{entry.sessionName}
+							</h2>
+						)}
+
 						<div className="flex items-center gap-3 flex-wrap">
 							{/* Success/Failure Indicator for AUTO entries */}
 							{entry.type === 'AUTO' && entry.success !== undefined && (
@@ -371,11 +379,6 @@ export function HistoryDetailModal({
 								</button>
 							)}
 						</div>
-
-						{/* Close button */}
-						<button onClick={onClose} className="p-1 rounded hover:bg-white/10 transition-colors">
-							<X className="w-5 h-5" style={{ color: theme.colors.textDim }} />
-						</button>
 					</div>
 				</div>
 

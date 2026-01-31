@@ -400,6 +400,7 @@ const mockMaestro = {
 		setCustomPath: vi.fn().mockResolvedValue(undefined),
 		migrateStorage: vi.fn().mockResolvedValue({ success: true, migratedCount: 0 }),
 		resetToDefault: vi.fn().mockResolvedValue({ success: true }),
+		selectSyncFolder: vi.fn().mockResolvedValue(null),
 	},
 	stats: {
 		recordQuery: vi.fn().mockResolvedValue({ success: true }),
@@ -420,6 +421,7 @@ const mockMaestro = {
 		exportCsv: vi.fn().mockResolvedValue(''),
 		onStatsUpdate: vi.fn().mockReturnValue(() => {}),
 		getDatabaseSize: vi.fn().mockResolvedValue(1024 * 1024), // 1MB mock
+		getEarliestTimestamp: vi.fn().mockResolvedValue(null),
 		clearOldData: vi.fn().mockResolvedValue({
 			success: true,
 			deletedQueryEvents: 0,
