@@ -219,11 +219,10 @@ export function useBatchedSessionUpdates(
 								if (!logData) return tab;
 
 								// Clear thinking/tool entries when new AI output arrives (final result replaces thinking)
-								// BUT: if showThinking is 'sticky', preserve thinking logs (only clear tool logs)
+								// BUT: if showThinking is 'sticky', preserve both thinking and tool logs
 								const existingLogs = tab.logs.filter((log) => {
-									if (log.source === 'tool') return false; // Always clear tool logs
-									if (log.source === 'thinking') {
-										// Only preserve thinking logs in sticky mode
+									if (log.source === 'thinking' || log.source === 'tool') {
+										// Only preserve thinking/tool logs in sticky mode
 										return tab.showThinking === 'sticky';
 									}
 									return true;
