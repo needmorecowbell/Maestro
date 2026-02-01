@@ -100,6 +100,16 @@ When operating in read-only or plan mode, you MUST provide both:
 
 Do not assume the user will read generated files. Always explain your analysis, reasoning, and proposed approach directly in your response.
 
+### Code Reuse and Refactoring
+
+**Before creating new code**, always search for existing implementations in the codebase:
+- Look for existing utilities, helpers, hooks, or services that accomplish similar goals
+- Check for established patterns that should be followed or extended
+- Identify opportunities to refactor and consolidate duplicate code
+- Prefer extending or composing existing code over creating new implementations
+
+This prevents code duplication and maintains consistency across the project.
+
 ### Recommended Operations
 
 Format your responses in Markdown. When referencing file paths, use backticks (ex: `path/to/file`).

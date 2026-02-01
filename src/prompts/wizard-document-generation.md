@@ -72,6 +72,7 @@ Each task should be:
 - **Actionable**: Clear what needs to be done
 - **Verifiable**: You can tell when it's complete
 - **Autonomous**: Can be done without asking the user questions
+- **Reuse-aware**: Include hints to search for and reuse existing code patterns before creating new implementations
 
 ### Grouping Rules
 
@@ -174,6 +175,7 @@ If one item in a group is significantly more complex, give it its own task:
 - Keep phases focused (5-15 tasks typically)
 - Avoid tasks that require user decisions mid-execution
 - No documentation-only tasks (docs can be part of implementation tasks)
+- Include explicit guidance to search for existing code patterns before creating new implementations (reduces duplication)
 
 ## Structured Output Artifacts
 
