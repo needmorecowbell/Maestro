@@ -1416,8 +1416,11 @@ export function useSettings(): UseSettingsReturn {
 				if (savedTerminalWidth !== undefined) setTerminalWidthState(savedTerminalWidth as number);
 				if (savedLogLevel !== undefined) setLogLevelState(savedLogLevel);
 				if (savedMaxLogBuffer !== undefined) setMaxLogBufferState(savedMaxLogBuffer);
-				if (savedMaxOutputLines !== undefined)
-					setMaxOutputLinesState(savedMaxOutputLines as number);
+				// Handle maxOutputLines specially: Infinity is serialized as null in JSON
+				// So we treat null as Infinity, undefined keeps the default (25)
+				if (savedMaxOutputLines !== undefined) {
+					setMaxOutputLinesState(savedMaxOutputLines === null ? Infinity : (savedMaxOutputLines as number));
+				}
 				if (savedOsNotificationsEnabled !== undefined)
 					setOsNotificationsEnabledState(savedOsNotificationsEnabled as boolean);
 				if (savedAudioFeedbackEnabled !== undefined)

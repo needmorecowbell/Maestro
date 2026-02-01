@@ -622,6 +622,28 @@ describe('useSettings', () => {
 			expect(result.current.maxOutputLines).toBe(50);
 			expect(window.maestro.settings.set).toHaveBeenCalledWith('maxOutputLines', 50);
 		});
+
+		it('should treat null maxOutputLines as Infinity (JSON serialization of Infinity)', async () => {
+			// When user selects "All" (Infinity) in the UI, it gets serialized as null in JSON
+			// because JSON.stringify(Infinity) produces null. On reload, we should restore Infinity.
+			vi.mocked(window.maestro.settings.getAll).mockResolvedValue({
+				maxOutputLines: null,
+			});
+
+			const { result } = renderHook(() => useSettings());
+			await waitForSettingsLoaded(result);
+
+			expect(result.current.maxOutputLines).toBe(Infinity);
+		});
+
+		it('should keep default (25) when maxOutputLines is undefined', async () => {
+			vi.mocked(window.maestro.settings.getAll).mockResolvedValue({});
+
+			const { result } = renderHook(() => useSettings());
+			await waitForSettingsLoaded(result);
+
+			expect(result.current.maxOutputLines).toBe(25);
+		});
 	});
 
 	describe('setter functions - notification settings', () => {
