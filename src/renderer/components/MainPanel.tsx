@@ -1503,7 +1503,8 @@ export const MainPanel = React.memo(
 						)}
 
 						{/* Show File Preview in main area when open, otherwise show terminal output and input */}
-						{previewFile ? (
+						{/* Skip rendering terminal/preview when loading remote file - loading state takes over entire main area */}
+						{filePreviewLoading && !previewFile ? null : previewFile ? (
 							<div
 								ref={filePreviewContainerRef}
 								tabIndex={-1}
