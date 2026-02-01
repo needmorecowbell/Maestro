@@ -233,32 +233,7 @@ useEffect(() => {
 
 ## Performance Profiling
 
-### React DevTools (Standalone)
-
-For profiling React renders and inspecting component trees, use the standalone React DevTools app:
-
-```bash
-# Install globally (once)
-npm install -g react-devtools
-
-# Launch the standalone app
-npx react-devtools
-```
-
-Then run `npm run dev` — the app auto-connects (connection script in `src/renderer/index.html`).
-
-**Tabs:**
-- **Components** — Inspect React component tree, props, state, hooks
-- **Profiler** — Record and analyze render performance, identify unnecessary re-renders
-
-**Profiler workflow:**
-1. Click the record button (blue circle)
-2. Interact with the app (navigate, type, scroll)
-3. Stop recording
-4. Analyze the flame graph for:
-   - Components that render too often
-   - Render times per component
-   - Why a component rendered (props/state/hooks changed)
+For React DevTools profiling workflow, see [[CONTRIBUTING.md#profiling]].
 
 ### Chrome DevTools Performance Traces
 

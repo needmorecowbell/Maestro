@@ -94,6 +94,7 @@ export const DocumentNode = memo(function DocumentNode({ data, selected }: Docum
 			padding: 12,
 			minWidth: 200,
 			maxWidth: 280,
+			overflow: 'hidden' as const,
 			boxShadow: isHighlighted
 				? `0 0 0 3px ${theme.colors.accent}40, 0 4px 12px ${theme.colors.accentDim}`
 				: selected
@@ -150,6 +151,9 @@ export const DocumentNode = memo(function DocumentNode({ data, selected }: Docum
 			fontSize: 12,
 			lineHeight: 1.4,
 			opacity: 0.85,
+			overflow: 'hidden' as const,
+			wordBreak: 'break-word' as const,
+			overflowWrap: 'break-word' as const,
 		}),
 		[theme.colors.textDim]
 	);

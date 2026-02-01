@@ -720,6 +720,69 @@ async function markPRReady(
 }
 
 /**
+ * Discover an existing PR for a branch by querying GitHub API.
+ * This handles cases where PRs were created manually (via gh CLI or GitHub UI)
+ * but not tracked in Symphony metadata.
+ */
+async function discoverPRByBranch(
+	repoSlug: string,
+	branchName: string
+): Promise<{ prNumber?: number; prUrl?: string }> {
+	try {
+		// Query GitHub API for PRs with this head branch
+		// API: GET /repos/{owner}/{repo}/pulls?head={owner}:{branch}&state=all
+		const [owner] = repoSlug.split('/');
+		const headRef = `${owner}:${branchName}`;
+		const apiUrl = `${GITHUB_API_BASE}/repos/${repoSlug}/pulls?head=${encodeURIComponent(headRef)}&state=all&per_page=1`;
+
+		const response = await fetch(apiUrl, {
+			headers: {
+				Accept: 'application/vnd.github.v3+json',
+				'User-Agent': 'Maestro-Symphony',
+			},
+		});
+
+		if (!response.ok) {
+			logger.warn('Failed to query GitHub for PRs by branch', LOG_CONTEXT, {
+				repoSlug,
+				branchName,
+				status: response.status,
+			});
+			return {};
+		}
+
+		const prs = (await response.json()) as Array<{
+			number: number;
+			html_url: string;
+			state: string;
+		}>;
+
+		if (prs.length > 0) {
+			const pr = prs[0];
+			logger.info('Discovered existing PR for branch', LOG_CONTEXT, {
+				repoSlug,
+				branchName,
+				prNumber: pr.number,
+				state: pr.state,
+			});
+			return {
+				prNumber: pr.number,
+				prUrl: pr.html_url,
+			};
+		}
+
+		return {};
+	} catch (error) {
+		logger.warn('Error discovering PR by branch', LOG_CONTEXT, {
+			repoSlug,
+			branchName,
+			error: error instanceof Error ? error.message : String(error),
+		});
+		return {};
+	}
+}
+
+/**
  * Post a comment to a PR with Symphony contribution stats.
  */
 async function postPRComment(
@@ -1630,6 +1693,27 @@ This PR will be updated automatically when the Auto Run completes.`;
 					}
 				}
 
+				// Second, try to discover PRs by branch name for contributions still missing PR info
+				// This handles PRs created manually via gh CLI or GitHub UI
+				for (const contribution of state.active) {
+					if (!contribution.draftPrNumber && contribution.branchName && contribution.repoSlug) {
+						const discovered = await discoverPRByBranch(
+							contribution.repoSlug,
+							contribution.branchName
+						);
+						if (discovered.prNumber) {
+							contribution.draftPrNumber = discovered.prNumber;
+							contribution.draftPrUrl = discovered.prUrl;
+							prInfoSynced = true;
+							logger.info('Discovered PR from branch during status check', LOG_CONTEXT, {
+								contributionId: contribution.id,
+								branchName: contribution.branchName,
+								draftPrNumber: discovered.prNumber,
+							});
+						}
+					}
+				}
+
 				// Also check active contributions that have a draft PR
 				// These might have been merged/closed externally
 				const activeToMove: number[] = [];
@@ -1788,8 +1872,27 @@ This PR will be updated automatically when the Auto Run completes.`;
 						}
 					}
 
-					// Step 2: If still no PR, log info for manual intervention
-					// Creating a PR from sync would be complex and risky - better to prompt user
+					// Step 2: If still no PR, try to discover it from GitHub by branch name
+					// This handles PRs created manually via gh CLI or GitHub UI
+					if (!contribution.draftPrNumber && contribution.branchName && contribution.repoSlug) {
+						const discovered = await discoverPRByBranch(
+							contribution.repoSlug,
+							contribution.branchName
+						);
+						if (discovered.prNumber) {
+							contribution.draftPrNumber = discovered.prNumber;
+							contribution.draftPrUrl = discovered.prUrl;
+							prCreated = true;
+							message = `Discovered PR #${discovered.prNumber} from branch ${contribution.branchName}`;
+							logger.info('Discovered PR from branch', LOG_CONTEXT, {
+								contributionId,
+								branchName: contribution.branchName,
+								draftPrNumber: discovered.prNumber,
+							});
+						}
+					}
+
+					// Step 3: If still no PR, log info for manual intervention
 					if (!contribution.draftPrNumber && contribution.localPath) {
 						try {
 							// Check if local path exists
@@ -1812,7 +1915,7 @@ This PR will be updated automatically when the Auto Run completes.`;
 						}
 					}
 
-					// Step 3: If we have a PR, check its status
+					// Step 4: If we have a PR, check its status
 					if (contribution.draftPrNumber) {
 						const prUrl = `${GITHUB_API_BASE}/repos/${contribution.repoSlug}/pulls/${contribution.draftPrNumber}`;
 						const response = await fetch(prUrl, {

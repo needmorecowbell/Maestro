@@ -700,15 +700,41 @@ export function registerClaudeHandlers(deps: ClaudeHandlerDependencies): void {
 				lastUpdated: Date.now(),
 			};
 
-			// Copy still-valid cached sessions
+			// ============================================================================
+			// Archive Preservation Pattern
+			// ============================================================================
+			// IMPORTANT: When JSONL files are deleted, we MUST preserve session stats by
+			// marking them as archived (not by dropping them). This ensures lifetime stats
+			// (costs, messages, tokens, oldest timestamp) survive file cleanup.
+			//
+			// This pattern MUST match the global stats cache behavior in agentSessions.ts.
+			// If you modify this logic, update both files and the corresponding tests.
+			// ============================================================================
+
 			if (cache) {
 				for (const [sessionId, sessionStats] of Object.entries(cache.sessions)) {
-					if (
-						currentSessionIds.has(sessionId) &&
-						!sessionsToProcess.some((s) => s.filename.replace('.jsonl', '') === sessionId)
-					) {
-						newCache.sessions[sessionId] = sessionStats;
+					const existsOnDisk = currentSessionIds.has(sessionId);
+					const needsReparse = sessionsToProcess.some(
+						(s) => s.filename.replace('.jsonl', '') === sessionId
+					);
+
+					if (existsOnDisk && !needsReparse) {
+						// Session file still exists and hasn't changed - keep cached stats
+						// Clear archived flag if it was previously set (file reappeared)
+						newCache.sessions[sessionId] = {
+							...sessionStats,
+							archived: false,
+						};
+					} else if (!existsOnDisk) {
+						// Session file was DELETED - preserve stats with archived flag
+						// This is critical: we must NOT drop deleted sessions!
+						// Archived sessions still count toward lifetime totals.
+						newCache.sessions[sessionId] = {
+							...sessionStats,
+							archived: true,
+						};
 					}
+					// If existsOnDisk && needsReparse: skip here, will be added below after parsing
 				}
 			}
 
@@ -730,6 +756,7 @@ export function registerClaudeHandlers(deps: ClaudeHandlerDependencies): void {
 					newCache.sessions[sessionId] = {
 						fileMtimeMs: mtimeMs,
 						...stats,
+						archived: false, // Explicitly mark as active (file exists)
 					};
 
 					processedCount++;
@@ -1839,7 +1866,13 @@ export function registerClaudeHandlers(deps: ClaudeHandlerDependencies): void {
 }
 
 /**
- * Helper to calculate totals from session stats cache
+ * Helper to calculate totals from session stats cache.
+ *
+ * IMPORTANT: This function intentionally includes ALL sessions (both active and archived)
+ * in the totals. Archived sessions (where JSONL files have been deleted) MUST still count
+ * toward lifetime statistics. This preserves historical cost tracking and session counts.
+ *
+ * Do NOT add filtering for `archived` flag here - that would break lifetime stats.
  */
 function calculateTotals(cache: SessionStatsCache) {
 	let totalSessions = 0;
@@ -1849,6 +1882,7 @@ function calculateTotals(cache: SessionStatsCache) {
 	let totalTokens = 0;
 	let oldestTimestamp: string | null = null;
 
+	// Include ALL sessions (active + archived) for lifetime totals
 	for (const stats of Object.values(cache.sessions)) {
 		totalSessions++;
 		totalMessages += stats.messages;
