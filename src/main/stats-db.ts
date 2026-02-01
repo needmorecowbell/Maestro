@@ -98,6 +98,22 @@ export interface CorruptionRecoveryResult {
 	error?: string;
 }
 
+/**
+ * Result of database initialization
+ */
+export interface InitializationResult {
+	/** Whether initialization succeeded */
+	success: boolean;
+	/** Whether the database was reset due to corruption */
+	wasReset: boolean;
+	/** Path to the backup of the corrupted database (if reset) */
+	backupPath?: string;
+	/** Error message if initialization failed */
+	error?: string;
+	/** User-friendly message about what happened */
+	userMessage?: string;
+}
+
 // ============================================================================
 // Migration System Types
 // ============================================================================
@@ -325,11 +341,16 @@ export class StatsDB {
 	 * 3. Create a fresh database
 	 *
 	 * The backup is preserved for potential manual recovery with specialized tools.
+	 *
+	 * @returns Result object indicating success/failure and whether database was reset
 	 */
-	initialize(): void {
+	initialize(): InitializationResult {
 		if (this.initialized) {
-			return;
+			return { success: true, wasReset: false };
 		}
+
+		let wasReset = false;
+		let backupPath: string | undefined;
 
 		try {
 			// Ensure the directory exists
@@ -343,14 +364,61 @@ export class StatsDB {
 
 			if (dbExists) {
 				// Open with corruption handling for existing databases
-				const db = this.openWithCorruptionHandling();
-				if (!db) {
-					throw new Error('Failed to open or recover database');
+				const openResult = this.openWithCorruptionHandling();
+				if (!openResult.db) {
+					// If we still can't open the database, try one more time to reset it
+					logger.error('Failed to open database even after recovery attempt', LOG_CONTEXT);
+					const lastChanceRecovery = this.recoverFromCorruption();
+					if (lastChanceRecovery.recovered) {
+						wasReset = true;
+						backupPath = lastChanceRecovery.backupPath;
+						try {
+							this.db = new Database(this.dbPath);
+						} catch (finalError) {
+							const errorMessage =
+								finalError instanceof Error ? finalError.message : String(finalError);
+							logger.error(
+								`Failed to create fresh database after recovery: ${errorMessage}`,
+								LOG_CONTEXT
+							);
+							return {
+								success: false,
+								wasReset: true,
+								backupPath,
+								error: errorMessage,
+								userMessage:
+									'Failed to create fresh database after corruption recovery. The statistics database is unavailable.',
+							};
+						}
+					} else {
+						return {
+							success: false,
+							wasReset: false,
+							error: 'Failed to open or recover database',
+							userMessage:
+								'The statistics database could not be opened or recovered. Usage statistics are unavailable.',
+						};
+					}
+				} else {
+					this.db = openResult.db;
+					wasReset = openResult.wasReset;
+					backupPath = openResult.backupPath;
 				}
-				this.db = db;
 			} else {
 				// Create new database
-				this.db = new Database(this.dbPath);
+				try {
+					this.db = new Database(this.dbPath);
+				} catch (createError) {
+					// This can happen if the native module fails to load
+					const errorMessage = createError instanceof Error ? createError.message : String(createError);
+					logger.error(`Failed to create database: ${errorMessage}`, LOG_CONTEXT);
+					return {
+						success: false,
+						wasReset: false,
+						error: errorMessage,
+						userMessage: this.getNativeModuleErrorMessage(errorMessage),
+					};
+				}
 			}
 
 			// Enable WAL mode for better concurrent access
@@ -365,10 +433,44 @@ export class StatsDB {
 			// Schedule VACUUM to run weekly instead of on every startup
 			// This avoids blocking the main process during initialization
 			this.vacuumIfNeededWeekly();
+
+			// Return success with reset info
+			if (wasReset) {
+				return {
+					success: true,
+					wasReset: true,
+					backupPath,
+					userMessage:
+						'The statistics database was corrupted and has been reset. Your usage history has been cleared, but a backup of the old data was saved. This only affects usage statistics - no session data was lost.',
+				};
+			}
+
+			return { success: true, wasReset: false };
 		} catch (error) {
-			logger.error(`Failed to initialize stats database: ${error}`, LOG_CONTEXT);
-			throw error;
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			logger.error(`Failed to initialize stats database: ${errorMessage}`, LOG_CONTEXT);
+			return {
+				success: false,
+				wasReset,
+				backupPath,
+				error: errorMessage,
+				userMessage: this.getNativeModuleErrorMessage(errorMessage),
+			};
 		}
+	}
+
+	/**
+	 * Get a user-friendly error message for native module loading failures.
+	 */
+	private getNativeModuleErrorMessage(errorMessage: string): string {
+		// Check for common native module loading issues
+		if (errorMessage.includes('dlopen') || errorMessage.includes('better_sqlite3.node')) {
+			return 'The statistics database module failed to load. This may happen after an app update. Try restarting Maestro, and if the issue persists, try reinstalling the application.';
+		}
+		if (errorMessage.includes('SQLITE_CORRUPT') || errorMessage.includes('malformed')) {
+			return 'The statistics database was corrupted and could not be recovered. Usage statistics are unavailable.';
+		}
+		return `Failed to initialize statistics database: ${errorMessage}`;
 	}
 
 	// ============================================================================
@@ -980,9 +1082,13 @@ export class StatsDB {
 	 * 3. If corrupted, backs up and recreates the database
 	 * 4. Returns whether the database is now usable
 	 *
-	 * @returns Database instance if successful, null if unrecoverable
+	 * @returns Object with database instance, whether it was reset, and backup path
 	 */
-	private openWithCorruptionHandling(): Database.Database | null {
+	private openWithCorruptionHandling(): {
+		db: Database.Database | null;
+		wasReset: boolean;
+		backupPath?: string;
+	} {
 		// First attempt: try to open normally
 		try {
 			const db = new Database(this.dbPath);
@@ -990,7 +1096,7 @@ export class StatsDB {
 			// Quick integrity check on the existing database
 			const result = db.pragma('integrity_check') as Array<{ integrity_check: string }>;
 			if (result.length === 1 && result[0].integrity_check === 'ok') {
-				return db;
+				return { db, wasReset: false };
 			}
 
 			// Database is corrupted
@@ -1000,25 +1106,32 @@ export class StatsDB {
 			// Close before recovery
 			db.close();
 		} catch (error) {
-			// Failed to open database - likely severely corrupted or locked
-			logger.error(`Failed to open database: ${error}`, LOG_CONTEXT);
+			// Failed to open database - likely severely corrupted, locked, or native module issue
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			logger.error(`Failed to open database: ${errorMessage}`, LOG_CONTEXT);
+
+			// Check if this is a native module loading issue (not recoverable by reset)
+			if (errorMessage.includes('dlopen') || errorMessage.includes('better_sqlite3.node')) {
+				logger.error('Native SQLite module failed to load - cannot recover', LOG_CONTEXT);
+				return { db: null, wasReset: false };
+			}
 		}
 
 		// Recovery attempt
 		const recoveryResult = this.recoverFromCorruption();
 		if (!recoveryResult.recovered) {
 			logger.error('Database corruption recovery failed', LOG_CONTEXT);
-			return null;
+			return { db: null, wasReset: false };
 		}
 
 		// Second attempt: create fresh database
 		try {
 			const db = new Database(this.dbPath);
 			logger.info('Fresh database created after corruption recovery', LOG_CONTEXT);
-			return db;
+			return { db, wasReset: true, backupPath: recoveryResult.backupPath };
 		} catch (error) {
 			logger.error(`Failed to create fresh database after recovery: ${error}`, LOG_CONTEXT);
-			return null;
+			return { db: null, wasReset: true, backupPath: recoveryResult.backupPath };
 		}
 	}
 
@@ -1826,6 +1939,9 @@ export class StatsDB {
 
 let statsDbInstance: StatsDB | null = null;
 
+/** Stores the result of the last initialization attempt */
+let lastInitializationResult: InitializationResult | null = null;
+
 /**
  * Get the singleton StatsDB instance
  */
@@ -1838,10 +1954,37 @@ export function getStatsDB(): StatsDB {
 
 /**
  * Initialize the stats database (call on app ready)
+ *
+ * @returns InitializationResult with success status and reset information
  */
-export function initializeStatsDB(): void {
+export function initializeStatsDB(): InitializationResult {
 	const db = getStatsDB();
-	db.initialize();
+	const result = db.initialize();
+	lastInitializationResult = result;
+	return result;
+}
+
+/**
+ * Get the result of the last initialization attempt.
+ * Used by the renderer to check if the database was reset and show a notification.
+ *
+ * @returns InitializationResult or null if initialize() hasn't been called
+ */
+export function getInitializationResult(): InitializationResult | null {
+	return lastInitializationResult;
+}
+
+/**
+ * Clear the initialization result (e.g., after the user has acknowledged the notification)
+ */
+export function clearInitializationResult(): void {
+	// Only clear the user message, keep the rest for debugging
+	if (lastInitializationResult) {
+		lastInitializationResult = {
+			...lastInitializationResult,
+			userMessage: undefined,
+		};
+	}
 }
 
 /**

@@ -15,7 +15,7 @@
 import { ipcMain, BrowserWindow } from 'electron';
 import { logger } from '../../utils/logger';
 import { withIpcErrorLogging, CreateHandlerOptions } from '../../utils/ipcHandler';
-import { getStatsDB } from '../../stats-db';
+import { getStatsDB, getInitializationResult, clearInitializationResult } from '../../stats-db';
 import { isWebContentsAvailable } from '../../utils/safe-send';
 import {
 	QueryEvent,
@@ -300,6 +300,24 @@ export function registerStatsHandlers(deps: StatsHandlerDependencies): void {
 		withIpcErrorLogging(handlerOpts('getSessionLifecycle'), async (range: StatsTimeRange) => {
 			const db = getStatsDB();
 			return db.getSessionLifecycleEvents(range);
+		})
+	);
+
+	// Get initialization result (for showing database reset notification)
+	// This returns info about whether the database was reset due to corruption
+	ipcMain.handle(
+		'stats:get-initialization-result',
+		withIpcErrorLogging(handlerOpts('getInitializationResult'), async () => {
+			return getInitializationResult();
+		})
+	);
+
+	// Clear initialization result (after user has acknowledged the notification)
+	ipcMain.handle(
+		'stats:clear-initialization-result',
+		withIpcErrorLogging(handlerOpts('clearInitializationResult'), async () => {
+			clearInitializationResult();
+			return true;
 		})
 	);
 }

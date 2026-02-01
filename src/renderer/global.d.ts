@@ -2236,6 +2236,16 @@ interface MaestroAPI {
 				isRemote?: boolean;
 			}>
 		>;
+		// Get initialization result (for showing database reset notification)
+		getInitializationResult: () => Promise<{
+			success: boolean;
+			wasReset: boolean;
+			backupPath?: string;
+			error?: string;
+			userMessage?: string;
+		} | null>;
+		// Clear initialization result (after user has acknowledged the notification)
+		clearInitializationResult: () => Promise<boolean>;
 	};
 	// Document Graph API (file watching for graph visualization)
 	documentGraph: {

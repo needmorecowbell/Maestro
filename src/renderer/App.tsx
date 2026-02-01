@@ -617,6 +617,25 @@ function MaestroConsoleInner() {
 			.catch(console.error);
 	}, []);
 
+	// Check for stats database initialization issues (corruption, reset, etc.) on mount
+	useEffect(() => {
+		window.maestro?.stats
+			?.getInitializationResult()
+			.then((result) => {
+				if (result?.userMessage) {
+					addToast({
+						type: 'warning',
+						title: 'Statistics Database',
+						message: result.userMessage,
+						duration: 10000, // Show for 10 seconds since this is important info
+					});
+					// Clear the result so we don't show it again
+					window.maestro?.stats?.clearInitializationResult();
+				}
+			})
+			.catch(console.error);
+	}, [addToast]);
+
 	// Compute map of session names to SSH remote names (for group chat participant cards)
 	const sessionSshRemoteNames = useMemo(() => {
 		const map = new Map<string, string>();

@@ -25,7 +25,14 @@ const mockStatement = {
 };
 
 const mockDb = {
-	pragma: vi.fn(() => [{ user_version: 0 }]),
+	pragma: vi.fn((sql: string) => {
+		// Handle different pragma calls appropriately
+		if (sql === 'user_version') return [{ user_version: 0 }];
+		if (sql === 'integrity_check') return [{ integrity_check: 'ok' }];
+		if (sql.startsWith('journal_mode')) return undefined;
+		if (sql.startsWith('user_version =')) return undefined;
+		return [{ user_version: 0 }];
+	}),
 	prepare: vi.fn(() => mockStatement),
 	close: vi.fn(),
 	// Transaction mock that immediately executes the function
@@ -847,6 +854,48 @@ describe('Database file creation on first launch', () => {
 			for (const indexName of expectedIndexes) {
 				expect(prepareCalls.some((sql: string) => sql.includes(indexName))).toBe(true);
 			}
+		});
+
+		it('should return success result on normal initialization', async () => {
+			// Ensure fresh database (file doesn't exist) for this test
+			mockFsExistsSync.mockImplementation((p: string) => {
+				// Return false for the database file so it creates a new one
+				if (typeof p === 'string' && p.includes('stats.db')) return false;
+				return true; // Directory exists
+			});
+
+			const { StatsDB } = await import('../../main/stats-db');
+			const db = new StatsDB();
+
+			const result = db.initialize();
+
+			expect(result.success).toBe(true);
+			expect(result.wasReset).toBe(false);
+			expect(result.userMessage).toBeUndefined();
+			expect(result.error).toBeUndefined();
+
+			// Restore default mock behavior
+			mockFsExistsSync.mockReturnValue(true);
+		});
+
+		it('should return success with wasReset=false on subsequent initializations', async () => {
+			// Ensure fresh database (file doesn't exist) for first init
+			mockFsExistsSync.mockImplementation((p: string) => {
+				if (typeof p === 'string' && p.includes('stats.db')) return false;
+				return true;
+			});
+
+			const { StatsDB } = await import('../../main/stats-db');
+			const db = new StatsDB();
+
+			db.initialize();
+			const result = db.initialize(); // Second call
+
+			expect(result.success).toBe(true);
+			expect(result.wasReset).toBe(false);
+
+			// Restore default mock behavior
+			mockFsExistsSync.mockReturnValue(true);
 		});
 	});
 

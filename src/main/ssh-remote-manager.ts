@@ -233,14 +233,9 @@ export class SshRemoteManager {
 		// Force disable TTY allocation - this helps prevent shell rc files from being sourced
 		args.push('-T');
 
-		// Private key (only if provided, or required for non-SSH config mode)
-		if (config.useSshConfig) {
-			// Only add key if explicitly provided (as override)
-			if (config.privateKeyPath && config.privateKeyPath.trim()) {
-				args.push('-i', expandTilde(config.privateKeyPath));
-			}
-		} else {
-			// Direct connection: require private key
+		// Private key - only add if explicitly provided
+		// SSH will use ~/.ssh/config or ssh-agent if no key is specified
+		if (config.privateKeyPath && config.privateKeyPath.trim()) {
 			args.push('-i', expandTilde(config.privateKeyPath));
 		}
 
@@ -254,17 +249,12 @@ export class SshRemoteManager {
 			args.push('-p', config.port.toString());
 		}
 
-		// Build destination
-		if (config.useSshConfig) {
-			// When using SSH config, just the Host pattern (or user@host if overriding)
-			if (config.username && config.username.trim()) {
-				args.push(`${config.username}@${config.host}`);
-			} else {
-				args.push(config.host);
-			}
-		} else {
-			// Direct connection: user@host
+		// Build destination - use user@host if username provided, otherwise just host
+		// SSH will use current user or ~/.ssh/config User directive if no username specified
+		if (config.username && config.username.trim()) {
 			args.push(`${config.username}@${config.host}`);
+		} else {
+			args.push(config.host);
 		}
 
 		return args;

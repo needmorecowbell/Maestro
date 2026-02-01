@@ -295,11 +295,11 @@ export async function buildSshCommand(
 	//   SSH receives this as one argument, passes to remote shell
 	//   The login shell runs with full PATH from /etc/profile, ~/.bash_profile, AND ~/.bashrc
 	const escapedCommand = shellEscapeForDoubleQuotes(remoteCommand);
-	// Source common profile files that work across different shells (bash, zsh, etc.)
-	// This ensures PATH is available for finding agent binaries
-	const profileSourcing =
-		'source ~/.bashrc 2>/dev/null || source ~/.zshrc 2>/dev/null || source ~/.profile 2>/dev/null || source ~/.bash_profile 2>/dev/null || true';
-	const wrappedCommand = `$SHELL -lc "${profileSourcing}; ${escapedCommand}"`;
+	// Use login shell (-l) which sources /etc/profile and user profile files automatically.
+	// The -i flag makes it interactive, which sources ~/.bashrc or ~/.zshrc.
+	// We avoid explicit sourcing since profile files may contain syntax incompatible
+	// with being embedded in a -c command string (loops, conditionals, etc.).
+	const wrappedCommand = `$SHELL -ilc "${escapedCommand}"`;
 	args.push(wrappedCommand);
 
 	// Debug logging to trace the exact command being built
