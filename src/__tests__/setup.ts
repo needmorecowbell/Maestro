@@ -480,6 +480,12 @@ const mockMaestro = {
 		onUpdated: vi.fn().mockReturnValue(() => {}),
 		onContributionStarted: vi.fn().mockReturnValue(() => {}),
 	},
+	app: {
+		onQuitConfirmationRequest: vi.fn().mockReturnValue(() => {}),
+		confirmQuit: vi.fn(),
+		cancelQuit: vi.fn(),
+		onSystemResume: vi.fn().mockReturnValue(() => {}),
+	},
 };
 
 // Only mock window.maestro if window exists (jsdom environment)

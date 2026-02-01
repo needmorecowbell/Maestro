@@ -954,6 +954,7 @@ interface MaestroAPI {
 		onQuitConfirmationRequest: (callback: () => void) => () => void;
 		confirmQuit: () => void;
 		cancelQuit: () => void;
+		onSystemResume: (callback: () => void) => () => void;
 	};
 	logger: {
 		log: (

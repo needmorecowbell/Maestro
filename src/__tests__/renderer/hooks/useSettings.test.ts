@@ -1295,6 +1295,61 @@ describe('useSettings', () => {
 		});
 	});
 
+	describe('system resume behavior', () => {
+		it('should register onSystemResume listener on mount', async () => {
+			renderHook(() => useSettings());
+
+			expect(window.maestro.app.onSystemResume).toHaveBeenCalled();
+		});
+
+		it('should reload settings when system resumes from sleep', async () => {
+			// Capture the callback passed to onSystemResume
+			let resumeCallback: (() => void) | undefined;
+			vi.mocked(window.maestro.app.onSystemResume).mockImplementation((cb) => {
+				resumeCallback = cb;
+				return () => {};
+			});
+
+			// Initial load with default settings
+			vi.mocked(window.maestro.settings.getAll).mockResolvedValue({
+				maxOutputLines: 25,
+			});
+
+			const { result } = renderHook(() => useSettings());
+			await waitForSettingsLoaded(result);
+
+			expect(result.current.maxOutputLines).toBe(25);
+
+			// Simulate settings change while asleep (user may have changed via another method)
+			// In the real bug, the setting was being reset, so simulate that by changing
+			// the mock to return a different value on next load
+			vi.mocked(window.maestro.settings.getAll).mockResolvedValue({
+				maxOutputLines: 0, // 0 means "ALL" in the UI
+			});
+
+			// Trigger system resume
+			await act(async () => {
+				resumeCallback?.();
+				// Allow async operations to complete
+				await new Promise((resolve) => setTimeout(resolve, 0));
+			});
+
+			// Settings should be reloaded with the new value
+			expect(result.current.maxOutputLines).toBe(0);
+		});
+
+		it('should cleanup onSystemResume listener on unmount', async () => {
+			const cleanupFn = vi.fn();
+			vi.mocked(window.maestro.app.onSystemResume).mockReturnValue(cleanupFn);
+
+			const { unmount } = renderHook(() => useSettings());
+
+			unmount();
+
+			expect(cleanupFn).toHaveBeenCalled();
+		});
+	});
+
 	describe('edge cases', () => {
 		it('should handle undefined values from settings.getAll gracefully', async () => {
 			// All settings return empty object (uses defaults)

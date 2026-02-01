@@ -1296,10 +1296,10 @@ export function useSettings(): UseSettingsReturn {
 		window.maestro.settings.set('sshRemoteHonorGitignore', value);
 	}, []);
 
-	// Load settings from electron-store on mount
+	// Load settings from electron-store
+	// This function is called on mount and on system resume (after sleep/suspend)
 	// PERF: Use batch loading to reduce IPC calls from ~60 to 3
-	useEffect(() => {
-		const loadSettings = async () => {
+	const loadSettings = useCallback(async () => {
 			try {
 				// Batch load all settings in a single IPC call
 				const allSettings = (await window.maestro.settings.getAll()) as Record<string, unknown>;
@@ -1725,9 +1725,22 @@ export function useSettings(): UseSettingsReturn {
 				// Mark settings as loaded even if there was an error (use defaults)
 				setSettingsLoaded(true);
 			}
-		};
+		}, []);
+
+	// Load settings on mount
+	useEffect(() => {
 		loadSettings();
-	}, []);
+	}, [loadSettings]);
+
+	// Reload settings when system resumes from sleep/suspend
+	// This ensures settings like maxOutputLines aren't reset to defaults
+	useEffect(() => {
+		const cleanup = window.maestro.app.onSystemResume(() => {
+			console.log('[Settings] System resumed from sleep, reloading settings');
+			loadSettings();
+		});
+		return cleanup;
+	}, [loadSettings]);
 
 	// Apply font size to HTML root element so rem-based Tailwind classes scale
 	// Only apply after settings are loaded to prevent layout shift from default->saved font size

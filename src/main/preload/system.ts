@@ -191,6 +191,15 @@ export function createAppApi() {
 		cancelQuit: () => {
 			ipcRenderer.send('app:quitCancelled');
 		},
+		/**
+		 * Listen for system resume event (after sleep/suspend)
+		 * Used to refresh settings that may have been reset during sleep
+		 */
+		onSystemResume: (callback: () => void) => {
+			const handler = () => callback();
+			ipcRenderer.on('app:systemResume', handler);
+			return () => ipcRenderer.removeListener('app:systemResume', handler);
+		},
 	};
 }
 

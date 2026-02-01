@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, powerMonitor } from 'electron';
 import path from 'path';
 import os from 'os';
 import crypto from 'crypto';
@@ -356,6 +356,15 @@ app.whenReady().then(async () => {
 	app.on('activate', () => {
 		if (BrowserWindow.getAllWindows().length === 0) {
 			createWindow();
+		}
+	});
+
+	// Listen for system resume (after sleep/suspend) and notify renderer
+	// This allows the renderer to refresh settings that may have been reset
+	powerMonitor.on('resume', () => {
+		logger.info('System resumed from sleep/suspend', 'PowerMonitor');
+		if (isWebContentsAvailable(mainWindow)) {
+			mainWindow.webContents.send('app:systemResume');
 		}
 	});
 });
