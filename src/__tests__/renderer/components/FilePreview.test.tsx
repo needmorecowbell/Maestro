@@ -588,5 +588,80 @@ print("world")
 			// TOC overlay should close
 			expect(screen.queryByText('Contents')).not.toBeInTheDocument();
 		});
+
+		it('displays Top and Bottom navigation buttons as sticky sash elements', () => {
+			const markdownWithManyHeadings = Array.from(
+				{ length: 20 },
+				(_, i) => `# Heading ${i + 1}`
+			).join('\n');
+			render(
+				<FilePreview
+					{...defaultProps}
+					file={{ name: 'doc.md', content: markdownWithManyHeadings, path: '/test/doc.md' }}
+					markdownEditMode={false}
+				/>
+			);
+
+			// Open TOC
+			const tocButton = screen.getByTitle('Table of Contents');
+			fireEvent.click(tocButton);
+
+			// Both Top and Bottom buttons should be visible with their sash styling
+			const topButton = screen.getByTestId('toc-top-button');
+			const bottomButton = screen.getByTestId('toc-bottom-button');
+
+			expect(topButton).toBeInTheDocument();
+			expect(bottomButton).toBeInTheDocument();
+			expect(topButton).toHaveTextContent('Top');
+			expect(bottomButton).toHaveTextContent('Bottom');
+
+			// Verify both buttons have border styling (indicating sash design)
+			expect(topButton).toHaveClass('border-b');
+			expect(bottomButton).toHaveClass('border-t');
+		});
+
+		it('closes TOC and scrolls when clicking Top button', () => {
+			const markdownWithHeadings = '# Heading 1\n## Heading 2';
+			render(
+				<FilePreview
+					{...defaultProps}
+					file={{ name: 'doc.md', content: markdownWithHeadings, path: '/test/doc.md' }}
+					markdownEditMode={false}
+				/>
+			);
+
+			// Open TOC
+			const tocButton = screen.getByTitle('Table of Contents');
+			fireEvent.click(tocButton);
+
+			// Click Top button
+			const topButton = screen.getByTestId('toc-top-button');
+			fireEvent.click(topButton);
+
+			// TOC overlay should close
+			expect(screen.queryByText('Contents')).not.toBeInTheDocument();
+		});
+
+		it('closes TOC and scrolls when clicking Bottom button', () => {
+			const markdownWithHeadings = '# Heading 1\n## Heading 2';
+			render(
+				<FilePreview
+					{...defaultProps}
+					file={{ name: 'doc.md', content: markdownWithHeadings, path: '/test/doc.md' }}
+					markdownEditMode={false}
+				/>
+			);
+
+			// Open TOC
+			const tocButton = screen.getByTitle('Table of Contents');
+			fireEvent.click(tocButton);
+
+			// Click Bottom button
+			const bottomButton = screen.getByTestId('toc-bottom-button');
+			fireEvent.click(bottomButton);
+
+			// TOC overlay should close
+			expect(screen.queryByText('Contents')).not.toBeInTheDocument();
+		});
 	});
 });

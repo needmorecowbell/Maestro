@@ -2112,22 +2112,27 @@ export const FilePreview = forwardRef<FilePreviewHandle, FilePreviewProps>(funct
 										{tocEntries.length} headings
 									</span>
 								</div>
-								{/* TOC Entries */}
-								<div className="overflow-y-auto px-1 pt-1 pb-2" style={{ maxHeight: 'calc(70vh - 40px)' }}>
-									<div className="px-1 py-1">
-										<button
-											onClick={() => {
-												scrollMarkdownToBoundary('top');
-												setShowTocOverlay(false);
-											}}
-											className="w-full px-2 py-1.5 text-left text-xs rounded hover:bg-white/10 transition-colors flex items-center gap-2"
-											style={{ color: theme.colors.textDim }}
-											title="Jump to top"
-										>
-											<ChevronUp className="w-3 h-3" />
-											<span>Top</span>
-										</button>
-									</div>
+								{/* Top Navigation Sash */}
+								<button
+									data-testid="toc-top-button"
+									onClick={() => {
+										scrollMarkdownToBoundary('top');
+										setShowTocOverlay(false);
+									}}
+									className="w-full px-3 py-2 text-left text-xs border-b transition-colors flex items-center gap-2 hover:brightness-110"
+									style={{
+										backgroundColor: `${theme.colors.accent}15`,
+										borderColor: theme.colors.border,
+										color: theme.colors.textMain,
+									}}
+									title="Jump to top"
+								>
+									<ChevronUp className="w-3 h-3" style={{ color: theme.colors.accent }} />
+									<span>Top</span>
+								</button>
+
+								{/* TOC Entries - scrollable middle section */}
+								<div className="overflow-y-auto px-1 py-1" style={{ maxHeight: 'calc(70vh - 120px)' }}>
 									{tocEntries.map((entry, index) => {
 										// Get color based on heading level (match the prose styles)
 										const levelColors: Record<number, string> = {
@@ -2166,21 +2171,26 @@ export const FilePreview = forwardRef<FilePreviewHandle, FilePreviewProps>(funct
 											</button>
 										);
 									})}
-									<div className="px-1 py-1">
-										<button
-											onClick={() => {
-												scrollMarkdownToBoundary('bottom');
-												setShowTocOverlay(false);
-											}}
-											className="w-full px-2 py-1.5 text-left text-xs rounded hover:bg-white/10 transition-colors flex items-center gap-2"
-											style={{ color: theme.colors.textDim }}
-											title="Jump to bottom"
-										>
-											<ChevronDown className="w-3 h-3" />
-											<span>Bottom</span>
-										</button>
-									</div>
 								</div>
+
+								{/* Bottom Navigation Sash */}
+								<button
+									data-testid="toc-bottom-button"
+									onClick={() => {
+										scrollMarkdownToBoundary('bottom');
+										setShowTocOverlay(false);
+									}}
+									className="w-full px-3 py-2 text-left text-xs border-t transition-colors flex items-center gap-2 hover:brightness-110"
+									style={{
+										backgroundColor: `${theme.colors.accent}15`,
+										borderColor: theme.colors.border,
+										color: theme.colors.textMain,
+									}}
+									title="Jump to bottom"
+								>
+									<ChevronDown className="w-3 h-3" style={{ color: theme.colors.accent }} />
+									<span>Bottom</span>
+								</button>
 							</div>
 						)}
 					</>
