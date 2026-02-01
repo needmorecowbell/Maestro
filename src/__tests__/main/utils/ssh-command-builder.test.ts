@@ -319,8 +319,11 @@ describe('ssh-command-builder', () => {
 			});
 
 			const lastArg = result.args[result.args.length - 1];
-			// Command is passed directly without shell wrapper
-			expect(lastArg).toBe("claude '--print' 'hello'");
+			// Command is wrapped in bash -lc for PATH
+			expect(lastArg).toContain('bash -lc');
+			expect(lastArg).toContain('claude');
+			expect(lastArg).toContain('--print');
+			expect(lastArg).toContain('hello');
 			expect(lastArg).not.toContain('cd');
 		});
 
@@ -376,15 +379,16 @@ describe('ssh-command-builder', () => {
 				args: ['commit', '-m', "fix: it's a bug with $VARIABLES"],
 			});
 
-			const remoteCommand = result.args[result.args.length - 1];
-			// The command is passed directly to SSH without shell wrapper
-			// Single quotes prevent variable expansion, making this safe
-			// Original: git 'commit' '-m' 'fix: it'\''s a bug with $VARIABLES'
-			expect(remoteCommand).toContain('git');
-			expect(remoteCommand).toContain('commit');
-			expect(remoteCommand).toContain('fix:');
-			// $VARIABLES is inside single quotes so it won't expand (safe)
-			expect(remoteCommand).toContain('$VARIABLES');
+			const wrappedCommand = result.args[result.args.length - 1];
+			// The command is wrapped in bash -lc "..." with double-quote escaping
+			// The inner single quotes become escaped for double-quote context
+			// $ signs are escaped as \$ to prevent expansion by SSH's outer shell
+			expect(wrappedCommand).toContain('bash -lc');
+			expect(wrappedCommand).toContain('git');
+			expect(wrappedCommand).toContain('commit');
+			expect(wrappedCommand).toContain('fix:');
+			// $VARIABLES should be escaped to prevent expansion by outer shell
+			expect(wrappedCommand).toContain('\\$VARIABLES');
 		});
 	});
 
@@ -632,12 +636,10 @@ describe('ssh-command-builder', () => {
 				args: ['--print', '--', "what's the $PATH variable?"],
 			});
 
-			const remoteCommand = result.args[result.args.length - 1];
-			// The prompt is inside single quotes which prevents variable expansion
-			// $PATH is safe because single quotes treat everything literally
-			expect(remoteCommand).toContain('$PATH');
-			// Verify the single quote in "what's" is properly escaped
-			expect(remoteCommand).toContain("what'\\''s");
+			const wrappedCommand = result.args[result.args.length - 1];
+			// The prompt is wrapped in bash -lc "..." with double-quote escaping
+			// $PATH should be escaped as \$PATH to prevent expansion
+			expect(wrappedCommand).toContain('\\$PATH');
 		});
 
 		it('handles multi-line prompts', async () => {

@@ -8,7 +8,7 @@
  */
 
 import { SshRemoteConfig } from '../../shared/types';
-import { shellEscape, buildShellCommand } from './shell-escape';
+import { shellEscape, buildShellCommand, shellEscapeForDoubleQuotes } from './shell-escape';
 import { expandTilde } from '../../shared/pathUtils';
 import { logger } from './logger';
 import { resolveSshPath } from './cliDetection';
@@ -270,35 +270,22 @@ export async function buildSshCommand(
 		env: Object.keys(mergedEnv).length > 0 ? mergedEnv : undefined,
 	});
 
-	// Wrap the command to execute via the user's login shell.
-	// $SHELL -lc ensures the user's full PATH (including homebrew, nvm, etc.) is available.
-	// -l loads login profile for PATH
-	// -c executes the command
-	// Using $SHELL respects the user's configured shell (bash, zsh, etc.)
+	// Wrap the command in a login shell to ensure PATH is loaded.
+	// We use "bash -lc" rather than "$SHELL -lc" to avoid issues with complex
+	// profile syntax in zsh (e.g., loops, conditionals) that can't be embedded
+	// in a -c command string.
 	//
-	// WHY PROFILE SOURCING IS NEEDED:
-	// On many systems, login shells don't automatically source interactive config files.
-	// We explicitly source profile and rc files to ensure PATH and environment are set up
-	// properly for finding agent binaries like 'claude', 'codex', etc.
+	// Why bash specifically:
+	// - bash is available on virtually all Unix systems (macOS, Linux)
+	// - bash -l sources /etc/profile, ~/.bash_profile, ~/.profile
+	// - This provides PATH for user-installed binaries like 'claude' in ~/.local/bin
+	// - bash profile files rarely have syntax incompatible with -c embedding
 	//
-	// CRITICAL: When Node.js spawn() passes this to SSH without shell:true, SSH runs
-	// the command through the remote's default shell. The key is escaping:
-	// 1. Double quotes around the command are NOT escaped - they delimit the -c argument
-	// 2. $ signs inside the command MUST be escaped as \$ so they defer to the login shell
-	//    (shellEscapeForDoubleQuotes handles this)
-	// 3. Single quotes inside the command pass through unchanged
-	//
-	// Example transformation for spawn():
-	//   Input:  cd '/path' && MYVAR='value' claude --print
-	//   After escaping: cd '/path' && MYVAR='value' claude --print (no $ to escape here)
-	//   Wrapped: $SHELL -lc "source ~/.bashrc 2>/dev/null; cd '/path' && MYVAR='value' claude --print"
-	//   SSH receives this as one argument, passes to remote shell
-	//   The login shell runs with full PATH from /etc/profile, ~/.bash_profile, AND ~/.bashrc
-	// Pass the command directly to SSH without shell wrapper.
-	// SSH executes commands through the remote's login shell by default,
-	// which provides PATH from /etc/profile. We avoid $SHELL -c wrappers
-	// because profile files may contain syntax incompatible with -c embedding.
-	args.push(remoteCommand);
+	// The double-quote escaping ensures $-prefixed variables in the inner command
+	// are passed literally and evaluated by bash, not by SSH's outer shell.
+	const escapedCommand = shellEscapeForDoubleQuotes(remoteCommand);
+	const wrappedCommand = `bash -lc "${escapedCommand}"`;
+	args.push(wrappedCommand);
 
 	// Log the exact command being built - use info level so it appears in system logs
 	logger.info('SSH command built for remote execution', '[ssh-command-builder]', {
@@ -308,6 +295,7 @@ export async function buildSshCommand(
 		useSshConfig: config.useSshConfig,
 		privateKeyPath: config.privateKeyPath ? '***configured***' : '(using SSH config/agent)',
 		remoteCommand,
+		wrappedCommand,
 		sshPath,
 		sshArgsCount: args.length,
 		// Full command for debugging - escape quotes for readability
