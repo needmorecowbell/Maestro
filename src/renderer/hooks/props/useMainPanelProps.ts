@@ -200,6 +200,7 @@ export interface UseMainPanelPropsDeps {
 	handleNewTab: () => void;
 	handleRequestTabRename: (tabId: string) => void;
 	handleTabReorder: (fromIndex: number, toIndex: number) => void;
+	handleUnifiedTabReorder: (fromIndex: number, toIndex: number) => void;
 	handleUpdateTabByClaudeSessionId: (
 		agentSessionId: string,
 		updates: { name?: string | null; starred?: boolean }
@@ -386,6 +387,7 @@ export function useMainPanelProps(deps: UseMainPanelPropsDeps) {
 			onNewTab: deps.handleNewTab,
 			onRequestTabRename: deps.handleRequestTabRename,
 			onTabReorder: deps.handleTabReorder,
+			onUnifiedTabReorder: deps.handleUnifiedTabReorder,
 			onUpdateTabByClaudeSessionId: deps.handleUpdateTabByClaudeSessionId,
 			onTabStar: deps.handleTabStar,
 			onTabMarkUnread: deps.handleTabMarkUnread,
@@ -610,6 +612,7 @@ export function useMainPanelProps(deps: UseMainPanelPropsDeps) {
 			deps.handleNewTab,
 			deps.handleRequestTabRename,
 			deps.handleTabReorder,
+			deps.handleUnifiedTabReorder,
 			deps.handleUpdateTabByClaudeSessionId,
 			deps.handleTabStar,
 			deps.handleTabMarkUnread,

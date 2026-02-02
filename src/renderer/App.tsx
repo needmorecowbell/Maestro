@@ -5301,6 +5301,40 @@ You are taking over this conversation. Based on the context above, provide a bri
 	}, []);
 
 	/**
+	 * Reorder tabs in the unified tab order. This allows moving both AI and file tabs
+	 * relative to each other. The fromIndex and toIndex refer to positions in unifiedTabOrder.
+	 * This replaces/supplements handleTabReorder for the unified tab system.
+	 */
+	const handleUnifiedTabReorder = useCallback(
+		(fromIndex: number, toIndex: number) => {
+			setSessions((prev) =>
+				prev.map((s) => {
+					if (s.id !== activeSessionIdRef.current) return s;
+
+					// Validate indices
+					if (
+						fromIndex < 0 ||
+						fromIndex >= s.unifiedTabOrder.length ||
+						toIndex < 0 ||
+						toIndex >= s.unifiedTabOrder.length ||
+						fromIndex === toIndex
+					) {
+						return s;
+					}
+
+					// Reorder the unifiedTabOrder array
+					const newOrder = [...s.unifiedTabOrder];
+					const [movedRef] = newOrder.splice(fromIndex, 1);
+					newOrder.splice(toIndex, 0, movedRef);
+
+					return { ...s, unifiedTabOrder: newOrder };
+				})
+			);
+		},
+		[]
+	);
+
+	/**
 	 * Internal tab close handler that performs the actual close.
 	 * Wizard tabs are closed without being added to history (they can't be restored).
 	 */
@@ -12588,6 +12622,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 		handleNewTab,
 		handleRequestTabRename,
 		handleTabReorder,
+		handleUnifiedTabReorder,
 		handleUpdateTabByClaudeSessionId,
 		handleTabStar,
 		handleTabMarkUnread,
