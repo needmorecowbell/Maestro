@@ -176,15 +176,15 @@ export function useAppHandlers(deps: UseAppHandlersDeps): UseAppHandlersReturn {
 
 		// dragend fires when the drag operation ends (drop or cancel)
 		document.addEventListener('dragend', handleDragEnd);
-		// Prevent default on dragover to maintain valid drop zone across all elements
-		document.addEventListener('dragover', handleDocumentDragOver);
-		// Prevent default on drop to avoid Electron file-open behavior and maintain drop state
-		document.addEventListener('drop', handleDocumentDrop);
+		// Use capture phase for dragover/drop so they fire BEFORE React handlers that call stopPropagation().
+		// This ensures preventDefault() is called at document level even when element handlers stop bubbling.
+		document.addEventListener('dragover', handleDocumentDragOver, { capture: true });
+		document.addEventListener('drop', handleDocumentDrop, { capture: true });
 
 		return () => {
 			document.removeEventListener('dragend', handleDragEnd);
-			document.removeEventListener('dragover', handleDocumentDragOver);
-			document.removeEventListener('drop', handleDocumentDrop);
+			document.removeEventListener('dragover', handleDocumentDragOver, { capture: true });
+			document.removeEventListener('drop', handleDocumentDrop, { capture: true });
 		};
 	}, []);
 
