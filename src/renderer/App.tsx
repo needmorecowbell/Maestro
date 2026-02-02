@@ -14134,25 +14134,36 @@ You are taking over this conversation. Based on the context above, provide a bri
 						}}
 						theme={theme}
 						rootPath={activeSession?.projectRoot || activeSession?.cwd || ''}
-						onDocumentOpen={(filePath) => {
-							// Open the document in file preview
+						onDocumentOpen={async (filePath) => {
+							// Open the document in a file tab (migrated from legacy setPreviewFile overlay)
 							const treeRoot = activeSession?.projectRoot || activeSession?.cwd || '';
 							const fullPath = `${treeRoot}/${filePath}`;
+							const filename = filePath.split('/').pop() || filePath;
 							// Note: sshRemoteId is only set after AI agent spawns. For terminal-only SSH sessions,
 							// use sessionSshRemoteConfig.remoteId as fallback (see CLAUDE.md SSH Remote Sessions)
-							const sshId =
+							const sshRemoteId =
 								activeSession?.sshRemoteId ||
 								activeSession?.sessionSshRemoteConfig?.remoteId ||
 								undefined;
-							window.maestro.fs.readFile(fullPath, sshId).then((content) => {
+							try {
+								// Fetch content and stat in parallel for efficiency
+								const [content, stat] = await Promise.all([
+									window.maestro.fs.readFile(fullPath, sshRemoteId),
+									window.maestro.fs.stat(fullPath, sshRemoteId).catch(() => null), // stat is optional
+								]);
 								if (content !== null) {
-									setPreviewFile({
-										name: filePath.split('/').pop() || filePath,
-										content,
+									const lastModified = stat?.modifiedAt ? new Date(stat.modifiedAt).getTime() : undefined;
+									handleOpenFileTab({
 										path: fullPath,
+										name: filename,
+										content,
+										sshRemoteId,
+										lastModified,
 									});
 								}
-							});
+							} catch (error) {
+								console.error('[DocumentGraph] Failed to open file:', error);
+							}
 							setIsGraphViewOpen(false);
 						}}
 						onExternalLinkOpen={(url) => {
