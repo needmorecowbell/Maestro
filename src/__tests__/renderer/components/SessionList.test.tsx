@@ -1195,6 +1195,45 @@ describe('SessionList', () => {
 
 			expect(handleDropOnGroup).toHaveBeenCalledWith('g1');
 		});
+
+		it('shows drop zone for ungrouping when dragging and all sessions are grouped', () => {
+			const handleDropOnUngrouped = vi.fn();
+			const group = createMockGroup({ id: 'g1', name: 'My Group', sessionIds: ['s1'] });
+			const sessions = [createMockSession({ id: 's1', name: 'Grouped Session', groupId: 'g1' })];
+			const props = createDefaultProps({
+				sessions,
+				sortedSessions: sessions,
+				groups: [group],
+				leftSidebarOpen: true,
+				draggingSessionId: 's1', // Simulating active drag
+				handleDropOnUngrouped,
+			});
+			render(<SessionList {...props} />);
+
+			// Drop zone should be visible when dragging
+			expect(screen.getByText('Drop here to ungroup')).toBeInTheDocument();
+		});
+
+		it('calls handleDropOnUngrouped when dropping on ungroup zone', () => {
+			const handleDropOnUngrouped = vi.fn();
+			const group = createMockGroup({ id: 'g1', name: 'My Group', sessionIds: ['s1'] });
+			const sessions = [createMockSession({ id: 's1', name: 'Grouped Session', groupId: 'g1' })];
+			const props = createDefaultProps({
+				sessions,
+				sortedSessions: sessions,
+				groups: [group],
+				leftSidebarOpen: true,
+				draggingSessionId: 's1',
+				handleDropOnUngrouped,
+			});
+			render(<SessionList {...props} />);
+
+			// Find the drop zone and drop on it
+			const dropZone = screen.getByText('Drop here to ungroup');
+			fireEvent.drop(dropZone);
+
+			expect(handleDropOnUngrouped).toHaveBeenCalled();
+		});
 	});
 
 	// ============================================================================
