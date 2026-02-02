@@ -3,7 +3,7 @@
  *
  * Tests the SettingsModal component, including:
  * - Modal rendering and isOpen conditional
- * - Tab navigation (general, shortcuts, theme, notifications, aicommands)
+ * - Tab navigation (general, display, shortcuts, theme, notifications, aicommands)
  * - Tab keyboard navigation (Cmd+Shift+[ and ])
  * - Layer stack integration
  * - Agent loading and configuration
@@ -297,6 +297,7 @@ describe('SettingsModal', () => {
 			});
 
 			expect(screen.getByTitle('General')).toBeInTheDocument();
+			expect(screen.getByTitle('Display')).toBeInTheDocument();
 			expect(screen.getByTitle('Shortcuts')).toBeInTheDocument();
 			expect(screen.getByTitle('Themes')).toBeInTheDocument();
 			expect(screen.getByTitle('Notifications')).toBeInTheDocument();
@@ -310,8 +311,8 @@ describe('SettingsModal', () => {
 				await vi.advanceTimersByTimeAsync(50);
 			});
 
-			// General tab content should show the Font Size label
-			expect(screen.getByText('Font Size')).toBeInTheDocument();
+			// General tab content should show the Default Terminal Shell label
+			expect(screen.getByText('Default Terminal Shell')).toBeInTheDocument();
 		});
 
 		it('should respect initialTab prop', async () => {
@@ -383,16 +384,17 @@ describe('SettingsModal', () => {
 			});
 
 			// Start on general tab
-			expect(screen.getByText('Font Size')).toBeInTheDocument();
+			expect(screen.getByText('Default Terminal Shell')).toBeInTheDocument();
 
-			// Press Cmd+Shift+] to go to shortcuts
+			// Press Cmd+Shift+] to go to display
 			fireEvent.keyDown(window, { key: ']', metaKey: true, shiftKey: true });
 
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(100);
 			});
 
-			expect(screen.getByPlaceholderText('Filter shortcuts...')).toBeInTheDocument();
+			// Display tab has Font Size
+			expect(screen.getByText('Font Size')).toBeInTheDocument();
 		});
 
 		it('should navigate to previous tab with Cmd+Shift+[', async () => {
@@ -405,13 +407,14 @@ describe('SettingsModal', () => {
 			// Start on shortcuts tab
 			expect(screen.getByPlaceholderText('Filter shortcuts...')).toBeInTheDocument();
 
-			// Press Cmd+Shift+[ to go back to general
+			// Press Cmd+Shift+[ to go back to display
 			fireEvent.keyDown(window, { key: '[', metaKey: true, shiftKey: true });
 
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(100);
 			});
 
+			// Display tab has Font Size
 			expect(screen.getByText('Font Size')).toBeInTheDocument();
 		});
 
@@ -432,7 +435,8 @@ describe('SettingsModal', () => {
 				await vi.advanceTimersByTimeAsync(100);
 			});
 
-			expect(screen.getByText('Font Size')).toBeInTheDocument();
+			// General tab has Default Terminal Shell
+			expect(screen.getByText('Default Terminal Shell')).toBeInTheDocument();
 		});
 
 		it('should wrap around when navigating before first tab', async () => {
@@ -443,9 +447,9 @@ describe('SettingsModal', () => {
 			});
 
 			// Start on general tab (first tab)
-			expect(screen.getByText('Font Size')).toBeInTheDocument();
+			expect(screen.getByText('Default Terminal Shell')).toBeInTheDocument();
 
-			// Press Cmd+Shift+[ to wrap to SSH (now the last tab)
+			// Press Cmd+Shift+[ to wrap to SSH (last tab)
 			fireEvent.keyDown(window, { key: '[', metaKey: true, shiftKey: true });
 
 			await act(async () => {
@@ -475,9 +479,9 @@ describe('SettingsModal', () => {
 		});
 	});
 
-	describe('General tab - Font settings', () => {
+	describe('Display tab - Font settings', () => {
 		it('should show font loading message initially', async () => {
-			render(<SettingsModal {...createDefaultProps()} />);
+			render(<SettingsModal {...createDefaultProps({ initialTab: 'display' })} />);
 
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(50);
@@ -489,7 +493,7 @@ describe('SettingsModal', () => {
 
 		it('should call setFontFamily when font is changed', async () => {
 			const setFontFamily = vi.fn();
-			render(<SettingsModal {...createDefaultProps({ setFontFamily })} />);
+			render(<SettingsModal {...createDefaultProps({ setFontFamily, initialTab: 'display' })} />);
 
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(100);
@@ -504,7 +508,7 @@ describe('SettingsModal', () => {
 		});
 
 		it('should load fonts when font select is focused', async () => {
-			render(<SettingsModal {...createDefaultProps()} />);
+			render(<SettingsModal {...createDefaultProps({ initialTab: 'display' })} />);
 
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(100);
@@ -523,10 +527,10 @@ describe('SettingsModal', () => {
 		});
 	});
 
-	describe('General tab - Font size buttons', () => {
+	describe('Display tab - Font size buttons', () => {
 		it('should call setFontSize with 12 when Small is clicked', async () => {
 			const setFontSize = vi.fn();
-			render(<SettingsModal {...createDefaultProps({ setFontSize })} />);
+			render(<SettingsModal {...createDefaultProps({ setFontSize, initialTab: 'display' })} />);
 
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(100);
@@ -538,7 +542,7 @@ describe('SettingsModal', () => {
 
 		it('should call setFontSize with 14 when Medium is clicked', async () => {
 			const setFontSize = vi.fn();
-			render(<SettingsModal {...createDefaultProps({ setFontSize })} />);
+			render(<SettingsModal {...createDefaultProps({ setFontSize, initialTab: 'display' })} />);
 
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(100);
@@ -550,7 +554,7 @@ describe('SettingsModal', () => {
 
 		it('should call setFontSize with 16 when Large is clicked', async () => {
 			const setFontSize = vi.fn();
-			render(<SettingsModal {...createDefaultProps({ setFontSize })} />);
+			render(<SettingsModal {...createDefaultProps({ setFontSize, initialTab: 'display' })} />);
 
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(100);
@@ -562,7 +566,7 @@ describe('SettingsModal', () => {
 
 		it('should call setFontSize with 18 when X-Large is clicked', async () => {
 			const setFontSize = vi.fn();
-			render(<SettingsModal {...createDefaultProps({ setFontSize })} />);
+			render(<SettingsModal {...createDefaultProps({ setFontSize, initialTab: 'display' })} />);
 
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(100);
@@ -573,7 +577,7 @@ describe('SettingsModal', () => {
 		});
 
 		it('should highlight selected font size', async () => {
-			render(<SettingsModal {...createDefaultProps({ fontSize: 14 })} />);
+			render(<SettingsModal {...createDefaultProps({ fontSize: 14, initialTab: 'display' })} />);
 
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(100);
@@ -584,10 +588,10 @@ describe('SettingsModal', () => {
 		});
 	});
 
-	describe('General tab - Terminal width buttons', () => {
+	describe('Display tab - Terminal width buttons', () => {
 		it('should call setTerminalWidth with 80', async () => {
 			const setTerminalWidth = vi.fn();
-			render(<SettingsModal {...createDefaultProps({ setTerminalWidth })} />);
+			render(<SettingsModal {...createDefaultProps({ setTerminalWidth, initialTab: 'display' })} />);
 
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(100);
@@ -599,7 +603,7 @@ describe('SettingsModal', () => {
 
 		it('should call setTerminalWidth with 100', async () => {
 			const setTerminalWidth = vi.fn();
-			render(<SettingsModal {...createDefaultProps({ setTerminalWidth })} />);
+			render(<SettingsModal {...createDefaultProps({ setTerminalWidth, initialTab: 'display' })} />);
 
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(100);
@@ -613,10 +617,10 @@ describe('SettingsModal', () => {
 		});
 	});
 
-	describe('General tab - Log level buttons', () => {
+	describe('Display tab - Log level buttons', () => {
 		it('should call setLogLevel with debug', async () => {
 			const setLogLevel = vi.fn();
-			render(<SettingsModal {...createDefaultProps({ setLogLevel })} />);
+			render(<SettingsModal {...createDefaultProps({ setLogLevel, initialTab: 'display' })} />);
 
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(100);
@@ -628,7 +632,7 @@ describe('SettingsModal', () => {
 
 		it('should call setLogLevel with info', async () => {
 			const setLogLevel = vi.fn();
-			render(<SettingsModal {...createDefaultProps({ setLogLevel })} />);
+			render(<SettingsModal {...createDefaultProps({ setLogLevel, initialTab: 'display' })} />);
 
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(100);
@@ -640,7 +644,7 @@ describe('SettingsModal', () => {
 
 		it('should call setLogLevel with warn', async () => {
 			const setLogLevel = vi.fn();
-			render(<SettingsModal {...createDefaultProps({ setLogLevel })} />);
+			render(<SettingsModal {...createDefaultProps({ setLogLevel, initialTab: 'display' })} />);
 
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(100);
@@ -652,7 +656,7 @@ describe('SettingsModal', () => {
 
 		it('should call setLogLevel with error', async () => {
 			const setLogLevel = vi.fn();
-			render(<SettingsModal {...createDefaultProps({ setLogLevel })} />);
+			render(<SettingsModal {...createDefaultProps({ setLogLevel, initialTab: 'display' })} />);
 
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(100);
@@ -663,10 +667,10 @@ describe('SettingsModal', () => {
 		});
 	});
 
-	describe('General tab - Max log buffer buttons', () => {
+	describe('Display tab - Max log buffer buttons', () => {
 		it('should call setMaxLogBuffer with various values', async () => {
 			const setMaxLogBuffer = vi.fn();
-			render(<SettingsModal {...createDefaultProps({ setMaxLogBuffer })} />);
+			render(<SettingsModal {...createDefaultProps({ setMaxLogBuffer, initialTab: 'display' })} />);
 
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(100);
@@ -686,10 +690,10 @@ describe('SettingsModal', () => {
 		});
 	});
 
-	describe('General tab - Max output lines buttons', () => {
+	describe('Display tab - Max output lines buttons', () => {
 		it('should call setMaxOutputLines with various values', async () => {
 			const setMaxOutputLines = vi.fn();
-			render(<SettingsModal {...createDefaultProps({ setMaxOutputLines })} />);
+			render(<SettingsModal {...createDefaultProps({ setMaxOutputLines, initialTab: 'display' })} />);
 
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(100);
@@ -1290,7 +1294,7 @@ describe('SettingsModal', () => {
 
 	describe('custom fonts', () => {
 		it('should add custom font when input is submitted', async () => {
-			render(<SettingsModal {...createDefaultProps()} />);
+			render(<SettingsModal {...createDefaultProps({ initialTab: 'display' })} />);
 
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(100);
@@ -1308,7 +1312,7 @@ describe('SettingsModal', () => {
 		});
 
 		it('should add custom font on Enter key', async () => {
-			render(<SettingsModal {...createDefaultProps()} />);
+			render(<SettingsModal {...createDefaultProps({ initialTab: 'display' })} />);
 
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(100);
@@ -1326,7 +1330,7 @@ describe('SettingsModal', () => {
 		});
 
 		it('should not add empty custom font', async () => {
-			render(<SettingsModal {...createDefaultProps()} />);
+			render(<SettingsModal {...createDefaultProps({ initialTab: 'display' })} />);
 
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(100);
@@ -1353,7 +1357,7 @@ describe('SettingsModal', () => {
 
 			const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-			render(<SettingsModal {...createDefaultProps()} />);
+			render(<SettingsModal {...createDefaultProps({ initialTab: 'display' })} />);
 
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(100);
@@ -1817,7 +1821,7 @@ describe('SettingsModal', () => {
 			// Preload custom fonts
 			vi.mocked(window.maestro.settings.get).mockResolvedValue(['MyCustomFont', 'AnotherFont']);
 
-			render(<SettingsModal {...createDefaultProps()} />);
+			render(<SettingsModal {...createDefaultProps({ initialTab: 'display' })} />);
 
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(100);
@@ -1851,7 +1855,7 @@ describe('SettingsModal', () => {
 	describe('Terminal width 120 and 160 buttons', () => {
 		it('should call setTerminalWidth with 120', async () => {
 			const setTerminalWidth = vi.fn();
-			render(<SettingsModal {...createDefaultProps({ setTerminalWidth })} />);
+			render(<SettingsModal {...createDefaultProps({ setTerminalWidth, initialTab: 'display' })} />);
 
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(100);
@@ -1863,7 +1867,7 @@ describe('SettingsModal', () => {
 
 		it('should call setTerminalWidth with 160', async () => {
 			const setTerminalWidth = vi.fn();
-			render(<SettingsModal {...createDefaultProps({ setTerminalWidth })} />);
+			render(<SettingsModal {...createDefaultProps({ setTerminalWidth, initialTab: 'display' })} />);
 
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(100);
@@ -1877,7 +1881,7 @@ describe('SettingsModal', () => {
 	describe('Max output lines 100 button', () => {
 		it('should call setMaxOutputLines with 100', async () => {
 			const setMaxOutputLines = vi.fn();
-			render(<SettingsModal {...createDefaultProps({ setMaxOutputLines })} />);
+			render(<SettingsModal {...createDefaultProps({ setMaxOutputLines, initialTab: 'display' })} />);
 
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(100);
@@ -1895,7 +1899,7 @@ describe('SettingsModal', () => {
 		it('should check font availability using normalized names', async () => {
 			(window.maestro as any).fonts.detect.mockResolvedValue(['JetBrains Mono', 'Fira Code']);
 
-			render(<SettingsModal {...createDefaultProps()} />);
+			render(<SettingsModal {...createDefaultProps({ initialTab: 'display' })} />);
 
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(100);

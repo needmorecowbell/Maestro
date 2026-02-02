@@ -951,89 +951,6 @@ export const SettingsModal = memo(function SettingsModal(props: SettingsModalPro
 				<div className="flex-1 p-6 overflow-y-auto scrollbar-thin">
 					{activeTab === 'general' && (
 						<div className="space-y-5">
-							{/* Font Family */}
-							<FontConfigurationPanel
-								fontFamily={props.fontFamily}
-								setFontFamily={props.setFontFamily}
-								systemFonts={systemFonts}
-								fontsLoaded={fontsLoaded}
-								fontLoading={fontLoading}
-								customFonts={customFonts}
-								onAddCustomFont={addCustomFont}
-								onRemoveCustomFont={removeCustomFont}
-								onFontInteraction={handleFontInteraction}
-								theme={theme}
-							/>
-
-							{/* Font Size */}
-							<div>
-								<label className="block text-xs font-bold opacity-70 uppercase mb-2">
-									Font Size
-								</label>
-								<ToggleButtonGroup
-									options={[
-										{ value: 12, label: 'Small' },
-										{ value: 14, label: 'Medium' },
-										{ value: 16, label: 'Large' },
-										{ value: 18, label: 'X-Large' },
-									]}
-									value={props.fontSize}
-									onChange={props.setFontSize}
-									theme={theme}
-								/>
-							</div>
-
-							{/* Terminal Width */}
-							<div>
-								<label className="block text-xs font-bold opacity-70 uppercase mb-2">
-									Terminal Width (Columns)
-								</label>
-								<ToggleButtonGroup
-									options={[80, 100, 120, 160]}
-									value={props.terminalWidth}
-									onChange={props.setTerminalWidth}
-									theme={theme}
-								/>
-							</div>
-
-							{/* Log Level */}
-							<div>
-								<label className="block text-xs font-bold opacity-70 uppercase mb-2">
-									System Log Level
-								</label>
-								<ToggleButtonGroup
-									options={[
-										{ value: 'debug', label: 'Debug', activeColor: '#6366f1' },
-										{ value: 'info', label: 'Info', activeColor: '#3b82f6' },
-										{ value: 'warn', label: 'Warn', activeColor: '#f59e0b' },
-										{ value: 'error', label: 'Error', activeColor: '#ef4444' },
-									]}
-									value={props.logLevel}
-									onChange={props.setLogLevel}
-									theme={theme}
-								/>
-								<p className="text-xs opacity-50 mt-2">
-									Higher levels show fewer logs. Debug shows all logs, Error shows only errors.
-								</p>
-							</div>
-
-							{/* Max Log Buffer */}
-							<div>
-								<label className="block text-xs font-bold opacity-70 uppercase mb-2">
-									Maximum Log Buffer
-								</label>
-								<ToggleButtonGroup
-									options={[1000, 5000, 10000, 25000]}
-									value={props.maxLogBuffer}
-									onChange={props.setMaxLogBuffer}
-									theme={theme}
-								/>
-								<p className="text-xs opacity-50 mt-2">
-									Maximum number of log messages to keep in memory. Older logs are automatically
-									removed.
-								</p>
-							</div>
-
 							{/* Default Shell */}
 							<div>
 								<label className="block text-xs font-bold opacity-70 uppercase mb-1 flex items-center gap-2">
@@ -2044,6 +1961,89 @@ export const SettingsModal = memo(function SettingsModal(props: SettingsModalPro
 
 					{activeTab === 'display' && (
 						<div className="space-y-5">
+							{/* Font Family */}
+							<FontConfigurationPanel
+								fontFamily={props.fontFamily}
+								setFontFamily={props.setFontFamily}
+								systemFonts={systemFonts}
+								fontsLoaded={fontsLoaded}
+								fontLoading={fontLoading}
+								customFonts={customFonts}
+								onAddCustomFont={addCustomFont}
+								onRemoveCustomFont={removeCustomFont}
+								onFontInteraction={handleFontInteraction}
+								theme={theme}
+							/>
+
+							{/* Font Size */}
+							<div>
+								<label className="block text-xs font-bold opacity-70 uppercase mb-2">
+									Font Size
+								</label>
+								<ToggleButtonGroup
+									options={[
+										{ value: 12, label: 'Small' },
+										{ value: 14, label: 'Medium' },
+										{ value: 16, label: 'Large' },
+										{ value: 18, label: 'X-Large' },
+									]}
+									value={props.fontSize}
+									onChange={props.setFontSize}
+									theme={theme}
+								/>
+							</div>
+
+							{/* Terminal Width */}
+							<div>
+								<label className="block text-xs font-bold opacity-70 uppercase mb-2">
+									Terminal Width (Columns)
+								</label>
+								<ToggleButtonGroup
+									options={[80, 100, 120, 160]}
+									value={props.terminalWidth}
+									onChange={props.setTerminalWidth}
+									theme={theme}
+								/>
+							</div>
+
+							{/* Log Level */}
+							<div>
+								<label className="block text-xs font-bold opacity-70 uppercase mb-2">
+									System Log Level
+								</label>
+								<ToggleButtonGroup
+									options={[
+										{ value: 'debug', label: 'Debug', activeColor: '#6366f1' },
+										{ value: 'info', label: 'Info', activeColor: '#3b82f6' },
+										{ value: 'warn', label: 'Warn', activeColor: '#f59e0b' },
+										{ value: 'error', label: 'Error', activeColor: '#ef4444' },
+									]}
+									value={props.logLevel}
+									onChange={props.setLogLevel}
+									theme={theme}
+								/>
+								<p className="text-xs opacity-50 mt-2">
+									Higher levels show fewer logs. Debug shows all logs, Error shows only errors.
+								</p>
+							</div>
+
+							{/* Max Log Buffer */}
+							<div>
+								<label className="block text-xs font-bold opacity-70 uppercase mb-2">
+									Maximum Log Buffer
+								</label>
+								<ToggleButtonGroup
+									options={[1000, 5000, 10000, 25000]}
+									value={props.maxLogBuffer}
+									onChange={props.setMaxLogBuffer}
+									theme={theme}
+								/>
+								<p className="text-xs opacity-50 mt-2">
+									Maximum number of log messages to keep in memory. Older logs are automatically
+									removed.
+								</p>
+							</div>
+
 							{/* Max Output Lines */}
 							<div>
 								<label className="block text-xs font-bold opacity-70 uppercase mb-2">
