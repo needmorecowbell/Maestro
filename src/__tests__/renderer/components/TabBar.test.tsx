@@ -2659,6 +2659,7 @@ describe('FileTab overlay menu', () => {
 		path: '/path/to/document.md',
 		name: 'document',
 		extension: '.md',
+		content: '# Test Document\n\nThis is test content.',
 		scrollTop: 0,
 		searchQuery: '',
 		editMode: false,
@@ -3102,6 +3103,7 @@ describe('Unified tabs drag and drop', () => {
 		path: '/path/to/file1.ts',
 		name: 'file1',
 		extension: '.ts',
+		content: 'const x = 1;',
 		scrollTop: 0,
 		searchQuery: '',
 		editMode: false,
@@ -3114,6 +3116,7 @@ describe('Unified tabs drag and drop', () => {
 		path: '/path/to/file2.md',
 		name: 'file2',
 		extension: '.md',
+		content: '# File 2',
 		scrollTop: 0,
 		searchQuery: '',
 		editMode: false,
@@ -3646,7 +3649,12 @@ describe('Unified active tab styling consistency', () => {
 			path: '/test/example.tsx',
 			name: 'example',
 			extension: '.tsx',
-			openedAt: Date.now(),
+			content: 'const Example = () => {};',
+			scrollTop: 0,
+			searchQuery: '',
+			editMode: false,
+			editContent: undefined,
+			createdAt: Date.now(),
 		};
 
 		const unifiedTabs = [
@@ -3709,7 +3717,12 @@ describe('Unified active tab styling consistency', () => {
 			path: '/test/example.tsx',
 			name: 'example',
 			extension: '.tsx',
-			openedAt: Date.now(),
+			content: 'const Example = () => {};',
+			scrollTop: 0,
+			searchQuery: '',
+			editMode: false,
+			editContent: undefined,
+			createdAt: Date.now(),
 		};
 
 		const unifiedTabs = [
@@ -3749,7 +3762,12 @@ describe('Unified active tab styling consistency', () => {
 			path: '/test/example.tsx',
 			name: 'example',
 			extension: '.tsx',
-			openedAt: Date.now(),
+			content: 'const Example = () => {};',
+			scrollTop: 0,
+			searchQuery: '',
+			editMode: false,
+			editContent: undefined,
+			createdAt: Date.now(),
 		};
 
 		const unifiedTabs = [

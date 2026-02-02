@@ -5189,6 +5189,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 						path: file.path,
 						name: nameWithoutExtension,
 						extension,
+						content: file.content,
 						scrollTop: 0,
 						searchQuery: '',
 						editMode: false,

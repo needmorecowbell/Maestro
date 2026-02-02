@@ -452,6 +452,7 @@ export interface FilePreviewTab {
 	path: string; // Full file path
 	name: string; // Filename without extension (displayed as tab name)
 	extension: string; // File extension with dot (e.g., '.md', '.ts') - shown as badge
+	content: string; // File content (stored directly for simplicity - file previews are typically small)
 	scrollTop: number; // Saved scroll position
 	searchQuery: string; // Preserved search query
 	editMode: boolean; // Whether tab was in edit mode
