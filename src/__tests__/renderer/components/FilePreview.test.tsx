@@ -68,16 +68,18 @@ vi.mock('../../../renderer/constants/modalPriorities', () => ({
 	},
 }));
 
-// Mock useClickOutside hook - capture the callback for testing
+// Mock useClickOutside hook - capture the callback and enabled state for testing
 const mockClickOutsideCallback = { current: null as (() => void) | null };
+const mockClickOutsideEnabled = { current: false };
 vi.mock('../../../renderer/hooks/ui/useClickOutside', () => ({
 	useClickOutside: (
 		_ref: unknown,
 		callback: () => void,
-		_enabled: boolean,
+		enabled: boolean,
 		_options?: unknown
 	) => {
 		mockClickOutsideCallback.current = callback;
+		mockClickOutsideEnabled.current = enabled;
 	},
 }));
 
@@ -437,6 +439,23 @@ describe('FilePreview', () => {
 			// (calling onClose when no overlays are open)
 			mockClickOutsideCallback.current?.();
 			expect(onClose).toHaveBeenCalledOnce();
+		});
+
+		it('disables click-outside-to-close when isTabMode is true', () => {
+			// In tab mode, file preview tabs should persist until explicitly closed
+			const onClose = vi.fn();
+			render(<FilePreview {...defaultProps} onClose={onClose} isTabMode={true} />);
+
+			// Click outside should be disabled in tab mode
+			expect(mockClickOutsideEnabled.current).toBe(false);
+		});
+
+		it('enables click-outside-to-close when isTabMode is false or undefined', () => {
+			const onClose = vi.fn();
+			render(<FilePreview {...defaultProps} onClose={onClose} />);
+
+			// Click outside should be enabled by default (non-tab mode)
+			expect(mockClickOutsideEnabled.current).toBe(true);
 		});
 	});
 

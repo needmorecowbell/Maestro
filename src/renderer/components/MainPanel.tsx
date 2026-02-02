@@ -1562,6 +1562,7 @@ export const MainPanel = React.memo(
 										// When rendered as tab, close via tab close handler
 										onFileTabClose?.(activeFileTabId);
 									}}
+									isTabMode={true}
 									theme={theme}
 									markdownEditMode={activeFileTab.editMode}
 									setMarkdownEditMode={(editMode) => {

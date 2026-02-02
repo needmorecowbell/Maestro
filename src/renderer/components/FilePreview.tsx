@@ -108,6 +108,8 @@ interface FilePreviewProps {
 	initialSearchQuery?: string;
 	/** Callback when search query changes (used for file tab persistence) */
 	onSearchQueryChange?: (query: string) => void;
+	/** When true, disables click-outside-to-close and layer registration (for tab-based rendering) */
+	isTabMode?: boolean;
 }
 
 export interface FilePreviewHandle {
@@ -572,6 +574,7 @@ export const FilePreview = forwardRef<FilePreviewHandle, FilePreviewProps>(funct
 		onScrollPositionChange,
 		initialSearchQuery,
 		onSearchQueryChange,
+		isTabMode,
 	},
 	ref
 ) {
@@ -1041,16 +1044,17 @@ export const FilePreview = forwardRef<FilePreviewHandle, FilePreviewProps>(funct
 	// Note: handleEscapeRequest is intentionally NOT in the dependency array to prevent
 	// infinite re-registration loops when its dependencies (hasChanges, searchOpen) change.
 	// The subsequent useEffect with updateLayerHandler handles keeping the handler current.
+	// In tab mode: don't block lower layers or capture focus since we're part of the main panel content
 	useEffect(() => {
 		layerIdRef.current = registerLayer({
 			type: 'overlay',
 			priority: MODAL_PRIORITIES.FILE_PREVIEW,
-			blocksLowerLayers: true,
-			capturesFocus: true,
-			focusTrap: 'lenient',
+			blocksLowerLayers: !isTabMode, // Tab mode is part of main content, doesn't block
+			capturesFocus: !isTabMode, // Tab mode shouldn't capture focus aggressively
+			focusTrap: isTabMode ? 'none' : 'lenient', // Tab mode has no focus trap
 			ariaLabel: 'File Preview',
 			onEscape: handleEscapeRequest,
-			allowClickOutside: false,
+			allowClickOutside: isTabMode ?? false, // In tab mode, clicking outside is expected
 		});
 
 		return () => {
@@ -1058,8 +1062,8 @@ export const FilePreview = forwardRef<FilePreviewHandle, FilePreviewProps>(funct
 				unregisterLayer(layerIdRef.current);
 			}
 		};
-		 
-	}, [registerLayer, unregisterLayer]);
+
+	}, [registerLayer, unregisterLayer, isTabMode]);
 
 	// Update handler when dependencies change
 	useEffect(() => {
@@ -1070,7 +1074,8 @@ export const FilePreview = forwardRef<FilePreviewHandle, FilePreviewProps>(funct
 
 	// Click outside to dismiss (same behavior as Escape)
 	// Use delay to prevent the click that opened the preview from immediately closing it
-	useClickOutside(containerRef, handleEscapeRequest, !!file, { delay: true });
+	// Disable click-outside in tab mode - tabs should only close via explicit user action
+	useClickOutside(containerRef, handleEscapeRequest, !!file && !isTabMode, { delay: true });
 
 	// Keep search input focused when search is open
 	useEffect(() => {
@@ -2194,7 +2199,6 @@ export const FilePreview = forwardRef<FilePreviewHandle, FilePreviewProps>(funct
 									data-testid="toc-top-button"
 									onClick={() => {
 										scrollMarkdownToBoundary('top');
-										setShowTocOverlay(false);
 									}}
 									className="w-full px-3 py-2 text-left text-xs border-b transition-colors flex items-center gap-2 hover:brightness-110 flex-shrink-0"
 									style={{
@@ -2233,7 +2237,8 @@ export const FilePreview = forwardRef<FilePreviewHandle, FilePreviewProps>(funct
 													if (targetElement) {
 														targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
 													}
-													setShowTocOverlay(false);
+													// ToC stays open so user can click multiple items
+													// Dismiss with click outside or Escape key
 												}}
 												className="w-full px-2 py-1.5 text-left text-sm rounded hover:bg-white/10 transition-colors truncate flex items-center gap-1"
 												style={{
@@ -2255,7 +2260,6 @@ export const FilePreview = forwardRef<FilePreviewHandle, FilePreviewProps>(funct
 									data-testid="toc-bottom-button"
 									onClick={() => {
 										scrollMarkdownToBoundary('bottom');
-										setShowTocOverlay(false);
 									}}
 									className="w-full px-3 py-2 text-left text-xs border-t transition-colors flex items-center gap-2 hover:brightness-110 flex-shrink-0"
 									style={{
