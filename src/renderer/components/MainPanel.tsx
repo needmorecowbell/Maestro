@@ -243,8 +243,8 @@ interface MainPanelProps {
 	canGoForward?: boolean;
 	onNavigateBack?: () => void;
 	onNavigateForward?: () => void;
-	backHistory?: { name: string; content: string; path: string }[];
-	forwardHistory?: { name: string; content: string; path: string }[];
+	backHistory?: { name: string; path: string; scrollTop?: number }[];
+	forwardHistory?: { name: string; path: string; scrollTop?: number }[];
 	currentHistoryIndex?: number;
 	onNavigateToIndex?: (index: number) => void;
 	onClearFilePreviewHistory?: () => void;
@@ -1590,9 +1590,15 @@ export const MainPanel = React.memo(
 										return lastSlash > 0 ? relativePath.slice(0, lastSlash) : '';
 									})()}
 									onFileClick={props.onFileClick}
-									// File tabs don't use navigation history (each file is a separate tab)
-									canGoBack={false}
-									canGoForward={false}
+									// Per-tab navigation history for breadcrumb navigation
+									canGoBack={props.canGoBack}
+									canGoForward={props.canGoForward}
+									onNavigateBack={props.onNavigateBack}
+									onNavigateForward={props.onNavigateForward}
+									backHistory={props.backHistory}
+									forwardHistory={props.forwardHistory}
+									currentHistoryIndex={props.currentHistoryIndex}
+									onNavigateToIndex={props.onNavigateToIndex}
 									onOpenFuzzySearch={props.onOpenFuzzySearch}
 									onShortcutUsed={props.onShortcutUsed}
 									ghCliAvailable={props.ghCliAvailable}

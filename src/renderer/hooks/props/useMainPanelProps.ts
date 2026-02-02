@@ -95,11 +95,11 @@ export interface UseMainPanelPropsDeps {
 	// File tree
 	fileTree: FileNode[];
 
-	// File preview navigation
+	// File preview navigation (per-tab)
 	canGoBack: boolean;
 	canGoForward: boolean;
-	backHistory: { name: string; content: string; path: string }[];
-	forwardHistory: { name: string; content: string; path: string }[];
+	backHistory: { name: string; path: string; scrollTop?: number }[];
+	forwardHistory: { name: string; path: string; scrollTop?: number }[];
 	filePreviewHistoryIndex: number;
 
 	// Active tab for error handling

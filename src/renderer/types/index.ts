@@ -448,6 +448,16 @@ export interface ClosedTab {
  * Designed to coexist with AITab and future terminal tabs in the unified tab system.
  * File tabs persist across session switches and app restarts.
  */
+/**
+ * Navigation history entry for file preview breadcrumb navigation.
+ * Tracks the files visited within a single file preview tab.
+ */
+export interface FilePreviewHistoryEntry {
+	path: string; // Full file path
+	name: string; // Filename for display
+	scrollTop?: number; // Optional scroll position to restore
+}
+
 export interface FilePreviewTab {
 	id: string; // Unique tab ID (UUID)
 	path: string; // Full file path
@@ -463,6 +473,9 @@ export interface FilePreviewTab {
 	// SSH remote support
 	sshRemoteId?: string; // SSH remote ID for re-fetching content if needed
 	isLoading?: boolean; // True while content is being loaded (for SSH remote files)
+	// Navigation history for breadcrumb navigation (per-tab)
+	navigationHistory?: FilePreviewHistoryEntry[]; // Stack of visited files
+	navigationIndex?: number; // Current position in history (-1 or undefined = at end)
 }
 
 /**

@@ -99,9 +99,9 @@ interface FilePreviewProps {
 	/** Navigate forward in history */
 	onNavigateForward?: () => void;
 	/** Navigation history for back breadcrumbs (items before current) */
-	backHistory?: { name: string; content: string; path: string }[];
+	backHistory?: { name: string; path: string; scrollTop?: number }[];
 	/** Navigation history for forward breadcrumbs (items after current) */
-	forwardHistory?: { name: string; content: string; path: string }[];
+	forwardHistory?: { name: string; path: string; scrollTop?: number }[];
 	/** Navigate to a specific index in history */
 	onNavigateToIndex?: (index: number) => void;
 	/** Current index in history */

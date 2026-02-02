@@ -3851,6 +3851,33 @@ function MaestroConsoleInner() {
 		[filePreviewHistory, filePreviewHistoryIndex]
 	);
 
+	// Per-tab navigation history for the active file tab
+	const activeFileTabHistory = useMemo(() => {
+		if (!activeSession?.activeFileTabId) return [];
+		const tab = activeSession.filePreviewTabs.find((t) => t.id === activeSession.activeFileTabId);
+		return tab?.navigationHistory ?? [];
+	}, [activeSession?.activeFileTabId, activeSession?.filePreviewTabs]);
+
+	const activeFileTabNavIndex = useMemo(() => {
+		if (!activeSession?.activeFileTabId) return -1;
+		const tab = activeSession.filePreviewTabs.find((t) => t.id === activeSession.activeFileTabId);
+		return tab?.navigationIndex ?? (tab?.navigationHistory?.length ?? 0) - 1;
+	}, [activeSession?.activeFileTabId, activeSession?.filePreviewTabs]);
+
+	// Per-tab back/forward history arrays
+	const fileTabBackHistory = useMemo(
+		() => activeFileTabHistory.slice(0, activeFileTabNavIndex),
+		[activeFileTabHistory, activeFileTabNavIndex]
+	);
+	const fileTabForwardHistory = useMemo(
+		() => activeFileTabHistory.slice(activeFileTabNavIndex + 1),
+		[activeFileTabHistory, activeFileTabNavIndex]
+	);
+
+	// Can navigate back/forward in the current file tab
+	const fileTabCanGoBack = activeFileTabNavIndex > 0;
+	const fileTabCanGoForward = activeFileTabNavIndex < activeFileTabHistory.length - 1;
+
 	// Helper to update file preview history for the active session
 	const setFilePreviewHistory = useCallback(
 		(history: { name: string; content: string; path: string }[]) => {
@@ -3918,6 +3945,7 @@ function MaestroConsoleInner() {
 					// If not opening in new tab and there's an active file tab, replace its content
 					if (!openInNewTab && s.activeFileTabId) {
 						const currentTabId = s.activeFileTabId;
+						const currentTab = s.filePreviewTabs.find((tab) => tab.id === currentTabId);
 						const extension = file.name.includes('.')
 							? '.' + file.name.split('.').pop()
 							: '';
@@ -3925,25 +3953,66 @@ function MaestroConsoleInner() {
 							? file.name.slice(0, -extension.length)
 							: file.name;
 
-						// Replace current tab's content with new file
-						const updatedTabs = s.filePreviewTabs.map((tab) =>
-							tab.id === currentTabId
-								? {
-										...tab,
-										path: file.path,
-										name: nameWithoutExtension,
-										extension,
-										content: file.content,
-										scrollTop: 0, // Reset scroll for new file
-										searchQuery: '', // Clear search
-										editMode: false,
-										editContent: undefined,
-										lastModified: file.lastModified ?? Date.now(),
-										sshRemoteId: file.sshRemoteId,
-										isLoading: false,
-									}
-								: tab
-						);
+						// Replace current tab's content with new file and update navigation history
+						const updatedTabs = s.filePreviewTabs.map((tab) => {
+							if (tab.id !== currentTabId) return tab;
+
+							// Build updated navigation history
+							const currentHistory = tab.navigationHistory ?? [];
+							const currentIndex = tab.navigationIndex ?? currentHistory.length - 1;
+
+							// Save current file to history before replacing (if we have content)
+							// Truncate forward history if we're not at the end
+							const truncatedHistory =
+								currentIndex >= 0 && currentIndex < currentHistory.length - 1
+									? currentHistory.slice(0, currentIndex + 1)
+									: currentHistory;
+
+							// Add current file to history if it exists and isn't already the last entry
+							let newHistory = truncatedHistory;
+							if (
+								currentTab &&
+								currentTab.path &&
+								(truncatedHistory.length === 0 ||
+									truncatedHistory[truncatedHistory.length - 1].path !== currentTab.path)
+							) {
+								newHistory = [
+									...truncatedHistory,
+									{
+										path: currentTab.path,
+										name: currentTab.name,
+										scrollTop: currentTab.scrollTop,
+									},
+								];
+							}
+
+							// Add the new file to history
+							const finalHistory = [
+								...newHistory,
+								{
+									path: file.path,
+									name: nameWithoutExtension,
+									scrollTop: 0,
+								},
+							];
+
+							return {
+								...tab,
+								path: file.path,
+								name: nameWithoutExtension,
+								extension,
+								content: file.content,
+								scrollTop: 0, // Reset scroll for new file
+								searchQuery: '', // Clear search
+								editMode: false,
+								editContent: undefined,
+								lastModified: file.lastModified ?? Date.now(),
+								sshRemoteId: file.sshRemoteId,
+								isLoading: false,
+								navigationHistory: finalHistory,
+								navigationIndex: finalHistory.length - 1, // Point to current (new) file
+							};
+						});
 						return {
 							...s,
 							filePreviewTabs: updatedTabs,
@@ -3974,6 +4043,9 @@ function MaestroConsoleInner() {
 						lastModified: file.lastModified ?? Date.now(), // Use file mtime or current time as fallback
 						sshRemoteId: file.sshRemoteId,
 						isLoading: false, // Content is already loaded when this is called
+						// Initialize navigation history with the first file
+						navigationHistory: [{ path: file.path, name: nameWithoutExtension, scrollTop: 0 }],
+						navigationIndex: 0,
 					};
 
 					// Create the unified tab reference
@@ -6618,6 +6690,162 @@ You are taking over this conversation. Based on the context above, provide a bri
 					: s
 			)
 		);
+	}, []);
+
+	/**
+	 * Navigate back in the current file tab's navigation history.
+	 * Loads the previous file and updates the navigation index.
+	 */
+	const handleFileTabNavigateBack = useCallback(async () => {
+		const currentSession = sessionsRef.current.find((s) => s.id === activeSessionIdRef.current);
+		if (!currentSession?.activeFileTabId) return;
+
+		const currentTab = currentSession.filePreviewTabs.find(
+			(tab) => tab.id === currentSession.activeFileTabId
+		);
+		if (!currentTab) return;
+
+		const history = currentTab.navigationHistory ?? [];
+		const currentIndex = currentTab.navigationIndex ?? history.length - 1;
+
+		if (currentIndex > 0) {
+			const newIndex = currentIndex - 1;
+			const historyEntry = history[newIndex];
+
+			// Fetch the file content (use SSH remote ID from the current tab if available)
+			try {
+				const sshRemoteId = currentTab.sshRemoteId;
+				const content = await window.maestro.fs.readFile(historyEntry.path, sshRemoteId);
+				if (!content) return;
+
+				// Update the tab with new content and navigation index
+				setSessions((prev) =>
+					prev.map((s) => {
+						if (s.id !== currentSession.id) return s;
+						return {
+							...s,
+							filePreviewTabs: s.filePreviewTabs.map((tab) =>
+								tab.id === currentTab.id
+									? {
+											...tab,
+											path: historyEntry.path,
+											name: historyEntry.name,
+											content,
+											scrollTop: historyEntry.scrollTop ?? 0,
+											navigationIndex: newIndex,
+										}
+									: tab
+							),
+						};
+					})
+				);
+			} catch (error) {
+				console.error('Failed to navigate back:', error);
+			}
+		}
+	}, []);
+
+	/**
+	 * Navigate forward in the current file tab's navigation history.
+	 * Loads the next file and updates the navigation index.
+	 */
+	const handleFileTabNavigateForward = useCallback(async () => {
+		const currentSession = sessionsRef.current.find((s) => s.id === activeSessionIdRef.current);
+		if (!currentSession?.activeFileTabId) return;
+
+		const currentTab = currentSession.filePreviewTabs.find(
+			(tab) => tab.id === currentSession.activeFileTabId
+		);
+		if (!currentTab) return;
+
+		const history = currentTab.navigationHistory ?? [];
+		const currentIndex = currentTab.navigationIndex ?? history.length - 1;
+
+		if (currentIndex < history.length - 1) {
+			const newIndex = currentIndex + 1;
+			const historyEntry = history[newIndex];
+
+			// Fetch the file content (use SSH remote ID from the current tab if available)
+			try {
+				const sshRemoteId = currentTab.sshRemoteId;
+				const content = await window.maestro.fs.readFile(historyEntry.path, sshRemoteId);
+				if (!content) return;
+
+				// Update the tab with new content and navigation index
+				setSessions((prev) =>
+					prev.map((s) => {
+						if (s.id !== currentSession.id) return s;
+						return {
+							...s,
+							filePreviewTabs: s.filePreviewTabs.map((tab) =>
+								tab.id === currentTab.id
+									? {
+											...tab,
+											path: historyEntry.path,
+											name: historyEntry.name,
+											content,
+											scrollTop: historyEntry.scrollTop ?? 0,
+											navigationIndex: newIndex,
+										}
+									: tab
+							),
+						};
+					})
+				);
+			} catch (error) {
+				console.error('Failed to navigate forward:', error);
+			}
+		}
+	}, []);
+
+	/**
+	 * Navigate to a specific index in the current file tab's navigation history.
+	 */
+	const handleFileTabNavigateToIndex = useCallback(async (index: number) => {
+		const currentSession = sessionsRef.current.find((s) => s.id === activeSessionIdRef.current);
+		if (!currentSession?.activeFileTabId) return;
+
+		const currentTab = currentSession.filePreviewTabs.find(
+			(tab) => tab.id === currentSession.activeFileTabId
+		);
+		if (!currentTab) return;
+
+		const history = currentTab.navigationHistory ?? [];
+
+		if (index >= 0 && index < history.length) {
+			const historyEntry = history[index];
+
+			// Fetch the file content (use SSH remote ID from the current tab if available)
+			try {
+				const sshRemoteId = currentTab.sshRemoteId;
+				const content = await window.maestro.fs.readFile(historyEntry.path, sshRemoteId);
+				if (!content) return;
+
+				// Update the tab with new content and navigation index
+				setSessions((prev) =>
+					prev.map((s) => {
+						if (s.id !== currentSession.id) return s;
+						return {
+							...s,
+							filePreviewTabs: s.filePreviewTabs.map((tab) =>
+								tab.id === currentTab.id
+									? {
+											...tab,
+											path: historyEntry.path,
+											name: historyEntry.name,
+											content,
+											scrollTop: historyEntry.scrollTop ?? 0,
+											navigationIndex: index,
+										}
+									: tab
+							),
+						};
+					})
+				);
+			} catch (error) {
+				console.error('Failed to navigate to index:', error);
+			}
+		}
 	}, []);
 
 	const handleMergeWith = useCallback((tabId: string) => {
@@ -13104,12 +13332,12 @@ You are taking over this conversation. Based on the context above, provide a bri
 		// File tree
 		fileTree: activeSession?.fileTree || [],
 
-		// File preview navigation
-		canGoBack: filePreviewHistoryIndex > 0,
-		canGoForward: filePreviewHistoryIndex < filePreviewHistory.length - 1,
-		backHistory,
-		forwardHistory,
-		filePreviewHistoryIndex,
+		// File preview navigation (per-tab)
+		canGoBack: fileTabCanGoBack,
+		canGoForward: fileTabCanGoForward,
+		backHistory: fileTabBackHistory,
+		forwardHistory: fileTabForwardHistory,
+		filePreviewHistoryIndex: activeFileTabNavIndex,
 
 		// Active tab for error handling
 		activeTab,
@@ -13237,9 +13465,9 @@ You are taking over this conversation. Based on the context above, provide a bri
 		handleOpenPromptComposer,
 		handleReplayMessage,
 		handleMainPanelFileClick,
-		handleNavigateBack,
-		handleNavigateForward,
-		handleNavigateToIndex,
+		handleNavigateBack: handleFileTabNavigateBack,
+		handleNavigateForward: handleFileTabNavigateForward,
+		handleNavigateToIndex: handleFileTabNavigateToIndex,
 		handleClearFilePreviewHistory,
 		handleClearAgentErrorForMainPanel,
 		handleShowAgentErrorModal,
