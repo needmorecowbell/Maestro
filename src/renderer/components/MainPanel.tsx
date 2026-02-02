@@ -39,7 +39,7 @@ import { useGitBranch, useGitDetail, useGitFileStatus } from '../contexts/GitSta
 import { formatShortcutKeys } from '../utils/shortcutFormatter';
 import { calculateContextTokens } from '../utils/contextUsage';
 import { useAgentCapabilities, useHoverTooltip } from '../hooks';
-import type { Session, Theme, Shortcut, FocusArea, BatchRunState } from '../types';
+import type { Session, Theme, Shortcut, FocusArea, BatchRunState, UnifiedTab, FilePreviewTab } from '../types';
 
 interface SlashCommand {
 	command: string;
@@ -206,6 +206,15 @@ interface MainPanelProps {
 	onCloseOtherTabs?: () => void;
 	onCloseTabsLeft?: () => void;
 	onCloseTabsRight?: () => void;
+
+	// Unified tab system (Phase 4) - file preview tabs integrated with AI tabs
+	unifiedTabs?: UnifiedTab[];
+	activeFileTabId?: string | null;
+	activeFileTab?: FilePreviewTab | null;
+	onFileTabSelect?: (tabId: string) => void;
+	onFileTabClose?: (tabId: string) => void;
+	onOpenFileTab?: (filePath: string) => void;
+
 	// Scroll position persistence
 	onScrollPositionChange?: (scrollTop: number) => void;
 	// Scroll bottom state change handler (for hasUnread logic)
@@ -464,6 +473,12 @@ export const MainPanel = React.memo(
 			onCloseOtherTabs,
 			onCloseTabsLeft,
 			onCloseTabsRight,
+			// Unified tab system props (Phase 4)
+			unifiedTabs,
+			activeFileTabId,
+			activeFileTab,
+			onFileTabSelect,
+			onFileTabClose,
 		} = props;
 
 		// Get the active tab for header display
@@ -1410,9 +1425,8 @@ export const MainPanel = React.memo(
 							</div>
 						)}
 
-						{/* Tab Bar - only shown in AI mode when we have tabs (hidden during file preview) */}
-						{!previewFile &&
-							activeSession.inputMode === 'ai' &&
+						{/* Tab Bar - always shown in AI mode when we have tabs (includes both AI and file tabs) */}
+						{activeSession.inputMode === 'ai' &&
 							activeSession.aiTabs &&
 							activeSession.aiTabs.length > 0 &&
 							onTabSelect &&
@@ -1444,6 +1458,11 @@ export const MainPanel = React.memo(
 									onCloseOtherTabs={onCloseOtherTabs}
 									onCloseTabsLeft={onCloseTabsLeft}
 									onCloseTabsRight={onCloseTabsRight}
+									// Unified tab system props (Phase 4)
+									unifiedTabs={unifiedTabs}
+									activeFileTabId={activeFileTabId}
+									onFileTabSelect={onFileTabSelect}
+									onFileTabClose={onFileTabClose}
 								/>
 							)}
 
@@ -1489,7 +1508,8 @@ export const MainPanel = React.memo(
 						)}
 
 						{/* Show File Preview loading state when fetching remote file */}
-						{filePreviewLoading && !previewFile && (
+						{/* Show loading for both legacy previewFile and new file tab system */}
+						{filePreviewLoading && !previewFile && !activeFileTabId && (
 							<div
 								className="flex-1 flex items-center justify-center"
 								style={{ backgroundColor: theme.colors.bgMain }}
@@ -1511,9 +1531,67 @@ export const MainPanel = React.memo(
 							</div>
 						)}
 
-						{/* Show File Preview in main area when open, otherwise show terminal output and input */}
-						{/* Skip rendering terminal/preview when loading remote file - loading state takes over entire main area */}
-						{filePreviewLoading && !previewFile ? null : previewFile ? (
+						{/* Content area: Show FilePreview when file tab is active or previewFile is set, otherwise show terminal output */}
+						{/* Priority: activeFileTabId (new tab system) > previewFile (legacy) > terminal output */}
+						{/* Skip rendering when loading remote file - loading state takes over entire main area */}
+						{filePreviewLoading && !previewFile && !activeFileTabId ? null : activeFileTabId && activeFileTab ? (
+							// New file tab system - FilePreview rendered as tab content (no close button, tab handles closing)
+							<div
+								ref={filePreviewContainerRef}
+								tabIndex={-1}
+								className="flex-1 overflow-hidden outline-none"
+							>
+								<FilePreview
+									ref={filePreviewRef}
+									file={{
+										name: activeFileTab.name + activeFileTab.extension,
+										content: activeFileTab.editContent ?? '', // Content will be fetched in Phase 5
+										path: activeFileTab.path,
+									}}
+									onClose={() => {
+										// When rendered as tab, close via tab close handler
+										onFileTabClose?.(activeFileTabId);
+									}}
+									theme={theme}
+									markdownEditMode={activeFileTab.editMode}
+									setMarkdownEditMode={setMarkdownEditMode}
+									onSave={async (path, content) => {
+										await window.maestro.fs.writeFile(path, content);
+										// TODO: Update the file tab's editContent after save
+									}}
+									shortcuts={shortcuts}
+									fileTree={props.fileTree}
+									cwd={(() => {
+										// Compute relative directory from file path for proximity matching
+										if (
+											!activeSession?.fullPath ||
+											!activeFileTab.path.startsWith(activeSession.fullPath)
+										) {
+											return '';
+										}
+										const relativePath = activeFileTab.path.slice(activeSession.fullPath.length + 1);
+										const lastSlash = relativePath.lastIndexOf('/');
+										return lastSlash > 0 ? relativePath.slice(0, lastSlash) : '';
+									})()}
+									onFileClick={props.onFileClick}
+									// File tabs don't use navigation history (each file is a separate tab)
+									canGoBack={false}
+									canGoForward={false}
+									onOpenFuzzySearch={props.onOpenFuzzySearch}
+									onShortcutUsed={props.onShortcutUsed}
+									ghCliAvailable={props.ghCliAvailable}
+									onPublishGist={props.onPublishGist}
+									hasGist={props.hasGist}
+									onOpenInGraph={props.onOpenInGraph}
+									sshRemoteId={
+										activeSession?.sshRemoteId ||
+										activeSession?.sessionSshRemoteConfig?.remoteId ||
+										undefined
+									}
+									showCloseButton={false}
+								/>
+							</div>
+						) : previewFile ? (
 							<div
 								ref={filePreviewContainerRef}
 								tabIndex={-1}

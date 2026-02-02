@@ -4783,6 +4783,16 @@ You are taking over this conversation. Based on the context above, provide a bri
 		activeSession?.unifiedTabOrder,
 	]);
 
+	// Get the active file preview tab (if a file tab is active)
+	const activeFileTab = useMemo((): FilePreviewTab | null => {
+		if (!activeSession?.activeFileTabId) return null;
+		return (
+			activeSession.filePreviewTabs.find(
+				(tab) => tab.id === activeSession.activeFileTabId
+			) ?? null
+		);
+	}, [activeSession?.activeFileTabId, activeSession?.filePreviewTabs]);
+
 	const isResumingSession = !!activeTab?.agentSessionId;
 	const canAttachImages = useMemo(() => {
 		if (!activeSession || activeSession.inputMode !== 'ai') return false;
@@ -12835,6 +12845,14 @@ You are taking over this conversation. Based on the context above, provide a bri
 		handleCloseOtherTabs,
 		handleCloseTabsLeft,
 		handleCloseTabsRight,
+
+		// Unified tab system (Phase 4)
+		unifiedTabs,
+		activeFileTabId: activeSession?.activeFileTabId ?? null,
+		activeFileTab,
+		handleFileTabSelect: handleSelectFileTab,
+		handleFileTabClose: handleCloseFileTab,
+
 		handleScrollPositionChange,
 		handleAtBottomChange,
 		handleMainPanelInputBlur,

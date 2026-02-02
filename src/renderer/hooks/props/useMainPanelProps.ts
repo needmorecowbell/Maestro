@@ -19,6 +19,8 @@ import type {
 	LogEntry,
 	UsageStats,
 	AITab,
+	UnifiedTab,
+	FilePreviewTab,
 } from '../../types';
 import type { TabCompletionSuggestion, TabCompletionFilter } from '../input/useTabCompletion';
 import type {
@@ -216,6 +218,14 @@ export interface UseMainPanelPropsDeps {
 	handleCloseOtherTabs: () => void;
 	handleCloseTabsLeft: () => void;
 	handleCloseTabsRight: () => void;
+
+	// Unified tab system props (Phase 4)
+	unifiedTabs: UnifiedTab[];
+	activeFileTabId: string | null;
+	activeFileTab: FilePreviewTab | null;
+	handleFileTabSelect: (tabId: string) => void;
+	handleFileTabClose: (tabId: string) => void;
+
 	handleScrollPositionChange: (scrollTop: number) => void;
 	handleAtBottomChange: (isAtBottom: boolean) => void;
 	handleMainPanelInputBlur: () => void;
@@ -399,6 +409,12 @@ export function useMainPanelProps(deps: UseMainPanelPropsDeps) {
 			onCloseOtherTabs: deps.handleCloseOtherTabs,
 			onCloseTabsLeft: deps.handleCloseTabsLeft,
 			onCloseTabsRight: deps.handleCloseTabsRight,
+			// Unified tab system props (Phase 4)
+			unifiedTabs: deps.unifiedTabs,
+			activeFileTabId: deps.activeFileTabId,
+			activeFileTab: deps.activeFileTab,
+			onFileTabSelect: deps.handleFileTabSelect,
+			onFileTabClose: deps.handleFileTabClose,
 			onToggleTabSaveToHistory: deps.handleToggleTabSaveToHistory,
 			onToggleTabShowThinking: deps.handleToggleTabShowThinking,
 			onScrollPositionChange: deps.handleScrollPositionChange,
@@ -625,6 +641,12 @@ export function useMainPanelProps(deps: UseMainPanelPropsDeps) {
 			deps.handleCloseOtherTabs,
 			deps.handleCloseTabsLeft,
 			deps.handleCloseTabsRight,
+			// Unified tab system (Phase 4)
+			deps.unifiedTabs,
+			deps.activeFileTabId,
+			deps.activeFileTab,
+			deps.handleFileTabSelect,
+			deps.handleFileTabClose,
 			deps.handleScrollPositionChange,
 			deps.handleAtBottomChange,
 			deps.handleMainPanelInputBlur,
