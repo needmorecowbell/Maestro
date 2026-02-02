@@ -648,17 +648,21 @@ export const MainPanel = React.memo(
 		}, []);
 
 		// Responsive breakpoints for hiding/simplifying widgets (progressive reduction as space shrinks)
+		// When AUTO mode is active, the center button takes ~120px, so we shift thresholds higher
 		// At widest: full display with "CONTEXT WINDOW" label and wide gauge (w-24)
 		// Below 700px: "CONTEXT" label + narrow gauge (w-16) together
 		// Below 550px: compact git widget (file count only)
 		// Below 500px: git branch shows icon only (no text)
 		// Below 400px: hide UUID pill
 		// Below 350px: hide cost widget
-		const showCostWidget = panelWidth > 350;
-		const showUuidPill = panelWidth > 400;
-		const useIconOnlyGitBranch = panelWidth < 500;
-		const useCompactGitWidget = panelWidth < 550;
-		const useCompactContext = panelWidth < 700; // Both label and gauge shrink together
+		// Below 300px: hide session name (shown in menu bar anyway)
+		const autoModeOffset = isCurrentSessionAutoMode ? 150 : 0; // Extra space needed when AUTO button is visible
+		const showSessionName = panelWidth > 300 + autoModeOffset;
+		const showCostWidget = panelWidth > 350 + autoModeOffset;
+		const showUuidPill = panelWidth > 400 + autoModeOffset;
+		const useIconOnlyGitBranch = panelWidth < 500 + autoModeOffset;
+		const useCompactGitWidget = panelWidth < 550 + autoModeOffset;
+		const useCompactContext = panelWidth < 700 + autoModeOffset; // Both label and gauge shrink together
 
 		// Git status from focused contexts (reduces cascade re-renders)
 		// Branch info: branch name, remote, ahead/behind - rarely changes
@@ -831,10 +835,12 @@ export const MainPanel = React.memo(
 								}}
 								data-tour="header-controls"
 							>
-								<div className="flex items-center gap-4 min-w-0">
-									<div className="flex items-center gap-2 text-sm font-medium min-w-0">
-										{/* Session name - protected from shrinking, other elements hide first */}
-										<span className="shrink-0">{activeSession.name}</span>
+								<div className="flex items-center gap-4 min-w-0 overflow-hidden">
+									<div className="flex items-center gap-2 text-sm font-medium min-w-0 overflow-hidden">
+										{/* Session name - hidden at narrow widths (also shown in menu bar) */}
+										{showSessionName && (
+											<span className="shrink-0">{activeSession.name}</span>
+										)}
 										<div
 											className="relative"
 											onMouseEnter={
@@ -873,10 +879,12 @@ export const MainPanel = React.memo(
 												>
 													{activeSession.isGitRepo ? (
 														<>
-															<GitBranch className="w-3 h-3" />
+															<GitBranch className="w-3 h-3 shrink-0" />
 															{/* Hide branch name text at narrow widths, show on hover via title */}
 															{!useIconOnlyGitBranch && (
-																<span className="truncate">{gitInfo?.branch || 'GIT'}</span>
+																<span className="truncate max-w-[120px]">
+																	{gitInfo?.branch || 'GIT'}
+																</span>
 															)}
 														</>
 													) : (

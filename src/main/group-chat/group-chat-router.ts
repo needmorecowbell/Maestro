@@ -18,7 +18,11 @@ import {
 	getGroupChatDir,
 } from './group-chat-storage';
 import { appendToLog, readLog } from './group-chat-log';
-import { type GroupChatMessage, mentionMatches } from '../../shared/group-chat-types';
+import {
+	type GroupChatMessage,
+	mentionMatches,
+	normalizeMentionName,
+} from '../../shared/group-chat-types';
 import {
 	IProcessManager,
 	getModeratorSessionId,
@@ -389,9 +393,12 @@ export async function routeUserMessage(
 			console.log(`[GroupChat:Debug] Command to execute: ${command}`);
 
 			// Build participant context
+			// Use normalized names (spaces → hyphens) so moderator can @mention them properly
 			const participantContext =
 				chat.participants.length > 0
-					? chat.participants.map((p) => `- @${p.name} (${p.agentId} session)`).join('\n')
+					? chat.participants
+							.map((p) => `- @${normalizeMentionName(p.name)} (${p.agentId} session)`)
+							.join('\n')
 					: '(No agents currently in this group chat)';
 
 			// Build available sessions context (sessions that could be added)
@@ -406,7 +413,8 @@ export async function routeUserMessage(
 					(s) => s.toolType !== 'terminal' && !participantNames.has(s.name)
 				);
 				if (availableSessions.length > 0) {
-					availableSessionsContext = `\n\n## Available Maestro Sessions (can be added via @mention):\n${availableSessions.map((s) => `- @${s.name} (${s.toolType})`).join('\n')}`;
+					// Use normalized names (spaces → hyphens) so moderator can @mention them properly
+					availableSessionsContext = `\n\n## Available Maestro Sessions (can be added via @mention):\n${availableSessions.map((s) => `- @${normalizeMentionName(s.name)} (${s.toolType})`).join('\n')}`;
 				}
 			}
 
@@ -1109,9 +1117,12 @@ export async function spawnModeratorSynthesis(
 		.join('\n');
 
 	// Build participant context for potential follow-up @mentions
+	// Use normalized names (spaces → hyphens) so moderator can @mention them properly
 	const participantContext =
 		chat.participants.length > 0
-			? chat.participants.map((p) => `- @${p.name} (${p.agentId} session)`).join('\n')
+			? chat.participants
+					.map((p) => `- @${normalizeMentionName(p.name)} (${p.agentId} session)`)
+					.join('\n')
 			: '(No agents currently in this group chat)';
 
 	const synthesisPrompt = `${getModeratorSystemPrompt()}
