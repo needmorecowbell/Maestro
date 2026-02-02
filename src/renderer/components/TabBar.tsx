@@ -18,6 +18,9 @@ import {
 	ChevronsLeft,
 	ChevronsRight,
 	Loader2,
+	ExternalLink,
+	FolderOpen,
+	FileText,
 } from 'lucide-react';
 import type { AITab, Theme, FilePreviewTab, UnifiedTab } from '../types';
 import { hasDraft } from '../utils/tabHelpers';
@@ -926,6 +929,24 @@ interface FileTabProps {
 	isDragging: boolean;
 	isDragOver: boolean;
 	registerRef?: (el: HTMLDivElement | null) => void;
+	/** Stable callback - receives tabId */
+	onMoveToFirst?: (tabId: string) => void;
+	/** Stable callback - receives tabId */
+	onMoveToLast?: (tabId: string) => void;
+	/** Is this the first tab? */
+	isFirstTab?: boolean;
+	/** Is this the last tab? */
+	isLastTab?: boolean;
+	/** Stable callback - receives tabId - closes all tabs except this one */
+	onCloseOtherTabs?: (tabId: string) => void;
+	/** Stable callback - receives tabId - closes tabs to the left */
+	onCloseTabsLeft?: (tabId: string) => void;
+	/** Stable callback - receives tabId - closes tabs to the right */
+	onCloseTabsRight?: (tabId: string) => void;
+	/** Total number of unified tabs */
+	totalTabs?: number;
+	/** Tab index in the full unified list (0-based) */
+	tabIndex?: number;
 }
 
 /**
@@ -964,6 +985,7 @@ function getExtensionColor(extension: string, theme: Theme): { bg: string; text:
  * - Shows filename without extension as label
  * - Displays extension as a colored badge
  * - Shows pencil icon when tab has unsaved edits
+ * - Includes hover overlay with file-specific actions
  *
  * Wrapped with React.memo to prevent unnecessary re-renders when sibling tabs change.
  */
@@ -980,8 +1002,25 @@ const FileTab = memo(function FileTab({
 	isDragging,
 	isDragOver,
 	registerRef,
+	onMoveToFirst,
+	onMoveToLast,
+	isFirstTab,
+	isLastTab,
+	onCloseOtherTabs,
+	onCloseTabsLeft,
+	onCloseTabsRight,
+	totalTabs,
+	tabIndex,
 }: FileTabProps) {
 	const [isHovered, setIsHovered] = useState(false);
+	const [overlayOpen, setOverlayOpen] = useState(false);
+	const [showCopied, setShowCopied] = useState<'path' | 'name' | null>(null);
+	const [overlayPosition, setOverlayPosition] = useState<{
+		top: number;
+		left: number;
+		tabWidth?: number;
+	} | null>(null);
+	const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const tabRef = useRef<HTMLDivElement>(null);
 
 	// Register ref with parent for scroll-into-view functionality
@@ -995,10 +1034,34 @@ const FileTab = memo(function FileTab({
 
 	const handleMouseEnter = () => {
 		setIsHovered(true);
+		// Open overlay after delay
+		hoverTimeoutRef.current = setTimeout(() => {
+			// Calculate position for fixed overlay - connect directly to tab bottom
+			if (tabRef.current) {
+				const rect = tabRef.current.getBoundingClientRect();
+				// Position overlay directly at tab bottom (no gap) for connected appearance
+				// Store tab width for connector sizing
+				setOverlayPosition({ top: rect.bottom, left: rect.left, tabWidth: rect.width });
+			}
+			setOverlayOpen(true);
+		}, 400);
 	};
+
+	// Ref to track if mouse is over the overlay
+	const isOverOverlayRef = useRef(false);
 
 	const handleMouseLeave = () => {
 		setIsHovered(false);
+		if (hoverTimeoutRef.current) {
+			clearTimeout(hoverTimeoutRef.current);
+			hoverTimeoutRef.current = null;
+		}
+		// Delay closing overlay to allow mouse to reach it (there's a gap between tab and overlay)
+		hoverTimeoutRef.current = setTimeout(() => {
+			if (!isOverOverlayRef.current) {
+				setOverlayOpen(false);
+			}
+		}, 100);
 	};
 
 	// Event handlers using stable tabId to avoid inline closure captures
@@ -1019,6 +1082,101 @@ const FileTab = memo(function FileTab({
 			onClose(tab.id);
 		},
 		[onClose, tab.id]
+	);
+
+	// File-specific action handlers
+	const handleCopyFilePath = useCallback(
+		(e: React.MouseEvent) => {
+			e.stopPropagation();
+			navigator.clipboard.writeText(tab.path);
+			setShowCopied('path');
+			setTimeout(() => setShowCopied(null), 1500);
+		},
+		[tab.path]
+	);
+
+	const handleCopyFileName = useCallback(
+		(e: React.MouseEvent) => {
+			e.stopPropagation();
+			// Copy filename with extension
+			const fullName = tab.name + tab.extension;
+			navigator.clipboard.writeText(fullName);
+			setShowCopied('name');
+			setTimeout(() => setShowCopied(null), 1500);
+		},
+		[tab.name, tab.extension]
+	);
+
+	const handleOpenInDefaultApp = useCallback(
+		(e: React.MouseEvent) => {
+			e.stopPropagation();
+			window.maestro?.shell?.openExternal(`file://${tab.path}`);
+			setOverlayOpen(false);
+		},
+		[tab.path]
+	);
+
+	const handleRevealInFinder = useCallback(
+		(e: React.MouseEvent) => {
+			e.stopPropagation();
+			window.maestro?.shell?.showItemInFolder(tab.path);
+			setOverlayOpen(false);
+		},
+		[tab.path]
+	);
+
+	const handleMoveToFirstClick = useCallback(
+		(e: React.MouseEvent) => {
+			e.stopPropagation();
+			onMoveToFirst?.(tab.id);
+			setOverlayOpen(false);
+		},
+		[onMoveToFirst, tab.id]
+	);
+
+	const handleMoveToLastClick = useCallback(
+		(e: React.MouseEvent) => {
+			e.stopPropagation();
+			onMoveToLast?.(tab.id);
+			setOverlayOpen(false);
+		},
+		[onMoveToLast, tab.id]
+	);
+
+	const handleCloseTabClick = useCallback(
+		(e: React.MouseEvent) => {
+			e.stopPropagation();
+			onClose(tab.id);
+			setOverlayOpen(false);
+		},
+		[onClose, tab.id]
+	);
+
+	const handleCloseOtherTabsClick = useCallback(
+		(e: React.MouseEvent) => {
+			e.stopPropagation();
+			onCloseOtherTabs?.(tab.id);
+			setOverlayOpen(false);
+		},
+		[onCloseOtherTabs, tab.id]
+	);
+
+	const handleCloseTabsLeftClick = useCallback(
+		(e: React.MouseEvent) => {
+			e.stopPropagation();
+			onCloseTabsLeft?.(tab.id);
+			setOverlayOpen(false);
+		},
+		[onCloseTabsLeft, tab.id]
+	);
+
+	const handleCloseTabsRightClick = useCallback(
+		(e: React.MouseEvent) => {
+			e.stopPropagation();
+			onCloseTabsRight?.(tab.id);
+			setOverlayOpen(false);
+		},
+		[onCloseTabsRight, tab.id]
 	);
 
 	// Handlers for drag events using stable tabId
@@ -1142,6 +1300,218 @@ const FileTab = memo(function FileTab({
 					<X className="w-3 h-3" style={{ color: theme.colors.textDim }} />
 				</button>
 			)}
+
+			{/* Hover overlay with file info and actions - rendered via portal to escape stacking context */}
+			{overlayOpen &&
+				overlayPosition &&
+				createPortal(
+					<div
+						className="fixed z-[100]"
+						style={{
+							top: overlayPosition.top,
+							left: overlayPosition.left,
+						}}
+						onClick={(e) => e.stopPropagation()}
+						onMouseEnter={() => {
+							// Keep overlay open when mouse enters it
+							isOverOverlayRef.current = true;
+							if (hoverTimeoutRef.current) {
+								clearTimeout(hoverTimeoutRef.current);
+								hoverTimeoutRef.current = null;
+							}
+						}}
+						onMouseLeave={() => {
+							// Close overlay when mouse leaves it
+							isOverOverlayRef.current = false;
+							setOverlayOpen(false);
+							setIsHovered(false);
+						}}
+					>
+						{/* Main overlay content - connects directly to tab like an open folder */}
+						<div
+							className="shadow-xl overflow-hidden"
+							style={{
+								backgroundColor: theme.colors.bgSidebar,
+								borderLeft: `1px solid ${theme.colors.border}`,
+								borderRight: `1px solid ${theme.colors.border}`,
+								borderBottom: `1px solid ${theme.colors.border}`,
+								borderBottomLeftRadius: '8px',
+								borderBottomRightRadius: '8px',
+								minWidth: '220px',
+							}}
+						>
+							{/* Header with file path */}
+							<div
+								className="border-b"
+								style={{
+									backgroundColor: theme.colors.bgActivity,
+									borderColor: theme.colors.border,
+								}}
+							>
+								{/* File icon and name */}
+								<div className="px-3 py-2 flex items-center gap-2">
+									<FileText className="w-4 h-4 shrink-0" style={{ color: theme.colors.textDim }} />
+									<span
+										className="text-sm font-medium truncate"
+										style={{ color: theme.colors.textMain }}
+									>
+										{tab.name}
+										{tab.extension}
+									</span>
+								</div>
+
+								{/* File path display */}
+								<div
+									className="px-3 py-2 text-[10px] font-mono truncate"
+									style={{ color: theme.colors.textDim }}
+									title={tab.path}
+								>
+									{tab.path}
+								</div>
+							</div>
+
+							{/* Actions */}
+							<div className="p-1">
+								{/* Copy File Path */}
+								<button
+									onClick={handleCopyFilePath}
+									className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs hover:bg-white/10 transition-colors"
+									style={{ color: theme.colors.textMain }}
+									title={tab.path}
+								>
+									<Copy className="w-3.5 h-3.5" style={{ color: theme.colors.textDim }} />
+									{showCopied === 'path' ? 'Copied!' : 'Copy File Path'}
+								</button>
+
+								{/* Copy File Name */}
+								<button
+									onClick={handleCopyFileName}
+									className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs hover:bg-white/10 transition-colors"
+									style={{ color: theme.colors.textMain }}
+								>
+									<Clipboard className="w-3.5 h-3.5" style={{ color: theme.colors.textDim }} />
+									{showCopied === 'name' ? 'Copied!' : 'Copy File Name'}
+								</button>
+
+								{/* Open in Default App */}
+								<button
+									onClick={handleOpenInDefaultApp}
+									className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs hover:bg-white/10 transition-colors"
+									style={{ color: theme.colors.textMain }}
+								>
+									<ExternalLink className="w-3.5 h-3.5" style={{ color: theme.colors.textDim }} />
+									Open in Default App
+								</button>
+
+								{/* Reveal in Finder */}
+								<button
+									onClick={handleRevealInFinder}
+									className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs hover:bg-white/10 transition-colors"
+									style={{ color: theme.colors.textMain }}
+								>
+									<FolderOpen className="w-3.5 h-3.5" style={{ color: theme.colors.textDim }} />
+									Reveal in Finder
+								</button>
+
+								{/* Tab Move Actions Section - divider and move options */}
+								{(onMoveToFirst || onMoveToLast) && (
+									<div className="my-1 border-t" style={{ borderColor: theme.colors.border }} />
+								)}
+
+								{/* Move to First Position - suppressed if already first tab or no handler */}
+								{onMoveToFirst && !isFirstTab && (
+									<button
+										onClick={handleMoveToFirstClick}
+										className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors hover:bg-white/10"
+										style={{ color: theme.colors.textMain }}
+									>
+										<ChevronsLeft className="w-3.5 h-3.5" style={{ color: theme.colors.textDim }} />
+										Move to First Position
+									</button>
+								)}
+
+								{/* Move to Last Position - suppressed if already last tab or no handler */}
+								{onMoveToLast && !isLastTab && (
+									<button
+										onClick={handleMoveToLastClick}
+										className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors hover:bg-white/10"
+										style={{ color: theme.colors.textMain }}
+									>
+										<ChevronsRight
+											className="w-3.5 h-3.5"
+											style={{ color: theme.colors.textDim }}
+										/>
+										Move to Last Position
+									</button>
+								)}
+
+								{/* Tab Close Actions Section - divider and close options */}
+								<div className="my-1 border-t" style={{ borderColor: theme.colors.border }} />
+
+								{/* Close Tab */}
+								<button
+									onClick={handleCloseTabClick}
+									className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors hover:bg-white/10"
+									style={{ color: theme.colors.textMain }}
+								>
+									<X className="w-3.5 h-3.5" style={{ color: theme.colors.textDim }} />
+									Close Tab
+								</button>
+
+								{/* Close Other Tabs */}
+								{onCloseOtherTabs && (
+									<button
+										onClick={handleCloseOtherTabsClick}
+										className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors ${
+											totalTabs === 1 ? 'opacity-40 cursor-default' : 'hover:bg-white/10'
+										}`}
+										style={{ color: theme.colors.textMain }}
+										disabled={totalTabs === 1}
+									>
+										<X className="w-3.5 h-3.5" style={{ color: theme.colors.textDim }} />
+										Close Other Tabs
+									</button>
+								)}
+
+								{/* Close Tabs to Left */}
+								{onCloseTabsLeft && (
+									<button
+										onClick={handleCloseTabsLeftClick}
+										className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors ${
+											tabIndex === 0 ? 'opacity-40 cursor-default' : 'hover:bg-white/10'
+										}`}
+										style={{ color: theme.colors.textMain }}
+										disabled={tabIndex === 0}
+									>
+										<ChevronsLeft className="w-3.5 h-3.5" style={{ color: theme.colors.textDim }} />
+										Close Tabs to Left
+									</button>
+								)}
+
+								{/* Close Tabs to Right */}
+								{onCloseTabsRight && (
+									<button
+										onClick={handleCloseTabsRightClick}
+										className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors ${
+											tabIndex === (totalTabs ?? 1) - 1
+												? 'opacity-40 cursor-default'
+												: 'hover:bg-white/10'
+										}`}
+										style={{ color: theme.colors.textMain }}
+										disabled={tabIndex === (totalTabs ?? 1) - 1}
+									>
+										<ChevronsRight
+											className="w-3.5 h-3.5"
+											style={{ color: theme.colors.textDim }}
+										/>
+										Close Tabs to Right
+									</button>
+								)}
+							</div>
+						</div>
+					</div>,
+					document.body
+				)}
 		</div>
 	);
 });
@@ -1621,6 +1991,15 @@ function TabBarInner({
 										isDragging={draggingTabId === fileTab.id}
 										isDragOver={dragOverTabId === fileTab.id}
 										registerRef={(el) => registerTabRef(fileTab.id, el)}
+										onMoveToFirst={!isFirstTab && onUnifiedTabReorder ? handleMoveToFirst : undefined}
+										onMoveToLast={!isLastTab && onUnifiedTabReorder ? handleMoveToLast : undefined}
+										isFirstTab={isFirstTab}
+										isLastTab={isLastTab}
+										onCloseOtherTabs={onCloseOtherTabs ? handleTabCloseOther : undefined}
+										onCloseTabsLeft={onCloseTabsLeft ? handleTabCloseLeft : undefined}
+										onCloseTabsRight={onCloseTabsRight ? handleTabCloseRight : undefined}
+										totalTabs={unifiedTabs!.length}
+										tabIndex={originalIndex}
 									/>
 								</React.Fragment>
 							);

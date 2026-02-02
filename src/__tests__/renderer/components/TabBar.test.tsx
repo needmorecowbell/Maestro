@@ -86,6 +86,21 @@ vi.mock('lucide-react', () => ({
 			»
 		</span>
 	),
+	ExternalLink: ({ className, style }: { className?: string; style?: React.CSSProperties }) => (
+		<span data-testid="external-link-icon" className={className} style={style}>
+			↗
+		</span>
+	),
+	FolderOpen: ({ className, style }: { className?: string; style?: React.CSSProperties }) => (
+		<span data-testid="folder-open-icon" className={className} style={style}>
+			📂
+		</span>
+	),
+	FileText: ({ className, style }: { className?: string; style?: React.CSSProperties }) => (
+		<span data-testid="file-text-icon" className={className} style={style}>
+			📄
+		</span>
+	),
 }));
 
 // Mock react-dom createPortal
@@ -2635,6 +2650,429 @@ describe('TabBar', () => {
 	});
 });
 
-// Note: FileTab extension badge tests will be added after Task 4 (update render loop)
-// is completed. The FileTab component and getExtensionColor helper are fully implemented
-// and ready for use in the unified tab rendering.
+describe('FileTab overlay menu', () => {
+	const aiTab = createTab({ id: 'tab-1', name: 'AI Tab 1', agentSessionId: 'sess-1' });
+	const defaultTabs: AITab[] = [aiTab];
+
+	const fileTab: FilePreviewTab = {
+		id: 'file-tab-1',
+		path: '/path/to/document.md',
+		name: 'document',
+		extension: '.md',
+		scrollTop: 0,
+		searchQuery: '',
+		editMode: false,
+		editContent: undefined,
+		createdAt: Date.now(),
+	};
+
+	const unifiedTabs = [
+		{ type: 'ai' as const, id: 'tab-1', data: aiTab },
+		{ type: 'file' as const, id: 'file-tab-1', data: fileTab },
+	];
+
+	it('shows file overlay menu on hover after delay', async () => {
+		vi.useFakeTimers();
+
+		render(
+			<TabBar
+				tabs={defaultTabs}
+				activeTabId="tab-1"
+				theme={mockTheme}
+				onTabSelect={vi.fn()}
+				onTabClose={vi.fn()}
+				onNewTab={vi.fn()}
+				unifiedTabs={unifiedTabs}
+				activeFileTabId={null}
+				onFileTabSelect={vi.fn()}
+				onFileTabClose={vi.fn()}
+			/>
+		);
+
+		const fileTabElement = screen.getByText('document').closest('[data-tab-id="file-tab-1"]');
+		expect(fileTabElement).toBeInTheDocument();
+
+		// Hover over the file tab
+		await act(async () => {
+			fireEvent.mouseEnter(fileTabElement!);
+		});
+
+		// Overlay should not be visible immediately
+		expect(screen.queryByText('Copy File Path')).not.toBeInTheDocument();
+
+		// Wait for the delay
+		await act(async () => {
+			vi.advanceTimersByTime(450);
+		});
+
+		// Overlay should now be visible with file-specific actions
+		expect(screen.getByText('Copy File Path')).toBeInTheDocument();
+		expect(screen.getByText('Copy File Name')).toBeInTheDocument();
+		expect(screen.getByText('Open in Default App')).toBeInTheDocument();
+		expect(screen.getByText('Reveal in Finder')).toBeInTheDocument();
+
+		vi.useRealTimers();
+	});
+
+	it('shows file path in overlay header', async () => {
+		vi.useFakeTimers();
+
+		render(
+			<TabBar
+				tabs={defaultTabs}
+				activeTabId="tab-1"
+				theme={mockTheme}
+				onTabSelect={vi.fn()}
+				onTabClose={vi.fn()}
+				onNewTab={vi.fn()}
+				unifiedTabs={unifiedTabs}
+				activeFileTabId={null}
+				onFileTabSelect={vi.fn()}
+				onFileTabClose={vi.fn()}
+			/>
+		);
+
+		const fileTabElement = screen.getByText('document').closest('[data-tab-id="file-tab-1"]');
+
+		await act(async () => {
+			fireEvent.mouseEnter(fileTabElement!);
+			vi.advanceTimersByTime(450);
+		});
+
+		// Should show full file path
+		expect(screen.getByText('/path/to/document.md')).toBeInTheDocument();
+		// Should show file icon
+		expect(screen.getByTestId('file-text-icon')).toBeInTheDocument();
+
+		vi.useRealTimers();
+	});
+
+	it('copies file path to clipboard when clicking Copy File Path', async () => {
+		vi.useFakeTimers();
+		const mockWriteText = vi.fn().mockResolvedValue(undefined);
+		Object.defineProperty(navigator, 'clipboard', {
+			value: { writeText: mockWriteText },
+			writable: true,
+		});
+
+		render(
+			<TabBar
+				tabs={defaultTabs}
+				activeTabId="tab-1"
+				theme={mockTheme}
+				onTabSelect={vi.fn()}
+				onTabClose={vi.fn()}
+				onNewTab={vi.fn()}
+				unifiedTabs={unifiedTabs}
+				activeFileTabId={null}
+				onFileTabSelect={vi.fn()}
+				onFileTabClose={vi.fn()}
+			/>
+		);
+
+		const fileTabElement = screen.getByText('document').closest('[data-tab-id="file-tab-1"]');
+
+		await act(async () => {
+			fireEvent.mouseEnter(fileTabElement!);
+			vi.advanceTimersByTime(450);
+		});
+
+		const copyPathButton = screen.getByText('Copy File Path');
+		await act(async () => {
+			fireEvent.click(copyPathButton);
+		});
+
+		expect(mockWriteText).toHaveBeenCalledWith('/path/to/document.md');
+		expect(screen.getByText('Copied!')).toBeInTheDocument();
+
+		vi.useRealTimers();
+	});
+
+	it('copies filename with extension when clicking Copy File Name', async () => {
+		vi.useFakeTimers();
+		const mockWriteText = vi.fn().mockResolvedValue(undefined);
+		Object.defineProperty(navigator, 'clipboard', {
+			value: { writeText: mockWriteText },
+			writable: true,
+		});
+
+		render(
+			<TabBar
+				tabs={defaultTabs}
+				activeTabId="tab-1"
+				theme={mockTheme}
+				onTabSelect={vi.fn()}
+				onTabClose={vi.fn()}
+				onNewTab={vi.fn()}
+				unifiedTabs={unifiedTabs}
+				activeFileTabId={null}
+				onFileTabSelect={vi.fn()}
+				onFileTabClose={vi.fn()}
+			/>
+		);
+
+		const fileTabElement = screen.getByText('document').closest('[data-tab-id="file-tab-1"]');
+
+		await act(async () => {
+			fireEvent.mouseEnter(fileTabElement!);
+			vi.advanceTimersByTime(450);
+		});
+
+		const copyNameButton = screen.getByText('Copy File Name');
+		await act(async () => {
+			fireEvent.click(copyNameButton);
+		});
+
+		expect(mockWriteText).toHaveBeenCalledWith('document.md');
+
+		vi.useRealTimers();
+	});
+
+	it('calls openExternal when clicking Open in Default App', async () => {
+		vi.useFakeTimers();
+		const mockOpenExternal = vi.fn().mockResolvedValue(undefined);
+		window.maestro = {
+			...window.maestro,
+			shell: {
+				...window.maestro.shell,
+				openExternal: mockOpenExternal,
+			},
+		} as typeof window.maestro;
+
+		render(
+			<TabBar
+				tabs={defaultTabs}
+				activeTabId="tab-1"
+				theme={mockTheme}
+				onTabSelect={vi.fn()}
+				onTabClose={vi.fn()}
+				onNewTab={vi.fn()}
+				unifiedTabs={unifiedTabs}
+				activeFileTabId={null}
+				onFileTabSelect={vi.fn()}
+				onFileTabClose={vi.fn()}
+			/>
+		);
+
+		const fileTabElement = screen.getByText('document').closest('[data-tab-id="file-tab-1"]');
+
+		await act(async () => {
+			fireEvent.mouseEnter(fileTabElement!);
+			vi.advanceTimersByTime(450);
+		});
+
+		const openButton = screen.getByText('Open in Default App');
+		await act(async () => {
+			fireEvent.click(openButton);
+		});
+
+		expect(mockOpenExternal).toHaveBeenCalledWith('file:///path/to/document.md');
+
+		vi.useRealTimers();
+	});
+
+	it('calls showItemInFolder when clicking Reveal in Finder', async () => {
+		vi.useFakeTimers();
+		const mockShowItemInFolder = vi.fn().mockResolvedValue(undefined);
+		window.maestro = {
+			...window.maestro,
+			shell: {
+				...window.maestro.shell,
+				showItemInFolder: mockShowItemInFolder,
+			},
+		} as typeof window.maestro;
+
+		render(
+			<TabBar
+				tabs={defaultTabs}
+				activeTabId="tab-1"
+				theme={mockTheme}
+				onTabSelect={vi.fn()}
+				onTabClose={vi.fn()}
+				onNewTab={vi.fn()}
+				unifiedTabs={unifiedTabs}
+				activeFileTabId={null}
+				onFileTabSelect={vi.fn()}
+				onFileTabClose={vi.fn()}
+			/>
+		);
+
+		const fileTabElement = screen.getByText('document').closest('[data-tab-id="file-tab-1"]');
+
+		await act(async () => {
+			fireEvent.mouseEnter(fileTabElement!);
+			vi.advanceTimersByTime(450);
+		});
+
+		const revealButton = screen.getByText('Reveal in Finder');
+		await act(async () => {
+			fireEvent.click(revealButton);
+		});
+
+		expect(mockShowItemInFolder).toHaveBeenCalledWith('/path/to/document.md');
+
+		vi.useRealTimers();
+	});
+
+	it('shows Close Tab action and calls onFileTabClose when clicked', async () => {
+		vi.useFakeTimers();
+		const mockFileTabClose = vi.fn();
+
+		render(
+			<TabBar
+				tabs={defaultTabs}
+				activeTabId="tab-1"
+				theme={mockTheme}
+				onTabSelect={vi.fn()}
+				onTabClose={vi.fn()}
+				onNewTab={vi.fn()}
+				unifiedTabs={unifiedTabs}
+				activeFileTabId={null}
+				onFileTabSelect={vi.fn()}
+				onFileTabClose={mockFileTabClose}
+			/>
+		);
+
+		const fileTabElement = screen.getByText('document').closest('[data-tab-id="file-tab-1"]');
+
+		await act(async () => {
+			fireEvent.mouseEnter(fileTabElement!);
+			vi.advanceTimersByTime(450);
+		});
+
+		// Get all "Close Tab" buttons - find the one in the file tab overlay
+		// The overlay buttons are in a div with specific styling
+		const closeTabButtons = screen.getAllByText('Close Tab');
+		// The file tab's Close Tab button is in a standalone button (not the one with "X" icon prefix from AI tab overlay)
+		const closeButton = closeTabButtons.find((btn) =>
+			btn.closest('.shadow-xl')?.querySelector('[data-testid="file-text-icon"]')
+		);
+		expect(closeButton).toBeTruthy();
+
+		await act(async () => {
+			fireEvent.click(closeButton!);
+		});
+
+		expect(mockFileTabClose).toHaveBeenCalledWith('file-tab-1');
+
+		vi.useRealTimers();
+	});
+
+	it('shows Move to First Position for non-first file tabs', async () => {
+		vi.useFakeTimers();
+		const mockUnifiedReorder = vi.fn();
+
+		// Put file tab in second position
+		const unifiedTabsWithFileSecond = [
+			{ type: 'ai' as const, id: 'tab-1', data: aiTab },
+			{ type: 'file' as const, id: 'file-tab-1', data: fileTab },
+		];
+
+		render(
+			<TabBar
+				tabs={defaultTabs}
+				activeTabId="tab-1"
+				theme={mockTheme}
+				onTabSelect={vi.fn()}
+				onTabClose={vi.fn()}
+				onNewTab={vi.fn()}
+				unifiedTabs={unifiedTabsWithFileSecond}
+				activeFileTabId={null}
+				onFileTabSelect={vi.fn()}
+				onFileTabClose={vi.fn()}
+				onUnifiedTabReorder={mockUnifiedReorder}
+			/>
+		);
+
+		const fileTabElement = screen.getByText('document').closest('[data-tab-id="file-tab-1"]');
+
+		await act(async () => {
+			fireEvent.mouseEnter(fileTabElement!);
+			vi.advanceTimersByTime(450);
+		});
+
+		// Should show Move to First Position
+		expect(screen.getByText('Move to First Position')).toBeInTheDocument();
+
+		vi.useRealTimers();
+	});
+
+	it('hides Move to First Position for first file tab', async () => {
+		vi.useFakeTimers();
+		const mockUnifiedReorder = vi.fn();
+
+		// Put file tab in first position
+		const unifiedTabsWithFileFirst = [
+			{ type: 'file' as const, id: 'file-tab-1', data: fileTab },
+			{ type: 'ai' as const, id: 'tab-1', data: aiTab },
+		];
+
+		render(
+			<TabBar
+				tabs={defaultTabs}
+				activeTabId="tab-1"
+				theme={mockTheme}
+				onTabSelect={vi.fn()}
+				onTabClose={vi.fn()}
+				onNewTab={vi.fn()}
+				unifiedTabs={unifiedTabsWithFileFirst}
+				activeFileTabId={null}
+				onFileTabSelect={vi.fn()}
+				onFileTabClose={vi.fn()}
+				onUnifiedTabReorder={mockUnifiedReorder}
+			/>
+		);
+
+		const fileTabElement = screen.getByText('document').closest('[data-tab-id="file-tab-1"]');
+
+		await act(async () => {
+			fireEvent.mouseEnter(fileTabElement!);
+			vi.advanceTimersByTime(450);
+		});
+
+		// Should NOT show Move to First Position
+		expect(screen.queryByText('Move to First Position')).not.toBeInTheDocument();
+
+		vi.useRealTimers();
+	});
+
+	it('closes overlay when mouse leaves', async () => {
+		vi.useFakeTimers();
+
+		render(
+			<TabBar
+				tabs={defaultTabs}
+				activeTabId="tab-1"
+				theme={mockTheme}
+				onTabSelect={vi.fn()}
+				onTabClose={vi.fn()}
+				onNewTab={vi.fn()}
+				unifiedTabs={unifiedTabs}
+				activeFileTabId={null}
+				onFileTabSelect={vi.fn()}
+				onFileTabClose={vi.fn()}
+			/>
+		);
+
+		const fileTabElement = screen.getByText('document').closest('[data-tab-id="file-tab-1"]');
+
+		// Hover to open overlay
+		await act(async () => {
+			fireEvent.mouseEnter(fileTabElement!);
+			vi.advanceTimersByTime(450);
+		});
+
+		expect(screen.getByText('Copy File Path')).toBeInTheDocument();
+
+		// Mouse leave from tab
+		await act(async () => {
+			fireEvent.mouseLeave(fileTabElement!);
+			vi.advanceTimersByTime(150); // Wait for close delay
+		});
+
+		// Overlay should be closed
+		expect(screen.queryByText('Copy File Path')).not.toBeInTheDocument();
+
+		vi.useRealTimers();
+	});
+});
