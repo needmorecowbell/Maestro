@@ -1993,7 +1993,7 @@ function MaestroConsoleInner() {
 					tabName?: string;
 					tabId?: string;
 					lastSynopsisTime?: number;
-					tabCreatedAt?: number;
+					taskDuration?: number; // Duration of the task that just completed (from thinkingStartTime)
 					toolType?: ToolType;
 					sessionConfig?: {
 						customPath?: string;
@@ -2137,7 +2137,7 @@ function MaestroConsoleInner() {
 								tabName,
 								tabId: completedTab?.id,
 								lastSynopsisTime: completedTab?.lastSynopsisTime, // Track when last synopsis was generated
-								tabCreatedAt: completedTab?.createdAt, // Track tab creation for elapsed time calculation
+								taskDuration: duration, // Duration of the task that just completed
 								toolType: currentSession.toolType, // Pass tool type for multi-provider support
 								sessionConfig: {
 									customPath: currentSession.customPath,
@@ -2521,13 +2521,6 @@ function MaestroConsoleInner() {
 
 								// IMPORTANT: Pass explicit sessionId and projectPath to prevent cross-agent bleed
 								// when user switches agents while synopsis is running in background
-								// Calculate elapsed time since last synopsis (or tab creation if no previous synopsis)
-								const elapsedTimeMs = synopsisData!.lastSynopsisTime
-									? synopsisTime - synopsisData!.lastSynopsisTime
-									: synopsisData!.tabCreatedAt
-										? synopsisTime - synopsisData!.tabCreatedAt
-										: undefined;
-
 								addHistoryEntryRef.current({
 									type: 'USER',
 									summary: parsed.shortSummary,
@@ -2537,7 +2530,8 @@ function MaestroConsoleInner() {
 									sessionId: synopsisData!.sessionId,
 									projectPath: synopsisData!.cwd,
 									sessionName: synopsisData!.tabName,
-									elapsedTimeMs,
+									// Use actual task duration (from thinkingStartTime to completion)
+									elapsedTimeMs: synopsisData!.taskDuration,
 								});
 
 								// Update lastSynopsisTime on the tab so future synopses know the time window
