@@ -5204,6 +5204,81 @@ You are taking over this conversation. Based on the context above, provide a bri
 	);
 
 	/**
+	 * Close a file preview tab. Removes it from filePreviewTabs and unifiedTabOrder.
+	 * If this was the active file tab, selects the next tab in unifiedTabOrder (could be AI or file).
+	 * Updates activeTabId or activeFileTabId accordingly.
+	 */
+	const handleCloseFileTab = useCallback((tabId: string) => {
+		setSessions((prev) =>
+			prev.map((s) => {
+				if (s.id !== activeSessionIdRef.current) return s;
+
+				// Find the tab to close
+				const tabToClose = s.filePreviewTabs.find((tab) => tab.id === tabId);
+				if (!tabToClose) return s;
+
+				// Remove from filePreviewTabs
+				const updatedFilePreviewTabs = s.filePreviewTabs.filter(
+					(tab) => tab.id !== tabId
+				);
+
+				// Remove from unifiedTabOrder
+				const closedTabIndex = s.unifiedTabOrder.findIndex(
+					(ref) => ref.type === 'file' && ref.id === tabId
+				);
+				const updatedUnifiedTabOrder = s.unifiedTabOrder.filter(
+					(ref) => !(ref.type === 'file' && ref.id === tabId)
+				);
+
+				// Determine new active tab if we closed the active file tab
+				let newActiveFileTabId = s.activeFileTabId;
+				let newActiveTabId = s.activeTabId;
+
+				if (s.activeFileTabId === tabId) {
+					// This was the active tab - find the next tab in unifiedTabOrder
+					if (updatedUnifiedTabOrder.length > 0 && closedTabIndex !== -1) {
+						// Try to select the tab at the same position (or previous if at end)
+						const newIndex = Math.min(
+							closedTabIndex,
+							updatedUnifiedTabOrder.length - 1
+						);
+						const nextTabRef = updatedUnifiedTabOrder[newIndex];
+
+						if (nextTabRef.type === 'file') {
+							// Next tab is a file tab
+							newActiveFileTabId = nextTabRef.id;
+						} else {
+							// Next tab is an AI tab - switch to it
+							newActiveTabId = nextTabRef.id;
+							newActiveFileTabId = null;
+						}
+					} else if (updatedUnifiedTabOrder.length > 0) {
+						// Fallback: just select the first available tab
+						const firstTabRef = updatedUnifiedTabOrder[0];
+						if (firstTabRef.type === 'file') {
+							newActiveFileTabId = firstTabRef.id;
+						} else {
+							newActiveTabId = firstTabRef.id;
+							newActiveFileTabId = null;
+						}
+					} else {
+						// No tabs left - shouldn't happen as AI tabs should always exist
+						newActiveFileTabId = null;
+					}
+				}
+
+				return {
+					...s,
+					filePreviewTabs: updatedFilePreviewTabs,
+					unifiedTabOrder: updatedUnifiedTabOrder,
+					activeFileTabId: newActiveFileTabId,
+					activeTabId: newActiveTabId,
+				};
+			})
+		);
+	}, []);
+
+	/**
 	 * Internal tab close handler that performs the actual close.
 	 * Wizard tabs are closed without being added to history (they can't be restored).
 	 */
