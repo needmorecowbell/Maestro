@@ -8,7 +8,10 @@ import React, {
 	lazy,
 	Suspense,
 } from 'react';
-import { SettingsModal } from './components/SettingsModal';
+// SettingsModal is lazy-loaded for performance (large component, only loaded when settings opened)
+const SettingsModal = lazy(() =>
+	import('./components/SettingsModal').then((m) => ({ default: m.SettingsModal }))
+);
 import { SessionList } from './components/SessionList';
 import { RightPanel, RightPanelHandle } from './components/RightPanel';
 import { slashCommands } from './slashCommands';
@@ -14326,79 +14329,83 @@ You are taking over this conversation. Based on the context above, provide a bri
 				{/* Old settings modal removed - using new SettingsModal component below */}
 				{/* NOTE: NewInstanceModal and EditAgentModal are now rendered via AppSessionModals */}
 
-				{/* --- SETTINGS MODAL (New Component) --- */}
-				<SettingsModal
-					isOpen={settingsModalOpen}
-					onClose={handleCloseSettings}
-					theme={theme}
-					themes={THEMES}
-					activeThemeId={activeThemeId}
-					setActiveThemeId={setActiveThemeId}
-					customThemeColors={customThemeColors}
-					setCustomThemeColors={setCustomThemeColors}
-					customThemeBaseId={customThemeBaseId}
-					setCustomThemeBaseId={setCustomThemeBaseId}
-					llmProvider={llmProvider}
-					setLlmProvider={setLlmProvider}
-					modelSlug={modelSlug}
-					setModelSlug={setModelSlug}
-					apiKey={apiKey}
-					setApiKey={setApiKey}
-					shortcuts={shortcuts}
-					setShortcuts={setShortcuts}
-					tabShortcuts={tabShortcuts}
-					setTabShortcuts={setTabShortcuts}
-					defaultShell={defaultShell}
-					setDefaultShell={setDefaultShell}
-					customShellPath={customShellPath}
-					setCustomShellPath={setCustomShellPath}
-					shellArgs={shellArgs}
-					setShellArgs={setShellArgs}
-					shellEnvVars={shellEnvVars}
-					setShellEnvVars={setShellEnvVars}
-					ghPath={ghPath}
-					setGhPath={setGhPath}
-					enterToSendAI={enterToSendAI}
-					setEnterToSendAI={setEnterToSendAI}
-					enterToSendTerminal={enterToSendTerminal}
-					setEnterToSendTerminal={setEnterToSendTerminal}
-					defaultSaveToHistory={defaultSaveToHistory}
-					setDefaultSaveToHistory={setDefaultSaveToHistory}
-					defaultShowThinking={defaultShowThinking}
-					setDefaultShowThinking={setDefaultShowThinking}
-					fontFamily={fontFamily}
-					setFontFamily={setFontFamily}
-					fontSize={fontSize}
-					setFontSize={setFontSize}
-					terminalWidth={terminalWidth}
-					setTerminalWidth={setTerminalWidth}
-					logLevel={logLevel}
-					setLogLevel={setLogLevel}
-					maxLogBuffer={maxLogBuffer}
-					setMaxLogBuffer={setMaxLogBuffer}
-					maxOutputLines={maxOutputLines}
-					setMaxOutputLines={setMaxOutputLines}
-					osNotificationsEnabled={osNotificationsEnabled}
-					setOsNotificationsEnabled={setOsNotificationsEnabled}
-					audioFeedbackEnabled={audioFeedbackEnabled}
-					setAudioFeedbackEnabled={setAudioFeedbackEnabled}
-					audioFeedbackCommand={audioFeedbackCommand}
-					setAudioFeedbackCommand={setAudioFeedbackCommand}
-					toastDuration={toastDuration}
-					setToastDuration={setToastDuration}
-					checkForUpdatesOnStartup={checkForUpdatesOnStartup}
-					setCheckForUpdatesOnStartup={setCheckForUpdatesOnStartup}
-					enableBetaUpdates={enableBetaUpdates}
-					setEnableBetaUpdates={setEnableBetaUpdates}
-					crashReportingEnabled={crashReportingEnabled}
-					setCrashReportingEnabled={setCrashReportingEnabled}
-					customAICommands={customAICommands}
-					setCustomAICommands={setCustomAICommands}
-					initialTab={settingsTab}
-					hasNoAgents={hasNoAgents}
-					onThemeImportError={(msg) => setFlashNotification(msg)}
-					onThemeImportSuccess={(msg) => setFlashNotification(msg)}
-				/>
+				{/* --- SETTINGS MODAL (Lazy-loaded for performance) --- */}
+				{settingsModalOpen && (
+					<Suspense fallback={null}>
+						<SettingsModal
+							isOpen={settingsModalOpen}
+							onClose={handleCloseSettings}
+							theme={theme}
+							themes={THEMES}
+							activeThemeId={activeThemeId}
+							setActiveThemeId={setActiveThemeId}
+							customThemeColors={customThemeColors}
+							setCustomThemeColors={setCustomThemeColors}
+							customThemeBaseId={customThemeBaseId}
+							setCustomThemeBaseId={setCustomThemeBaseId}
+							llmProvider={llmProvider}
+							setLlmProvider={setLlmProvider}
+							modelSlug={modelSlug}
+							setModelSlug={setModelSlug}
+							apiKey={apiKey}
+							setApiKey={setApiKey}
+							shortcuts={shortcuts}
+							setShortcuts={setShortcuts}
+							tabShortcuts={tabShortcuts}
+							setTabShortcuts={setTabShortcuts}
+							defaultShell={defaultShell}
+							setDefaultShell={setDefaultShell}
+							customShellPath={customShellPath}
+							setCustomShellPath={setCustomShellPath}
+							shellArgs={shellArgs}
+							setShellArgs={setShellArgs}
+							shellEnvVars={shellEnvVars}
+							setShellEnvVars={setShellEnvVars}
+							ghPath={ghPath}
+							setGhPath={setGhPath}
+							enterToSendAI={enterToSendAI}
+							setEnterToSendAI={setEnterToSendAI}
+							enterToSendTerminal={enterToSendTerminal}
+							setEnterToSendTerminal={setEnterToSendTerminal}
+							defaultSaveToHistory={defaultSaveToHistory}
+							setDefaultSaveToHistory={setDefaultSaveToHistory}
+							defaultShowThinking={defaultShowThinking}
+							setDefaultShowThinking={setDefaultShowThinking}
+							fontFamily={fontFamily}
+							setFontFamily={setFontFamily}
+							fontSize={fontSize}
+							setFontSize={setFontSize}
+							terminalWidth={terminalWidth}
+							setTerminalWidth={setTerminalWidth}
+							logLevel={logLevel}
+							setLogLevel={setLogLevel}
+							maxLogBuffer={maxLogBuffer}
+							setMaxLogBuffer={setMaxLogBuffer}
+							maxOutputLines={maxOutputLines}
+							setMaxOutputLines={setMaxOutputLines}
+							osNotificationsEnabled={osNotificationsEnabled}
+							setOsNotificationsEnabled={setOsNotificationsEnabled}
+							audioFeedbackEnabled={audioFeedbackEnabled}
+							setAudioFeedbackEnabled={setAudioFeedbackEnabled}
+							audioFeedbackCommand={audioFeedbackCommand}
+							setAudioFeedbackCommand={setAudioFeedbackCommand}
+							toastDuration={toastDuration}
+							setToastDuration={setToastDuration}
+							checkForUpdatesOnStartup={checkForUpdatesOnStartup}
+							setCheckForUpdatesOnStartup={setCheckForUpdatesOnStartup}
+							enableBetaUpdates={enableBetaUpdates}
+							setEnableBetaUpdates={setEnableBetaUpdates}
+							crashReportingEnabled={crashReportingEnabled}
+							setCrashReportingEnabled={setCrashReportingEnabled}
+							customAICommands={customAICommands}
+							setCustomAICommands={setCustomAICommands}
+							initialTab={settingsTab}
+							hasNoAgents={hasNoAgents}
+							onThemeImportError={(msg) => setFlashNotification(msg)}
+							onThemeImportSuccess={(msg) => setFlashNotification(msg)}
+						/>
+					</Suspense>
+				)}
 
 				{/* --- WIZARD RESUME MODAL (asks if user wants to resume incomplete wizard) --- */}
 				{wizardResumeModalOpen && wizardResumeState && (
