@@ -1598,12 +1598,14 @@ function TabBarInner({
 	const tabRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 	const [isOverflowing, setIsOverflowing] = useState(false);
 
-	// Center the active tab in the scrollable area when activeTabId changes or filter is toggled
+	// Center the active tab in the scrollable area when activeTabId or activeFileTabId changes, or filter is toggled
 	useEffect(() => {
 		requestAnimationFrame(() => {
 			const container = tabBarRef.current;
+			// When a file tab is active, scroll to it; otherwise scroll to the active AI tab
+			const targetTabId = activeFileTabId || activeTabId;
 			const tabElement = container?.querySelector(
-				`[data-tab-id="${activeTabId}"]`
+				`[data-tab-id="${targetTabId}"]`
 			) as HTMLElement | null;
 			if (container && tabElement) {
 				// Calculate scroll position to center the tab
@@ -1612,7 +1614,7 @@ function TabBarInner({
 				container.scrollTo({ left: scrollLeft, behavior: 'smooth' });
 			}
 		});
-	}, [activeTabId, showUnreadOnly]);
+	}, [activeTabId, activeFileTabId, showUnreadOnly]);
 
 	// Can always close tabs - closing the last one creates a fresh new tab
 	const canClose = true;

@@ -1527,6 +1527,70 @@ describe('TabBar', () => {
 
 			rafSpy.mockRestore();
 		});
+
+		it('scrolls to center file tab when activeFileTabId changes', async () => {
+			// Mock requestAnimationFrame
+			const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+				cb(0);
+				return 0;
+			});
+			const scrollToSpy = vi.fn();
+
+			const tabs = [createTab({ id: 'tab-1', name: 'Tab 1' })];
+			const fileTab: FilePreviewTab = {
+				id: 'file-1',
+				path: '/path/to/file.ts',
+				name: 'file',
+				extension: '.ts',
+			};
+			const unifiedTabs = [
+				{ id: 'tab-1', type: 'ai' as const, data: tabs[0] },
+				{ id: 'file-1', type: 'file' as const, data: fileTab },
+			];
+
+			const { rerender, container } = render(
+				<TabBar
+					tabs={tabs}
+					activeTabId="tab-1"
+					theme={mockTheme}
+					onTabSelect={mockOnTabSelect}
+					onTabClose={mockOnTabClose}
+					onNewTab={mockOnNewTab}
+					unifiedTabs={unifiedTabs}
+					activeFileTabId={null}
+					onFileTabSelect={vi.fn()}
+					onFileTabClose={vi.fn()}
+				/>
+			);
+
+			// Mock scrollTo on the container
+			const tabBarContainer = container.firstChild as HTMLElement;
+			tabBarContainer.scrollTo = scrollToSpy;
+
+			// Clear initial calls
+			scrollToSpy.mockClear();
+
+			// Select the file tab - this should trigger scroll to file tab
+			rerender(
+				<TabBar
+					tabs={tabs}
+					activeTabId="tab-1"
+					theme={mockTheme}
+					onTabSelect={mockOnTabSelect}
+					onTabClose={mockOnTabClose}
+					onNewTab={mockOnNewTab}
+					unifiedTabs={unifiedTabs}
+					activeFileTabId="file-1"
+					onFileTabSelect={vi.fn()}
+					onFileTabClose={vi.fn()}
+				/>
+			);
+
+			// scrollTo should have been called when file tab was selected
+			expect(scrollToSpy).toHaveBeenCalled();
+
+			rafSpy.mockRestore();
+		});
 	});
 
 	describe('styling', () => {
