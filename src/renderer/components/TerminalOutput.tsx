@@ -964,6 +964,7 @@ interface TerminalOutputProps {
 	projectRoot?: string; // Project root absolute path for converting absolute paths to relative
 	onFileClick?: (path: string) => void; // Callback when a file link is clicked
 	onShowErrorDetails?: () => void; // Callback to show the error modal (for error log entries)
+	onFileSaved?: () => void; // Callback when markdown content is saved to file (e.g., to refresh file list)
 }
 
 // PERFORMANCE: Wrap in React.memo to prevent re-renders when parent re-renders
@@ -999,6 +1000,7 @@ export const TerminalOutput = memo(
 			projectRoot,
 			onFileClick,
 			onShowErrorDetails,
+			onFileSaved,
 		} = props;
 
 		// Use the forwarded ref if provided, otherwise create a local one
@@ -1714,6 +1716,7 @@ export const TerminalOutput = memo(
 								? session.sessionSshRemoteConfig?.remoteId ?? undefined
 								: undefined
 						}
+						onFileSaved={onFileSaved}
 					/>
 				)}
 			</div>

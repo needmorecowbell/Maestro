@@ -238,6 +238,8 @@ interface MainPanelProps {
 	// Callback when a file link is clicked in AI response
 	// options.openInNewTab: true = open in new tab adjacent to current, false = replace current tab content
 	onFileClick?: (relativePath: string, options?: { openInNewTab?: boolean }) => void;
+	// File tree refresh callback (used when saving chat content to disk)
+	refreshFileTree?: (sessionId: string) => Promise<import('../utils/fileExplorer').FileTreeChanges | undefined>;
 	// File preview navigation
 	canGoBack?: boolean;
 	canGoForward?: boolean;
@@ -1751,6 +1753,11 @@ export const MainPanel = React.memo(
 											projectRoot={activeSession.fullPath}
 											onFileClick={props.onFileClick}
 											onShowErrorDetails={props.onShowAgentErrorModal}
+											onFileSaved={
+												props.refreshFileTree
+													? () => props.refreshFileTree?.(activeSession.id)
+													: undefined
+											}
 										/>
 									)}
 								</div>

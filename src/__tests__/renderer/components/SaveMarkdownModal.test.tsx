@@ -84,6 +84,7 @@ const defaultProps = {
 	content: '# Test Markdown\n\nThis is test content.',
 	onClose: vi.fn(),
 	defaultFolder: '/test/folder',
+	onFileSaved: vi.fn(),
 };
 
 describe('SaveMarkdownModal', () => {
@@ -576,6 +577,126 @@ describe('SaveMarkdownModal', () => {
 
 			const filenameInput = screen.getByPlaceholderText('document.md');
 			expect(document.activeElement).toBe(filenameInput);
+		});
+	});
+
+	describe('onFileSaved callback', () => {
+		it('calls onFileSaved after successful save', async () => {
+			mockWriteFile.mockResolvedValue({ success: true });
+			const onFileSaved = vi.fn();
+			const onClose = vi.fn();
+			render(
+				<SaveMarkdownModal
+					{...defaultProps}
+					onClose={onClose}
+					onFileSaved={onFileSaved}
+				/>
+			);
+
+			const filenameInput = screen.getByPlaceholderText('document.md');
+			fireEvent.change(filenameInput, { target: { value: 'test.md' } });
+
+			const saveButton = screen.getByRole('button', { name: 'Save' });
+			await act(async () => {
+				fireEvent.click(saveButton);
+			});
+
+			await waitFor(() => {
+				expect(onFileSaved).toHaveBeenCalledTimes(1);
+				expect(onClose).toHaveBeenCalledTimes(1);
+			});
+		});
+
+		it('calls onFileSaved before onClose', async () => {
+			mockWriteFile.mockResolvedValue({ success: true });
+			const callOrder: string[] = [];
+			const onFileSaved = vi.fn(() => callOrder.push('onFileSaved'));
+			const onClose = vi.fn(() => callOrder.push('onClose'));
+			render(
+				<SaveMarkdownModal
+					{...defaultProps}
+					onClose={onClose}
+					onFileSaved={onFileSaved}
+				/>
+			);
+
+			const filenameInput = screen.getByPlaceholderText('document.md');
+			fireEvent.change(filenameInput, { target: { value: 'test.md' } });
+
+			const saveButton = screen.getByRole('button', { name: 'Save' });
+			await act(async () => {
+				fireEvent.click(saveButton);
+			});
+
+			await waitFor(() => {
+				expect(callOrder).toEqual(['onFileSaved', 'onClose']);
+			});
+		});
+
+		it('does not call onFileSaved when save fails', async () => {
+			mockWriteFile.mockResolvedValue({ success: false });
+			const onFileSaved = vi.fn();
+			render(<SaveMarkdownModal {...defaultProps} onFileSaved={onFileSaved} />);
+
+			const filenameInput = screen.getByPlaceholderText('document.md');
+			fireEvent.change(filenameInput, { target: { value: 'test.md' } });
+
+			const saveButton = screen.getByRole('button', { name: 'Save' });
+			await act(async () => {
+				fireEvent.click(saveButton);
+			});
+
+			await waitFor(() => {
+				expect(screen.getByText('Failed to save file')).toBeInTheDocument();
+			});
+
+			expect(onFileSaved).not.toHaveBeenCalled();
+		});
+
+		it('does not call onFileSaved when save throws error', async () => {
+			mockWriteFile.mockRejectedValue(new Error('Write error'));
+			const onFileSaved = vi.fn();
+			render(<SaveMarkdownModal {...defaultProps} onFileSaved={onFileSaved} />);
+
+			const filenameInput = screen.getByPlaceholderText('document.md');
+			fireEvent.change(filenameInput, { target: { value: 'test.md' } });
+
+			const saveButton = screen.getByRole('button', { name: 'Save' });
+			await act(async () => {
+				fireEvent.click(saveButton);
+			});
+
+			await waitFor(() => {
+				expect(screen.getByText('Write error')).toBeInTheDocument();
+			});
+
+			expect(onFileSaved).not.toHaveBeenCalled();
+		});
+
+		it('works when onFileSaved is not provided', async () => {
+			mockWriteFile.mockResolvedValue({ success: true });
+			const onClose = vi.fn();
+			render(
+				<SaveMarkdownModal
+					theme={defaultTheme}
+					content="Test content"
+					onClose={onClose}
+					defaultFolder="/test/folder"
+					// onFileSaved intentionally not provided
+				/>
+			);
+
+			const filenameInput = screen.getByPlaceholderText('document.md');
+			fireEvent.change(filenameInput, { target: { value: 'test.md' } });
+
+			const saveButton = screen.getByRole('button', { name: 'Save' });
+			await act(async () => {
+				fireEvent.click(saveButton);
+			});
+
+			await waitFor(() => {
+				expect(onClose).toHaveBeenCalled();
+			});
 		});
 	});
 });

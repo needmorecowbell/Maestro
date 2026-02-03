@@ -22,6 +22,7 @@ import type {
 	UnifiedTab,
 	FilePreviewTab,
 } from '../../types';
+import type { FileTreeChanges } from '../../utils/fileExplorer';
 import type { TabCompletionSuggestion, TabCompletionFilter } from '../input/useTabCompletion';
 import type {
 	SummarizeProgress,
@@ -281,6 +282,9 @@ export interface UseMainPanelPropsDeps {
 	endInlineWizard: () => void;
 	handleAutoRunRefresh: () => void;
 
+	// File tree refresh
+	refreshFileTree: (sessionId: string) => Promise<FileTreeChanges | undefined>;
+
 	// Complex wizard handlers (passed through from App.tsx)
 	onWizardComplete?: () => void;
 	onWizardLetsGo?: () => void;
@@ -511,6 +515,8 @@ export function useMainPanelProps(deps: UseMainPanelPropsDeps) {
 			onWizardRetry: deps.onWizardRetry,
 			onWizardClearError: deps.onWizardClearError,
 			onToggleWizardShowThinking: deps.onToggleWizardShowThinking,
+			// File tree refresh
+			refreshFileTree: deps.refreshFileTree,
 		}),
 		[
 			// Primitive dependencies for minimal re-computation
@@ -695,6 +701,8 @@ export function useMainPanelProps(deps: UseMainPanelPropsDeps) {
 			deps.onWizardRetry,
 			deps.onWizardClearError,
 			deps.onToggleWizardShowThinking,
+			// File tree refresh
+			deps.refreshFileTree,
 			// Refs (stable, but included for completeness)
 			deps.inputRef,
 			deps.logsEndRef,
