@@ -193,7 +193,7 @@ class Logger extends EventEmitter {
 					console.info(message, entry.data || '');
 					break;
 			}
-		} catch (err) {
+		} catch {
 			// Silently ignore EPIPE errors - console is disconnected
 			// Other errors are also ignored to prevent infinite loops
 		}
