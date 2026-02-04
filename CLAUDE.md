@@ -15,7 +15,32 @@ This guide has been split into focused sub-documents for progressive disclosure:
 | [[CLAUDE-FEATURES.md]] | Usage Dashboard and Document Graph features |
 | [[CLAUDE-AGENTS.md]] | Supported agents and capabilities |
 | [[CLAUDE-SESSION.md]] | Session interface and code conventions |
+| [[CLAUDE-PLATFORM.md]] | Cross-platform concerns (Windows, Linux, macOS, SSH remote) |
 | [AGENT_SUPPORT.md](AGENT_SUPPORT.md) | Detailed agent integration guide |
+
+---
+
+## Agent Behavioral Guidelines
+
+Core behaviors for effective collaboration. Failures here cause the most rework.
+
+### Surface Assumptions Early
+Before implementing non-trivial work, explicitly state assumptions. Never silently fill in ambiguous requirements—the most common failure mode is guessing wrong and running with it. Format: "Assumptions: 1) X, 2) Y. Correct me now or I proceed."
+
+### Manage Confusion Actively
+When encountering inconsistencies, conflicting requirements, or unclear specs: **STOP**. Name the specific confusion, present the tradeoff, and wait for resolution. Bad: silently picking one interpretation. Good: "I see X in file A but Y in file B—which takes precedence?"
+
+### Push Back When Warranted
+Not a yes-machine. When an approach has clear problems: point out the issue directly, explain the concrete downside, propose an alternative, then accept the decision if overridden. Sycophancy ("Of course!") followed by implementing a bad idea helps no one.
+
+### Enforce Simplicity
+Natural tendency is to overcomplicate—actively resist. Before finishing: Can this be fewer lines? Are abstractions earning their complexity? Would a senior dev say "why didn't you just..."? Prefer the boring, obvious solution.
+
+### Maintain Scope Discipline
+Touch only what's asked. Do NOT: remove comments you don't understand, "clean up" orthogonal code, refactor adjacent systems as side effects, or delete seemingly-unused code without approval. Surgical precision, not unsolicited renovation.
+
+### Dead Code Hygiene
+After refactoring: identify now-unreachable code, list it explicitly, ask "Should I remove these now-unused elements: [list]?" Don't leave corpses. Don't delete without asking.
 
 ---
 
@@ -50,6 +75,7 @@ Maestro is an Electron desktop app for managing multiple AI coding assistants si
 | `claude-code` | Claude Code | **Active** |
 | `codex` | OpenAI Codex | **Active** |
 | `opencode` | OpenCode | **Active** |
+| `factory-droid` | Factory Droid | **Active** |
 | `terminal` | Terminal | Internal |
 
 See [[CLAUDE-AGENTS.md]] for capabilities and integration details.
@@ -79,22 +105,13 @@ npm run test:watch    # Run tests in watch mode
 src/
 ├── main/                    # Electron main process (Node.js)
 │   ├── index.ts            # Entry point, IPC handlers
-│   ├── process-manager.ts  # Process spawning (PTY + child_process)
 │   ├── preload.ts          # Secure IPC bridge
-│   ├── agent-detector.ts   # Agent detection and configuration
-│   ├── agent-capabilities.ts # Agent capability definitions
-│   ├── agent-session-storage.ts # Session storage interface
-│   ├── parsers/            # Agent output parsers
-│   │   ├── agent-output-parser.ts  # Parser interface
-│   │   ├── claude-output-parser.ts # Claude Code parser
-│   │   ├── opencode-output-parser.ts # OpenCode parser
-│   │   └── error-patterns.ts # Error detection patterns
-│   ├── storage/            # Session storage implementations
-│   │   ├── claude-session-storage.ts
-│   │   └── opencode-session-storage.ts
-│   ├── tunnel-manager.ts   # Cloudflare tunnel support
-│   ├── web-server.ts       # Fastify server for web/mobile interface
-│   └── utils/execFile.ts   # Safe command execution
+│   ├── process-manager.ts  # Process spawning (PTY + child_process)
+│   ├── agent-*.ts          # Agent detection, capabilities, session storage
+│   ├── parsers/            # Per-agent output parsers + error patterns
+│   ├── storage/            # Per-agent session storage implementations
+│   ├── ipc/handlers/       # IPC handler modules (stats, git, playbooks, etc.)
+│   └── utils/              # Utilities (execFile, ssh-spawn-wrapper, etc.)
 │
 ├── renderer/               # React frontend (desktop)
 │   ├── App.tsx            # Main coordinator
@@ -102,31 +119,21 @@ src/
 │   ├── hooks/             # Custom React hooks
 │   ├── services/          # IPC wrappers (git.ts, process.ts)
 │   ├── constants/         # Themes, shortcuts, priorities
-│   └── contexts/          # Layer stack context
+│   └── contexts/          # Context providers (LayerStack, etc.)
 │
 ├── web/                    # Web/mobile interface
 │   ├── mobile/            # Mobile-optimized React app
-│   ├── components/        # Shared web components
-│   └── hooks/             # Web-specific hooks
+│   └── components/        # Shared web components
 │
 ├── cli/                    # CLI tooling for batch automation
 │   ├── commands/          # CLI command implementations
-│   ├── services/          # Playbook and batch processing
-│   └── index.ts           # CLI entry point
+│   └── services/          # Playbook and batch processing
 │
 ├── prompts/                # System prompts (editable .md files)
-│   ├── wizard-*.md        # Wizard conversation prompts
-│   ├── autorun-*.md       # Auto Run default prompts
-│   └── index.ts           # Central exports
 │
 ├── shared/                 # Shared types and utilities
-│   ├── types.ts           # Common type definitions
-│   └── templateVariables.ts # Template variable processing
 │
 └── docs/                   # Mintlify documentation (docs.runmaestro.ai)
-    ├── docs.json          # Navigation and configuration
-    ├── screenshots/       # All documentation screenshots
-    └── *.md               # Documentation pages
 ```
 
 ---
@@ -173,6 +180,52 @@ src/
 ---
 
 ## Critical Implementation Guidelines
+
+### Error Handling & Sentry
+
+Maestro uses Sentry for error tracking. Field data from production crashes is invaluable for improving code quality.
+
+**DO let exceptions bubble up:**
+```typescript
+// WRONG - silently swallowing errors hides bugs from Sentry
+try {
+  await riskyOperation();
+} catch (e) {
+  console.error(e);  // Lost to the void
+}
+
+// CORRECT - let unhandled exceptions reach Sentry
+await riskyOperation();  // Crashes are reported automatically
+```
+
+**DO handle expected/recoverable errors explicitly:**
+```typescript
+// CORRECT - known failure modes should be handled gracefully
+try {
+  await fetchUserData();
+} catch (e) {
+  if (e.code === 'NETWORK_ERROR') {
+    showOfflineMessage();  // Expected, recoverable
+  } else {
+    throw e;  // Unexpected - let Sentry capture it
+  }
+}
+```
+
+**DO use Sentry utilities for explicit reporting:**
+```typescript
+import { captureException, captureMessage } from '../utils/sentry';
+
+// Report exceptions with context
+await captureException(error, { userId, operation: 'sync' });
+
+// Report notable events that aren't crashes
+await captureMessage('Unusual state detected', 'warning', { state });
+```
+
+**Key files:** `src/main/utils/sentry.ts`, `src/renderer/components/ErrorBoundary.tsx`
+
+---
 
 ### SSH Remote Execution Awareness
 

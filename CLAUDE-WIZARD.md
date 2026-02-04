@@ -87,16 +87,16 @@ The Wizard maintains two types of state:
    - Cleared on completion or when user chooses "Just Quit"
 
 **State Save Triggers:**
-- Auto-save: When `currentStep` changes (step > 1) - `WizardContext.tsx:791`
-- Manual save: User clicks "Save & Exit" - `MaestroWizard.tsx:147`
+- Auto-save: When `currentStep` changes (step > 1) - `WizardContext.tsx` useEffect with `saveResumeState()`
+- Manual save: User clicks "Save & Exit" - `MaestroWizard.tsx` `handleConfirmExit()`
 
 **State Clear Triggers:**
-- Wizard completion: `App.tsx:4681` + `WizardContext.tsx:711`
-- User quits: "Just Quit" button - `MaestroWizard.tsx:168`
+- Wizard completion: `App.tsx` wizard completion handler + `WizardContext.tsx` `COMPLETE_WIZARD` action
+- User quits: "Quit without saving" button - `MaestroWizard.tsx` `handleQuitWithoutSaving()`
 - User starts fresh: "Start Fresh" in resume modal - `App.tsx` resume handlers
 
 **Opening Wizard Logic:**
-The `openWizard()` function in `WizardContext.tsx:528-535` handles state initialization:
+The `openWizard()` function in `WizardContext.tsx` handles state initialization:
 ```typescript
 // If previous wizard was completed, reset in-memory state first
 if (state.isComplete === true) {
