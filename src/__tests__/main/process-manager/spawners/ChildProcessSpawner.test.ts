@@ -89,6 +89,9 @@ vi.mock('../../../../main/process-manager/utils/shellEscape', () => ({
 
 import { ChildProcessSpawner } from '../../../../main/process-manager/spawners/ChildProcessSpawner';
 import type { ManagedProcess, ProcessConfig } from '../../../../main/process-manager/types';
+import { getAgentCapabilities } from '../../../../main/agents';
+import { buildStreamJsonMessage } from '../../../../main/process-manager/utils/streamJsonBuilder';
+import { saveImageToTempFile } from '../../../../main/process-manager/utils/imageUtils';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -286,6 +289,222 @@ describe('ChildProcessSpawner', () => {
 			const proc = processes.get('test-session');
 			expect(proc?.sshRemoteId).toBe('my-remote-server');
 			expect(proc?.sshRemoteHost).toBe('dev.example.com');
+		});
+	});
+
+	describe('image input-format flag (regression: commit 2d227ed0)', () => {
+		// Claude Code's default args always include --output-format stream-json.
+		// A prior fix for Windows (2d227ed0) made promptViaStdin true whenever
+		// ANY arg contained "stream-json", which prevented --input-format stream-json
+		// from being added when sending images. Without that flag, Claude Code treats
+		// the JSON+base64 stdin blob as a plain text prompt, blowing the token limit.
+
+		const CLAUDE_DEFAULT_ARGS = [
+			'--print',
+			'--verbose',
+			'--output-format',
+			'stream-json',
+			'--dangerously-skip-permissions',
+		];
+
+		it('should add --input-format stream-json when images are present with default Claude Code args', () => {
+			const { spawner } = createTestContext();
+
+			spawner.spawn(
+				createBaseConfig({
+					args: CLAUDE_DEFAULT_ARGS,
+					images: ['data:image/png;base64,abc123'],
+					prompt: 'describe this image',
+				})
+			);
+
+			// Verify --input-format stream-json was added to spawn args
+			const spawnArgs = mockSpawn.mock.calls[0][1] as string[];
+			expect(spawnArgs).toContain('--input-format');
+			const inputFormatIdx = spawnArgs.indexOf('--input-format');
+			expect(spawnArgs[inputFormatIdx + 1]).toBe('stream-json');
+		});
+
+		it('should add --input-format stream-json even when sendPromptViaStdin is true', () => {
+			const { spawner } = createTestContext();
+
+			spawner.spawn(
+				createBaseConfig({
+					args: CLAUDE_DEFAULT_ARGS,
+					images: ['data:image/png;base64,abc123'],
+					prompt: 'describe this image',
+					sendPromptViaStdin: true,
+				})
+			);
+
+			const spawnArgs = mockSpawn.mock.calls[0][1] as string[];
+			expect(spawnArgs).toContain('--input-format');
+			const inputFormatIdx = spawnArgs.indexOf('--input-format');
+			expect(spawnArgs[inputFormatIdx + 1]).toBe('stream-json');
+		});
+
+		it('should not duplicate --input-format when it is already in args', () => {
+			const { spawner } = createTestContext();
+
+			spawner.spawn(
+				createBaseConfig({
+					args: [...CLAUDE_DEFAULT_ARGS, '--input-format', 'stream-json'],
+					images: ['data:image/png;base64,abc123'],
+					prompt: 'describe this image',
+				})
+			);
+
+			const spawnArgs = mockSpawn.mock.calls[0][1] as string[];
+			const inputFormatCount = spawnArgs.filter((arg: string) => arg === '--input-format').length;
+			expect(inputFormatCount).toBe(1);
+		});
+
+		it('should send stream-json message via stdin when images are present', () => {
+			const { spawner } = createTestContext();
+
+			spawner.spawn(
+				createBaseConfig({
+					args: CLAUDE_DEFAULT_ARGS,
+					images: ['data:image/png;base64,abc123'],
+					prompt: 'describe this image',
+				})
+			);
+
+			// buildStreamJsonMessage should have been called with prompt and images
+			expect(buildStreamJsonMessage).toHaveBeenCalledWith('describe this image', [
+				'data:image/png;base64,abc123',
+			]);
+
+			// The message should be written to stdin
+			expect(mockChildProcess.stdin.write).toHaveBeenCalled();
+			expect(mockChildProcess.stdin.end).toHaveBeenCalled();
+		});
+
+		it('should send stream-json message via stdin with multiple images', () => {
+			const { spawner } = createTestContext();
+
+			const images = [
+				'data:image/png;base64,abc123',
+				'data:image/jpeg;base64,def456',
+				'data:image/webp;base64,ghi789',
+			];
+
+			spawner.spawn(
+				createBaseConfig({
+					args: CLAUDE_DEFAULT_ARGS,
+					images,
+					prompt: 'compare these images',
+				})
+			);
+
+			const spawnArgs = mockSpawn.mock.calls[0][1] as string[];
+			expect(spawnArgs).toContain('--input-format');
+			expect(buildStreamJsonMessage).toHaveBeenCalledWith('compare these images', images);
+			expect(mockChildProcess.stdin.write).toHaveBeenCalled();
+		});
+	});
+
+	describe('promptViaStdin detection', () => {
+		// Ensures --output-format stream-json (present in Claude Code default args)
+		// does NOT trigger promptViaStdin, while --input-format stream-json does.
+
+		const CLAUDE_DEFAULT_ARGS = [
+			'--print',
+			'--verbose',
+			'--output-format',
+			'stream-json',
+			'--dangerously-skip-permissions',
+		];
+
+		it('should NOT treat --output-format stream-json as promptViaStdin', () => {
+			const { spawner } = createTestContext();
+
+			spawner.spawn(
+				createBaseConfig({
+					args: CLAUDE_DEFAULT_ARGS,
+					prompt: 'hello',
+				})
+			);
+
+			// When promptViaStdin is false, prompt should be appended to args (with --)
+			const spawnArgs = mockSpawn.mock.calls[0][1] as string[];
+			expect(spawnArgs).toContain('--');
+			expect(spawnArgs).toContain('hello');
+		});
+
+		it('should treat --input-format stream-json as promptViaStdin', () => {
+			const { spawner } = createTestContext();
+
+			spawner.spawn(
+				createBaseConfig({
+					args: [...CLAUDE_DEFAULT_ARGS, '--input-format', 'stream-json'],
+					prompt: 'hello',
+				})
+			);
+
+			// When promptViaStdin is true, prompt should NOT be appended to args
+			const spawnArgs = mockSpawn.mock.calls[0][1] as string[];
+			expect(spawnArgs).not.toContain('--');
+			expect(spawnArgs).not.toContain('hello');
+		});
+
+		it('should treat sendPromptViaStdin as promptViaStdin', () => {
+			const { spawner } = createTestContext();
+
+			spawner.spawn(
+				createBaseConfig({
+					args: CLAUDE_DEFAULT_ARGS,
+					prompt: 'hello',
+					sendPromptViaStdin: true,
+				})
+			);
+
+			const spawnArgs = mockSpawn.mock.calls[0][1] as string[];
+			expect(spawnArgs).not.toContain('hello');
+		});
+
+		it('should treat sendPromptViaStdinRaw as promptViaStdin', () => {
+			const { spawner } = createTestContext();
+
+			spawner.spawn(
+				createBaseConfig({
+					args: CLAUDE_DEFAULT_ARGS,
+					prompt: 'hello',
+					sendPromptViaStdinRaw: true,
+				})
+			);
+
+			const spawnArgs = mockSpawn.mock.calls[0][1] as string[];
+			expect(spawnArgs).not.toContain('hello');
+		});
+	});
+
+	describe('image handling with non-stream-json agents', () => {
+		it('should use file-based image args for agents without stream-json support', () => {
+			// Override capabilities for this test
+			vi.mocked(getAgentCapabilities).mockReturnValueOnce({
+				supportsStreamJsonInput: false,
+			} as any);
+			vi.mocked(saveImageToTempFile).mockReturnValueOnce('/tmp/maestro-image-0.png');
+
+			const { spawner } = createTestContext();
+
+			spawner.spawn(
+				createBaseConfig({
+					toolType: 'codex',
+					command: 'codex',
+					args: ['exec', '--json'],
+					images: ['data:image/png;base64,abc123'],
+					prompt: 'describe this image',
+					imageArgs: (path: string) => ['-i', path],
+				})
+			);
+
+			const spawnArgs = mockSpawn.mock.calls[0][1] as string[];
+			expect(spawnArgs).toContain('-i');
+			expect(spawnArgs).toContain('/tmp/maestro-image-0.png');
+			// Should NOT have --input-format since this agent doesn't support it
+			expect(spawnArgs).not.toContain('--input-format');
 		});
 	});
 });

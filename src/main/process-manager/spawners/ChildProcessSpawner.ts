@@ -77,8 +77,16 @@ export class ChildProcessSpawner {
 		// Also critical on Windows: when using stream-json output mode, the prompt is sent
 		// via stdin (see stream-json stdin write below). Adding it as a CLI arg too would
 		// exceed cmd.exe's ~8191 character command line limit, causing immediate exit code 1.
-		const argsHaveStreamJson = args.some((arg) => arg.includes('stream-json'));
-		const promptViaStdin = sendPromptViaStdin || sendPromptViaStdinRaw || argsHaveStreamJson;
+		//
+		// IMPORTANT: Only match --input-format stream-json, NOT --output-format stream-json.
+		// Matching --output-format caused promptViaStdin to be always true for Claude Code
+		// (whose default args include --output-format stream-json), which prevented
+		// --input-format stream-json from being added when sending images, causing Claude
+		// to interpret the raw JSON+base64 blob as plain text and blow the token limit.
+		const argsHaveInputStreamJson = args.some(
+			(arg, i) => arg === 'stream-json' && i > 0 && args[i - 1] === '--input-format'
+		);
+		const promptViaStdin = sendPromptViaStdin || sendPromptViaStdinRaw || argsHaveInputStreamJson;
 
 		// Build final args based on batch mode and images
 		let finalArgs: string[];
@@ -86,8 +94,13 @@ export class ChildProcessSpawner {
 
 		if (hasImages && prompt && capabilities.supportsStreamJsonInput) {
 			// For agents that support stream-json input (like Claude Code)
-			// When using stdin, --input-format stream-json should already be in args from the caller
-			finalArgs = promptViaStdin ? [...args] : [...args, '--input-format', 'stream-json'];
+			// Always add --input-format stream-json when sending images via stdin.
+			// This flag is required for Claude Code to parse the JSON+base64 message
+			// correctly; without it, the raw JSON is treated as plain text prompt.
+			const needsInputFormat = !args.includes('--input-format')
+				? ['--input-format', 'stream-json']
+				: [];
+			finalArgs = [...args, ...needsInputFormat];
 		} else if (hasImages && prompt && imageArgs) {
 			// For agents that use file-based image args (like Codex, OpenCode)
 			finalArgs = [...args];
