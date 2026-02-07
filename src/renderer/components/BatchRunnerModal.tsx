@@ -22,8 +22,7 @@ import { PlaybookDeleteConfirmModal } from './PlaybookDeleteConfirmModal';
 import { PlaybookNameModal } from './PlaybookNameModal';
 import { AgentPromptComposerModal } from './AgentPromptComposerModal';
 import { DocumentsPanel } from './DocumentsPanel';
-import { usePlaybookManagement } from '../hooks';
-import { autorunDefaultPrompt } from '../../prompts';
+import { usePlaybookManagement, DEFAULT_BATCH_PROMPT, validateAgentPromptHasTaskReference } from '../hooks';
 import { generateId } from '../utils/ids';
 
 // Platform detection helper (userAgentData is newer but not in all TS types yet)
@@ -35,8 +34,8 @@ const isMacPlatform = (): boolean => {
 	);
 };
 
-// Default batch processing prompt
-export const DEFAULT_BATCH_PROMPT = autorunDefaultPrompt;
+// Re-export for external consumers
+export { DEFAULT_BATCH_PROMPT, validateAgentPromptHasTaskReference } from '../hooks';
 
 interface BatchRunnerModalProps {
 	theme: Theme;
@@ -267,6 +266,10 @@ export function BatchRunnerModal(props: BatchRunnerModalProps) {
 	// Count missing documents for warning display
 	const missingDocCount = documents.filter((doc) => doc.isMissing).length;
 	const _hasMissingDocs = missingDocCount > 0;
+
+	// Validate agent prompt has task references
+	const hasValidPrompt = validateAgentPromptHasTaskReference(prompt);
+	const isPromptEmpty = !prompt || !prompt.trim();
 
 	// Register layer on mount
 	useEffect(() => {
@@ -733,6 +736,30 @@ export function BatchRunnerModal(props: BatchRunnerModalProps) {
 								<Maximize2 className="w-4 h-4" />
 							</button>
 						</div>
+						{/* Prompt validation warning */}
+						{isPromptEmpty && (
+							<div
+								className="text-xs px-3 py-2 rounded"
+								style={{
+									backgroundColor: theme.colors.error + '15',
+									color: theme.colors.error,
+								}}
+							>
+								Agent prompt cannot be empty. Reset to default or provide a prompt.
+							</div>
+						)}
+						{!isPromptEmpty && !hasValidPrompt && (
+							<div
+								className="text-xs px-3 py-2 rounded"
+								style={{
+									backgroundColor: theme.colors.error + '15',
+									color: theme.colors.error,
+								}}
+							>
+								Agent prompt must reference Markdown tasks (e.g., include checkbox syntax
+								like &quot;- [ ]&quot; or the phrase &quot;markdown task&quot;).
+							</div>
+						)}
 					</div>
 				</div>
 
@@ -774,23 +801,27 @@ export function BatchRunnerModal(props: BatchRunnerModalProps) {
 						<button
 							onClick={handleGo}
 							disabled={
-								hasNoTasks || documents.length === 0 || documents.length === missingDocCount
+								hasNoTasks || documents.length === 0 || documents.length === missingDocCount || isPromptEmpty || !hasValidPrompt
 							}
 							className="flex items-center gap-2 px-4 py-2 rounded text-white font-bold disabled:opacity-40 disabled:cursor-not-allowed"
 							style={{
 								backgroundColor:
-									hasNoTasks || documents.length === 0 || documents.length === missingDocCount
+									hasNoTasks || documents.length === 0 || documents.length === missingDocCount || isPromptEmpty || !hasValidPrompt
 										? theme.colors.textDim
 										: theme.colors.accent,
 							}}
 							title={
-								documents.length === 0
-									? 'No documents selected'
-									: documents.length === missingDocCount
-										? 'All selected documents are missing'
-										: hasNoTasks
-											? 'No unchecked tasks in documents'
-											: 'Start auto-run'
+								isPromptEmpty
+									? 'Agent prompt cannot be empty'
+									: !hasValidPrompt
+										? 'Agent prompt must reference Markdown tasks (e.g., checkbox syntax "- [ ]")'
+										: documents.length === 0
+											? 'No documents selected'
+											: documents.length === missingDocCount
+												? 'All selected documents are missing'
+												: hasNoTasks
+													? 'No unchecked tasks in documents'
+													: 'Start auto-run'
 							}
 						>
 							<Play className="w-4 h-4" />
