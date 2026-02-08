@@ -43,7 +43,10 @@ export interface UnifiedHistoryEntry {
  */
 export interface SynopsisOptions {
 	lookbackDays: number;
-	provider: 'claude-code' | 'codex' | 'opencode';
+	provider: string;
+	customPath?: string;
+	customArgs?: string;
+	customEnvVars?: Record<string, string>;
 }
 
 /**
@@ -52,6 +55,7 @@ export interface SynopsisOptions {
 export interface SynopsisResult {
 	success: boolean;
 	synopsis: string;
+	generatedAt?: number; // Unix ms timestamp of when the synopsis was generated
 	error?: string;
 }
 

@@ -1567,6 +1567,13 @@ export function useSettings(): UseSettingsReturn {
 					migratedShortcuts[id] = { ...shortcut, keys: migratedKeys };
 				}
 
+				// Migration: directorNotes changed from Alt+Meta+D to Meta+Shift+O
+				const directorNotesSaved = migratedShortcuts['directorNotes'];
+				if (directorNotesSaved && JSON.stringify(directorNotesSaved.keys) === JSON.stringify(['Alt', 'Meta', 'd'])) {
+					migratedShortcuts['directorNotes'] = { ...directorNotesSaved, keys: ['Meta', 'Shift', 'o'] };
+					needsMigration = true;
+				}
+
 				// If migration was needed, save the corrected shortcuts
 				if (needsMigration) {
 					window.maestro.settings.set('shortcuts', migratedShortcuts);

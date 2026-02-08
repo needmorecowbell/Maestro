@@ -11,6 +11,7 @@ import { ipcMain } from 'electron';
 import { logger } from '../../utils/logger';
 import { HistoryEntry } from '../../../shared/types';
 import { getHistoryManager } from '../../history-manager';
+import { getSessionsStore } from '../../stores';
 import { withIpcErrorLogging, requireDependency, CreateHandlerOptions } from '../../utils/ipcHandler';
 import { groomContext } from '../../utils/context-groomer';
 import { directorNotesPrompt } from '../../../prompts';
@@ -26,6 +27,22 @@ const handlerOpts = (operation: string): Pick<CreateHandlerOptions, 'context' | 
 });
 
 /**
+ * Build a map of Maestro session ID -> session name from the sessions store.
+ * Used to resolve the display name shown in the left bar for each session.
+ */
+function buildSessionNameMap(): Map<string, string> {
+	const sessionsStore = getSessionsStore();
+	const storedSessions = sessionsStore.get('sessions', []);
+	const map = new Map<string, string>();
+	for (const s of storedSessions) {
+		if (s.id && s.name) {
+			map.set(s.id, s.name);
+		}
+	}
+	return map;
+}
+
+/**
  * Dependencies required for Director's Notes handler registration
  */
 export interface DirectorNotesHandlerDependencies {
@@ -39,18 +56,22 @@ export interface UnifiedHistoryOptions {
 }
 
 export interface UnifiedHistoryEntry extends HistoryEntry {
-	agentName?: string; // The agent/session name for display
+	agentName?: string; // The Maestro session name for display
 	sourceSessionId: string; // Which session this entry came from
 }
 
 export interface SynopsisOptions {
 	lookbackDays: number;
-	provider: 'claude-code' | 'codex' | 'opencode';
+	provider: string;
+	customPath?: string;
+	customArgs?: string;
+	customEnvVars?: Record<string, string>;
 }
 
 export interface SynopsisResult {
 	success: boolean;
 	synopsis: string;
+	generatedAt?: number; // Unix ms timestamp of when the synopsis was generated
 	error?: string;
 }
 
@@ -78,6 +99,9 @@ export function registerDirectorNotesHandlers(deps: DirectorNotesHandlerDependen
 				// Get all session IDs from history manager
 				const sessionIds = historyManager.listSessionsWithHistory();
 
+				// Resolve Maestro session names (the names shown in the left bar)
+				const sessionNameMap = buildSessionNameMap();
+
 				// For each session, get entries within time range
 				const allEntries: UnifiedHistoryEntry[] = [];
 				for (const sessionId of sessionIds) {
@@ -88,12 +112,15 @@ export function registerDirectorNotesHandlers(deps: DirectorNotesHandlerDependen
 						return true;
 					});
 
+					// Resolve Maestro session name (the name from the left bar)
+					const maestroSessionName = sessionNameMap.get(sessionId);
+
 					// Add source session info to each entry
 					for (const entry of filtered) {
 						allEntries.push({
 							...entry,
 							sourceSessionId: sessionId,
-							agentName: entry.sessionName || sessionId.split('-')[0],
+							agentName: maestroSessionName,
 						});
 					}
 				}
@@ -150,6 +177,7 @@ export function registerDirectorNotesHandlers(deps: DirectorNotesHandlerDependen
 				// Gather history entries for the requested time period
 				const cutoffTime = Date.now() - options.lookbackDays * 24 * 60 * 60 * 1000;
 				const sessionIds = historyManager.listSessionsWithHistory();
+				const sessionNameMap = buildSessionNameMap();
 				const entries: Array<{
 					summary: string;
 					type: string;
@@ -159,6 +187,7 @@ export function registerDirectorNotesHandlers(deps: DirectorNotesHandlerDependen
 				}> = [];
 
 				for (const sessionId of sessionIds) {
+					const maestroSessionName = sessionNameMap.get(sessionId);
 					const sessionEntries = historyManager.getEntries(sessionId);
 					for (const entry of sessionEntries) {
 						if (entry.timestamp >= cutoffTime) {
@@ -167,7 +196,7 @@ export function registerDirectorNotesHandlers(deps: DirectorNotesHandlerDependen
 								type: entry.type,
 								timestamp: entry.timestamp,
 								success: entry.success,
-								agentName: entry.sessionName || sessionId.split('-')[0],
+								agentName: maestroSessionName || entry.sessionName || sessionId,
 							});
 						}
 					}
@@ -177,6 +206,7 @@ export function registerDirectorNotesHandlers(deps: DirectorNotesHandlerDependen
 					return {
 						success: true,
 						synopsis: `# Director's Notes\n\n*Generated for the past ${options.lookbackDays} days*\n\nNo history entries found for the selected time period.`,
+						generatedAt: Date.now(),
 					};
 				}
 
@@ -200,6 +230,9 @@ export function registerDirectorNotesHandlers(deps: DirectorNotesHandlerDependen
 							agentType: options.provider,
 							prompt,
 							readOnlyMode: true,
+							sessionCustomPath: options.customPath,
+							sessionCustomArgs: options.customArgs,
+							sessionCustomEnvVars: options.customEnvVars,
 						},
 						processManager,
 						agentDetector
@@ -223,6 +256,7 @@ export function registerDirectorNotesHandlers(deps: DirectorNotesHandlerDependen
 					return {
 						success: true,
 						synopsis,
+						generatedAt: Date.now(),
 					};
 				} catch (err) {
 					const errorMsg = err instanceof Error ? err.message : String(err);

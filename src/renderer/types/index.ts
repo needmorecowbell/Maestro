@@ -904,9 +904,15 @@ export interface LeaderboardSubmitResponse {
 // Director's Notes settings for synopsis generation
 export interface DirectorNotesSettings {
 	/** Agent type to use for synopsis generation */
-	provider: 'claude-code' | 'codex' | 'opencode';
+	provider: string;
 	/** Default lookback period in days (1-90) */
 	defaultLookbackDays: number;
+	/** Custom path to the agent binary */
+	customPath?: string;
+	/** Custom arguments for the agent */
+	customArgs?: string;
+	/** Custom environment variables for the agent */
+	customEnvVars?: Record<string, string>;
 }
 
 // Context management settings for merge and transfer operations

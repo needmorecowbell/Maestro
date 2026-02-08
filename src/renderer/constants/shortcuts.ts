@@ -71,7 +71,7 @@ export const DEFAULT_SHORTCUTS: Record<string, Shortcut> = {
 	directorNotes: {
 		id: 'directorNotes',
 		label: "Director's Notes",
-		keys: ['Alt', 'Meta', 'd'],
+		keys: ['Meta', 'Shift', 'o'],
 	},
 };
 
@@ -97,6 +97,11 @@ export const FIXED_SHORTCUTS: Record<string, Shortcut> = {
 	searchOutput: {
 		id: 'searchOutput',
 		label: 'Search Output (in Main Window)',
+		keys: ['Meta', 'f'],
+	},
+	searchDirectorNotes: {
+		id: 'searchDirectorNotes',
+		label: "Search Director's Notes",
 		keys: ['Meta', 'f'],
 	},
 	filePreviewBack: {

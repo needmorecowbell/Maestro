@@ -2639,10 +2639,14 @@ interface MaestroAPI {
 		) => Promise<number>;
 		generateSynopsis: (options: {
 			lookbackDays: number;
-			provider: 'claude-code' | 'codex' | 'opencode';
+			provider: string;
+			customPath?: string;
+			customArgs?: string;
+			customEnvVars?: Record<string, string>;
 		}) => Promise<{
 			success: boolean;
 			synopsis: string;
+			generatedAt?: number;
 			error?: string;
 		}>;
 	};

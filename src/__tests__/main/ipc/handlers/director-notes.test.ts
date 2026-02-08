@@ -27,6 +27,14 @@ vi.mock('../../../../main/history-manager', () => ({
 	getHistoryManager: vi.fn(),
 }));
 
+// Mock the stores module
+const mockGetSessionsStore = vi.fn().mockReturnValue({
+	get: vi.fn().mockReturnValue([]),
+});
+vi.mock('../../../../main/stores', () => ({
+	getSessionsStore: (...args: any[]) => mockGetSessionsStore(...args),
+}));
+
 // Mock the logger
 vi.mock('../../../../main/utils/logger', () => ({
 	logger: {
@@ -91,6 +99,11 @@ describe('director-notes IPC handlers', () => {
 		vi.mocked(historyManagerModule.getHistoryManager).mockReturnValue(
 			mockHistoryManager as unknown as HistoryManager
 		);
+
+		// Reset sessions store mock to return empty sessions by default
+		mockGetSessionsStore.mockReturnValue({
+			get: vi.fn().mockReturnValue([]),
+		});
 
 		// Capture all registered handlers
 		handlers = new Map();
@@ -222,20 +235,51 @@ describe('director-notes IPC handlers', () => {
 			expect(result[2].id).toBe('oldest');
 		});
 
-		it('should include agentName from sessionName', async () => {
+		it('should use Maestro session name when available in sessions store', async () => {
+			const now = Date.now();
+			vi.mocked(mockHistoryManager.listSessionsWithHistory).mockReturnValue(['session-1']);
+			vi.mocked(mockHistoryManager.getEntries).mockReturnValue([
+				createMockEntry({ id: 'e1', timestamp: now, sessionName: 'Tab Name' }),
+			]);
+
+			// Mock the sessions store to return a session with a name
+			mockGetSessionsStore.mockReturnValue({
+				get: vi.fn().mockReturnValue([
+					{ id: 'session-1', name: '🚧 my-feature', toolType: 'claude-code', cwd: '/test', projectRoot: '/test' },
+				]),
+			});
+
+			const handler = handlers.get('director-notes:getUnifiedHistory');
+			const result = await handler!({} as any, { lookbackDays: 7 });
+
+			// Should use Maestro session name, not tab name
+			expect(result[0].agentName).toBe('🚧 my-feature');
+		});
+
+		it('should set agentName to undefined when Maestro session not found in store', async () => {
 			const now = Date.now();
 			vi.mocked(mockHistoryManager.listSessionsWithHistory).mockReturnValue(['session-1']);
 			vi.mocked(mockHistoryManager.getEntries).mockReturnValue([
 				createMockEntry({ id: 'e1', timestamp: now, sessionName: 'My Agent' }),
 			]);
 
+			// Sessions store returns no matching session
+			mockGetSessionsStore.mockReturnValue({
+				get: vi.fn().mockReturnValue([
+					{ id: 'other-session', name: 'Other', toolType: 'claude-code', cwd: '/test', projectRoot: '/test' },
+				]),
+			});
+
 			const handler = handlers.get('director-notes:getUnifiedHistory');
 			const result = await handler!({} as any, { lookbackDays: 7 });
 
-			expect(result[0].agentName).toBe('My Agent');
+			// agentName is only the Maestro session name; undefined when not found
+			expect(result[0].agentName).toBeUndefined();
+			// sessionName is still preserved on the entry
+			expect(result[0].sessionName).toBe('My Agent');
 		});
 
-		it('should derive agentName from session ID when sessionName is absent', async () => {
+		it('should set agentName to undefined when session is not in store', async () => {
 			const now = Date.now();
 			vi.mocked(mockHistoryManager.listSessionsWithHistory).mockReturnValue(['claude-abc123']);
 			vi.mocked(mockHistoryManager.getEntries).mockReturnValue([
@@ -245,8 +289,8 @@ describe('director-notes IPC handlers', () => {
 			const handler = handlers.get('director-notes:getUnifiedHistory');
 			const result = await handler!({} as any, { lookbackDays: 7 });
 
-			// Falls back to sessionId.split('-')[0]
-			expect(result[0].agentName).toBe('claude');
+			// No Maestro session name available
+			expect(result[0].agentName).toBeUndefined();
 		});
 
 		it('should return empty array when no sessions have history', async () => {
@@ -363,6 +407,8 @@ describe('director-notes IPC handlers', () => {
 			expect(result.success).toBe(true);
 			expect(result.synopsis).toContain('No history entries found');
 			expect(result.synopsis).toContain('7 days');
+			expect(result.generatedAt).toBeTypeOf('number');
+			expect(result.generatedAt).toBeLessThanOrEqual(Date.now());
 		});
 
 		it('should call groomContext with history entries and return synopsis', async () => {
@@ -384,6 +430,8 @@ describe('director-notes IPC handlers', () => {
 
 			expect(result.success).toBe(true);
 			expect(result.synopsis).toBe('# Synopsis\n\nWork was done.');
+			expect(result.generatedAt).toBeTypeOf('number');
+			expect(result.generatedAt).toBeLessThanOrEqual(Date.now());
 			expect(groomContext).toHaveBeenCalledWith(
 				expect.objectContaining({
 					agentType: 'claude-code',
@@ -392,6 +440,73 @@ describe('director-notes IPC handlers', () => {
 				mockProcessManager,
 				mockAgentDetector,
 			);
+		});
+
+		it('should pass custom agent config to groomContext when provided', async () => {
+			const { groomContext } = await import('../../../../main/utils/context-groomer');
+			vi.mocked(groomContext).mockResolvedValue({
+				response: '# Synopsis\n\nCustom agent work.',
+				durationMs: 5000,
+				completionReason: 'process exited with code 0',
+			});
+
+			const now = Date.now();
+			vi.mocked(mockHistoryManager.listSessionsWithHistory).mockReturnValue(['session-1']);
+			vi.mocked(mockHistoryManager.getEntries).mockReturnValue([
+				createMockEntry({ id: 'e1', timestamp: now - 1000, summary: 'Fixed a bug' }),
+			]);
+
+			const handler = handlers.get('director-notes:generateSynopsis');
+			const result = await handler!({} as any, {
+				lookbackDays: 7,
+				provider: 'claude-code',
+				customPath: '/usr/local/bin/custom-claude',
+				customArgs: '--model opus',
+				customEnvVars: { ANTHROPIC_API_KEY: 'test-key' },
+			});
+
+			expect(result.success).toBe(true);
+			expect(groomContext).toHaveBeenCalledWith(
+				expect.objectContaining({
+					agentType: 'claude-code',
+					readOnlyMode: true,
+					sessionCustomPath: '/usr/local/bin/custom-claude',
+					sessionCustomArgs: '--model opus',
+					sessionCustomEnvVars: { ANTHROPIC_API_KEY: 'test-key' },
+				}),
+				mockProcessManager,
+				mockAgentDetector,
+			);
+		});
+
+		it('should use Maestro session name in synopsis generation entries', async () => {
+			const { groomContext } = await import('../../../../main/utils/context-groomer');
+			vi.mocked(groomContext).mockResolvedValue({
+				response: '# Synopsis',
+				durationMs: 1000,
+				completionReason: 'process exited with code 0',
+			});
+
+			const now = Date.now();
+			vi.mocked(mockHistoryManager.listSessionsWithHistory).mockReturnValue(['session-1']);
+			vi.mocked(mockHistoryManager.getEntries).mockReturnValue([
+				createMockEntry({ id: 'e1', timestamp: now - 1000, summary: 'Work done', sessionName: 'Tab Name' }),
+			]);
+
+			// Mock sessions store with Maestro session name
+			mockGetSessionsStore.mockReturnValue({
+				get: vi.fn().mockReturnValue([
+					{ id: 'session-1', name: '🚧 feature-branch', toolType: 'claude-code', cwd: '/test', projectRoot: '/test' },
+				]),
+			});
+
+			const handler = handlers.get('director-notes:generateSynopsis');
+			await handler!({} as any, { lookbackDays: 7, provider: 'claude-code' });
+
+			// The prompt passed to groomContext should contain the Maestro session name
+			const promptArg = vi.mocked(groomContext).mock.calls[0][0].prompt;
+			expect(promptArg).toContain('🚧 feature-branch');
+			expect(promptArg).not.toContain('"agentName": "Tab Name"');
 		});
 
 		it('should return error when groomContext fails', async () => {
@@ -451,7 +566,9 @@ describe('director-notes IPC handlers', () => {
 
 			expect(result).toHaveProperty('success');
 			expect(result).toHaveProperty('synopsis');
+			expect(result).toHaveProperty('generatedAt');
 			expect(typeof result.synopsis).toBe('string');
+			expect(typeof result.generatedAt).toBe('number');
 			expect(result.error).toBeUndefined();
 		});
 	});
