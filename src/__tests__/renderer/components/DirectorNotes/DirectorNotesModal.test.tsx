@@ -41,6 +41,13 @@ vi.mock('../../../../renderer/components/DirectorNotes/AIOverviewTab', () => ({
 			</button>
 		</div>
 	),
+	hasCachedSynopsis: () => false,
+}));
+
+vi.mock('../../../../renderer/hooks', () => ({
+	useSettings: () => ({
+		directorNotesSettings: { defaultLookbackDays: 7 },
+	}),
 }));
 
 vi.mock('../../../../renderer/components/DirectorNotes/OverviewTab', () => ({

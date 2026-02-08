@@ -153,12 +153,20 @@ export const HistoryPanel = React.memo(
 			});
 		};
 
-		// Filter entries based on active filters and search text
+		// Filter entries based on active filters, search text, and lookback period
 		const allFilteredEntries = useMemo(
-			() =>
-				historyEntries.filter((entry) => {
+			() => {
+				// Compute lookback cutoff once (null = all time, no cutoff)
+				const cutoffTime = graphLookbackHours !== null
+					? Date.now() - graphLookbackHours * 60 * 60 * 1000
+					: 0;
+
+				return historyEntries.filter((entry) => {
 					if (!entry || !entry.type) return false;
 					if (!activeFilters.has(entry.type)) return false;
+
+					// Apply lookback time filter
+					if (cutoffTime > 0 && entry.timestamp < cutoffTime) return false;
 
 					// Apply text search filter
 					if (searchFilter) {
@@ -173,8 +181,9 @@ export const HistoryPanel = React.memo(
 					}
 
 					return true;
-				}),
-			[historyEntries, activeFilters, searchFilter]
+				});
+			},
+			[historyEntries, activeFilters, searchFilter, graphLookbackHours]
 		);
 
 		// Note: With virtualization, we no longer need to slice entries
@@ -353,7 +362,7 @@ export const HistoryPanel = React.memo(
 			hasRestoredScroll.current = false;
 		}, [session.id]);
 
-		// Reset selected index and graph reference time when filters change
+		// Reset selected index and graph reference time when filters or lookback change
 		useEffect(() => {
 			setSelectedIndex(-1);
 			setGraphReferenceTime(undefined); // Reset to "now" when filters change
@@ -361,7 +370,7 @@ export const HistoryPanel = React.memo(
 			if (listRef.current) {
 				listRef.current.scrollTop = 0;
 			}
-		}, [activeFilters, searchFilter, setSelectedIndex]);
+		}, [activeFilters, searchFilter, graphLookbackHours, setSelectedIndex]);
 
 		// Scroll selected item into view when selectedIndex changes (keyboard navigation)
 		useEffect(() => {
@@ -440,7 +449,7 @@ export const HistoryPanel = React.memo(
 						theme={theme}
 					/>
 
-					{/* 24-hour activity bar graph */}
+					{/* Activity graph — lookback period also filters the entry list */}
 					<ActivityGraph
 						entries={historyEntries}
 						theme={theme}

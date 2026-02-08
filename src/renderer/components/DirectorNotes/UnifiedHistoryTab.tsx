@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef, forwardRef, useImperativeHandle } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { Loader2 } from 'lucide-react';
 import type { Theme, HistoryEntry, HistoryEntryType } from '../../types';
 import type { FileNode } from '../../types/fileTree';
 import {
@@ -10,8 +11,11 @@ import {
 	ESTIMATED_ROW_HEIGHT_SIMPLE,
 } from '../History';
 import { HistoryDetailModal } from '../HistoryDetailModal';
-import { useSettings, useListNavigation } from '../../hooks';
+import { useListNavigation } from '../../hooks';
 import type { TabFocusHandle } from './OverviewTab';
+
+/** Page size for progressive loading */
+const PAGE_SIZE = 100;
 
 interface UnifiedHistoryEntry extends HistoryEntry {
 	agentName?: string;
@@ -25,54 +29,113 @@ interface UnifiedHistoryTabProps {
 	searchFilter?: string;
 }
 
+/** Convert lookbackHours to lookbackDays for the IPC call. null => 0 (all time). */
+function lookbackHoursToDays(hours: number | null): number {
+	if (hours === null) return 0;
+	return Math.ceil(hours / 24);
+}
+
 export const UnifiedHistoryTab = forwardRef<TabFocusHandle, UnifiedHistoryTabProps>(function UnifiedHistoryTab({
 	theme,
 	fileTree,
 	onFileClick,
 	searchFilter = '',
 }, ref) {
-	const { directorNotesSettings } = useSettings();
 	const [entries, setEntries] = useState<UnifiedHistoryEntry[]>([]);
 	const [isLoading, setIsLoading] = useState(true);
+	const [isLoadingMore, setIsLoadingMore] = useState(false);
+	const [hasMore, setHasMore] = useState(true);
+	const [totalEntries, setTotalEntries] = useState(0);
 	const [activeFilters, setActiveFilters] = useState<Set<HistoryEntryType>>(new Set(['AUTO', 'USER']));
-	const [lookbackDays, setLookbackDays] = useState(directorNotesSettings.defaultLookbackDays);
 	const [detailModalEntry, setDetailModalEntry] = useState<HistoryEntry | null>(null);
+	const [lookbackHours, setLookbackHours] = useState<number | null>(null); // null = all time
+
+	// Stable snapshot of entries for the graph — only updated on fresh loads, not scroll-appends
+	const [graphEntries, setGraphEntries] = useState<UnifiedHistoryEntry[]>([]);
 
 	const listRef = useRef<HTMLDivElement>(null);
+	const loadingMoreRef = useRef(false); // Guard against concurrent loads
 
 	useImperativeHandle(ref, () => ({
 		focus: () => listRef.current?.focus(),
 	}));
 
-	// Load unified history
-	const loadHistory = useCallback(async () => {
-		setIsLoading(true);
+	// Load a page of unified history
+	const loadPage = useCallback(async (offset: number, append: boolean, lookback: number | null) => {
+		if (append) {
+			setIsLoadingMore(true);
+		} else {
+			setIsLoading(true);
+		}
 		try {
 			const result = await window.maestro.directorNotes.getUnifiedHistory({
-				lookbackDays,
-				filter: null, // Get all, filter client-side
+				lookbackDays: lookbackHoursToDays(lookback),
+				filter: null,
+				limit: PAGE_SIZE,
+				offset,
 			});
-			setEntries(result as UnifiedHistoryEntry[]);
+			const newEntries = result.entries as UnifiedHistoryEntry[];
+			if (append) {
+				setEntries(prev => [...prev, ...newEntries]);
+			} else {
+				setEntries(newEntries);
+				// Update graph snapshot only on fresh loads
+				setGraphEntries(newEntries);
+			}
+			setHasMore(result.hasMore);
+			setTotalEntries(result.total);
 		} catch (error) {
 			console.error('Failed to load unified history:', error);
-			setEntries([]);
+			if (!append) {
+				setEntries([]);
+				setGraphEntries([]);
+			}
+			setHasMore(false);
 		} finally {
 			setIsLoading(false);
+			setIsLoadingMore(false);
+			loadingMoreRef.current = false;
 		}
-	}, [lookbackDays]);
+	}, []);
 
+	// Initial load
 	useEffect(() => {
-		loadHistory();
-	}, [loadHistory]);
+		loadPage(0, false, lookbackHours);
+	}, [loadPage, lookbackHours]);
 
-	// Auto-focus the list after loading completes for keyboard navigation
+	// Auto-focus the list after initial loading completes
 	useEffect(() => {
 		if (!isLoading) {
 			listRef.current?.focus();
 		}
 	}, [isLoading]);
 
-	// Filter entries
+	// Handle lookback change from graph right-click menu
+	const handleLookbackChange = useCallback((hours: number | null) => {
+		setLookbackHours(hours);
+		// Reset scroll position and entries — useEffect will trigger a fresh load
+		setEntries([]);
+		setGraphEntries([]);
+		setHasMore(true);
+		setTotalEntries(0);
+	}, []);
+
+	// Load next page when scrolling near the bottom
+	const handleScroll = useCallback(() => {
+		if (!hasMore || loadingMoreRef.current || isLoading) return;
+
+		const el = listRef.current;
+		if (!el) return;
+
+		// Trigger when within 500px of the bottom
+		const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 500;
+		if (nearBottom) {
+			loadingMoreRef.current = true;
+			loadPage(entries.length, true, lookbackHours);
+		}
+	}, [hasMore, isLoading, entries.length, loadPage, lookbackHours]);
+
+	// Filter entries client-side
 	const filteredEntries = useMemo(() => {
 		return entries.filter(entry => {
 			if (!activeFilters.has(entry.type)) return false;
@@ -147,8 +210,18 @@ export const UnifiedHistoryTab = forwardRef<TabFocusHandle, UnifiedHistoryTabPro
 		listRef.current?.focus();
 	}, []);
 
-	// Convert lookbackDays to lookbackHours for ActivityGraph compatibility
-	const lookbackHours = lookbackDays * 24;
+	// Update a history entry (e.g. toggling validated) via the per-session history API
+	const handleUpdateEntry = useCallback(async (entryId: string, updates: { validated?: boolean }) => {
+		// Find the entry to get its sourceSessionId for the per-session lookup
+		const target = entries.find(e => e.id === entryId);
+		if (!target) return false;
+		const success = await window.maestro.history.update(entryId, updates, target.sourceSessionId);
+		if (success) {
+			setEntries(prev => prev.map(e => e.id === entryId ? { ...e, ...updates } : e));
+			setDetailModalEntry(prev => prev && prev.id === entryId ? { ...prev, ...updates } : prev);
+		}
+		return success;
+	}, [entries]);
 
 	return (
 		<div className="flex flex-col h-full p-4">
@@ -160,10 +233,10 @@ export const UnifiedHistoryTab = forwardRef<TabFocusHandle, UnifiedHistoryTabPro
 					theme={theme}
 				/>
 				<ActivityGraph
-					entries={entries}
+					entries={graphEntries}
 					theme={theme}
 					lookbackHours={lookbackHours}
-					onLookbackChange={(hours) => setLookbackDays(hours ? Math.ceil(hours / 24) : 90)}
+					onLookbackChange={handleLookbackChange}
 					onBarClick={(start, end) => {
 						// Find first entry in range and select it
 						const idx = filteredEntries.findIndex(e => e.timestamp >= start && e.timestamp < end);
@@ -173,20 +246,32 @@ export const UnifiedHistoryTab = forwardRef<TabFocusHandle, UnifiedHistoryTabPro
 						}
 					}}
 				/>
+				{/* Entry count badge */}
+				{!isLoading && totalEntries > 0 && (
+					<span
+						className="text-[10px] font-mono whitespace-nowrap flex-shrink-0 mt-1"
+						style={{ color: theme.colors.textDim }}
+					>
+						{entries.length < totalEntries
+							? `${entries.length}/${totalEntries}`
+							: `${totalEntries}`}
+					</span>
+				)}
 			</div>
 
-			{/* Entry list */}
+			{/* Entry list with infinite scroll */}
 			<div
 				ref={listRef}
 				className="flex-1 overflow-y-auto outline-none scrollbar-thin"
 				tabIndex={0}
 				onKeyDown={handleKeyDown}
+				onScroll={handleScroll}
 			>
 				{isLoading ? (
 					<div className="text-center py-8 text-xs opacity-50">Loading history...</div>
 				) : filteredEntries.length === 0 ? (
 					<div className="text-center py-8 text-xs opacity-50">
-						No history entries found for the selected time period.
+						No history entries found.
 					</div>
 				) : (
 					<div
@@ -219,12 +304,24 @@ export const UnifiedHistoryTab = forwardRef<TabFocusHandle, UnifiedHistoryTabPro
 										isSelected={virtualItem.index === selectedIndex}
 										theme={theme}
 										onOpenDetailModal={openDetailModal}
-										// Show agent name prominently for unified view
 										showAgentName
 									/>
 								</div>
 							);
 						})}
+					</div>
+				)}
+
+				{/* Loading more indicator */}
+				{isLoadingMore && (
+					<div className="flex items-center justify-center py-4 gap-2">
+						<Loader2
+							className="w-3.5 h-3.5 animate-spin"
+							style={{ color: theme.colors.accent }}
+						/>
+						<span className="text-xs" style={{ color: theme.colors.textDim }}>
+							Loading more...
+						</span>
 					</div>
 				)}
 			</div>
@@ -235,6 +332,7 @@ export const UnifiedHistoryTab = forwardRef<TabFocusHandle, UnifiedHistoryTabPro
 					theme={theme}
 					entry={detailModalEntry}
 					onClose={closeDetailModal}
+					onUpdate={handleUpdateEntry}
 					filteredEntries={filteredEntries}
 					currentIndex={selectedIndex}
 					onNavigate={(entry, index) => {

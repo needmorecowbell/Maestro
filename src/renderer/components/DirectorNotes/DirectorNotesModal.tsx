@@ -5,6 +5,8 @@ import type { Theme } from '../../types';
 import { useLayerStack } from '../../contexts/LayerStackContext';
 import { MODAL_PRIORITIES } from '../../constants/modalPriorities';
 import { OverviewTab, type TabFocusHandle } from './OverviewTab';
+import { hasCachedSynopsis } from './AIOverviewTab';
+import { useSettings } from '../../hooks';
 
 // Lazy load tab components
 const UnifiedHistoryTab = lazy(() => import('./UnifiedHistoryTab').then(m => ({ default: m.UnifiedHistoryTab })));
@@ -32,8 +34,10 @@ export function DirectorNotesModal({
 	fileTree,
 	onFileClick,
 }: DirectorNotesModalProps) {
+	const { directorNotesSettings } = useSettings();
+	const cached = hasCachedSynopsis(directorNotesSettings.defaultLookbackDays);
 	const [activeTab, setActiveTab] = useState<TabId>('history');
-	const [overviewReady, setOverviewReady] = useState(false);
+	const [overviewReady, setOverviewReady] = useState(cached);
 	const [overviewGenerating, setOverviewGenerating] = useState(false);
 	const [searchVisible, setSearchVisible] = useState(false);
 	const [searchQuery, setSearchQuery] = useState('');
@@ -107,9 +111,11 @@ export function DirectorNotesModal({
 		setOverviewReady(true);
 	}, []);
 
-	// Start generating indicator when modal opens
+	// Start generating indicator when modal opens (skip if cached)
 	useEffect(() => {
-		setOverviewGenerating(true);
+		if (!cached) {
+			setOverviewGenerating(true);
+		}
 	}, []);
 
 	// Check if a tab can be navigated to
