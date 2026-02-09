@@ -123,7 +123,7 @@ import { useMainPanelProps, useSessionListProps, useRightPanelProps } from './ho
 // Import contexts
 import { useLayerStack } from './contexts/LayerStackContext';
 import { useToast } from './contexts/ToastContext';
-import { useModalActions } from './stores/modalStore';
+import { useModalActions, useModalStore } from './stores/modalStore';
 import { GitStatusProvider } from './contexts/GitStatusContext';
 import { InputProvider, useInputContext } from './contexts/InputContext';
 import { GroupChatProvider, useGroupChat } from './contexts/GroupChatContext';
@@ -328,6 +328,8 @@ function MaestroConsoleInner() {
 		setConfirmModalMessage,
 		confirmModalOnConfirm,
 		setConfirmModalOnConfirm,
+		confirmModalTitle,
+		confirmModalDestructive,
 		// Quit Confirmation Modal
 		quitConfirmModalOpen,
 		setQuitConfirmModalOpen,
@@ -878,12 +880,6 @@ function MaestroConsoleInner() {
 		window.maestro.app.confirmQuit();
 	}, []);
 
-	const handleConfirmQuitAndDelete = useCallback(() => {
-		setQuitConfirmModalOpen(false);
-		// TODO: Implement working directory deletion before quit
-		window.maestro.app.confirmQuit();
-	}, []);
-
 	const handleCancelQuit = useCallback(() => {
 		setQuitConfirmModalOpen(false);
 		window.maestro.app.cancelQuit();
@@ -1425,6 +1421,9 @@ function MaestroConsoleInner() {
 			});
 	}, []);
 
+	// Track if Windows warning has been shown this session to prevent re-showing
+	const windowsWarningShownRef = useRef(false);
+
 	// Show Windows warning modal on startup for Windows users (if not suppressed)
 	// Also expose a debug function to trigger the modal from console for testing
 	useEffect(() => {
@@ -1437,11 +1436,16 @@ function MaestroConsoleInner() {
 		// Skip if user has suppressed the warning
 		if (suppressWindowsWarning) return;
 
+		// Skip if already shown this session (prevents re-showing when suppressWindowsWarning
+		// is set to false by the close handler without checking "don't show again")
+		if (windowsWarningShownRef.current) return;
+
 		// Check if running on Windows using the power API (has platform info)
 		window.maestro.power
 			.getStatus()
 			.then((status) => {
 				if (status.platform === 'win32') {
+					windowsWarningShownRef.current = true;
 					setWindowsWarningModalOpen(true);
 				}
 			})
@@ -2947,6 +2951,17 @@ function MaestroConsoleInner() {
 						message: error.message,
 						recoverable: error.recoverable,
 					});
+
+					// For session_not_found errors, the exit-listener handles recovery
+					// by respawning the participant with context. Don't show error or
+					// reset state - let the recovery flow handle it silently.
+					if (agentError.type === 'session_not_found') {
+						console.log('[onAgentError] Suppressing session_not_found for group chat - exit-listener will handle recovery:', {
+							groupChatId,
+							participantName: isModeratorError ? 'Moderator' : participantOrModerator,
+						});
+						return;
+					}
 
 					// Set the group chat error state - this will show in the group chat UI
 					setGroupChatError({
@@ -5247,14 +5262,11 @@ You are taking over this conversation. Based on the context above, provide a bri
 
 			// Check if tab has unsaved changes (editContent is set when different from saved content)
 			if (tabToClose.editContent !== undefined) {
-				// Show confirmation modal
-				setConfirmModalMessage(
-					`"${tabToClose.name}${tabToClose.extension}" has unsaved changes. Are you sure you want to close it?`
-				);
-				setConfirmModalOnConfirm(() => () => {
-					forceCloseFileTab(tabId);
+				// Show confirmation modal (use openModal with data atomically to avoid race condition)
+				useModalStore.getState().openModal('confirm', {
+					message: `"${tabToClose.name}${tabToClose.extension}" has unsaved changes. Are you sure you want to close it?`,
+					onConfirm: () => { forceCloseFileTab(tabId); },
 				});
-				setConfirmModalOpen(true);
 			} else {
 				// No unsaved changes, close immediately
 				forceCloseFileTab(tabId);
@@ -5494,12 +5506,11 @@ You are taking over this conversation. Based on the context above, provide a bri
 			const tab = session?.aiTabs.find((t) => t.id === tabId);
 
 			if (tab && hasActiveWizard(tab)) {
-				// Show confirmation modal for wizard tabs
-				setConfirmModalMessage(
-					'Close this wizard? Your progress will be lost and cannot be restored.'
-				);
-				setConfirmModalOnConfirm(() => () => performTabClose(tabId));
-				setConfirmModalOpen(true);
+				// Show confirmation modal for wizard tabs (use openModal atomically)
+				useModalStore.getState().openModal('confirm', {
+					message: 'Close this wizard? Your progress will be lost and cannot be restored.',
+					onConfirm: () => performTabClose(tabId),
+				});
 			} else {
 				// Regular tab - close directly
 				performTabClose(tabId);
@@ -8256,15 +8267,16 @@ You are taking over this conversation. Based on the context above, provide a bri
 			if (!sessionId) return;
 			const session = sessions.find((s) => s.id === sessionId);
 			const agentName = session?.name || 'this session';
-			setConfirmModalMessage(`Stop Auto Run for "${agentName}" after the current task completes?`);
-			setConfirmModalOnConfirm(() => () => {
-				console.log(
-					'[App:handleStopBatchRun] Confirmation callback executing for sessionId:',
-					sessionId
-				);
-				stopBatchRun(sessionId);
+			useModalStore.getState().openModal('confirm', {
+				message: `Stop Auto Run for "${agentName}" after the current task completes?`,
+				onConfirm: () => {
+					console.log(
+						'[App:handleStopBatchRun] Confirmation callback executing for sessionId:',
+						sessionId
+					);
+					stopBatchRun(sessionId);
+				},
 			});
-			setConfirmModalOpen(true);
 		},
 		[activeBatchSessionIds, activeSession, sessions, stopBatchRun]
 	);
@@ -9102,9 +9114,9 @@ You are taking over this conversation. Based on the context above, provide a bri
 
 	// PERF: Memoize to prevent breaking React.memo on MainPanel
 	const showConfirmation = useCallback((message: string, onConfirm: () => void) => {
-		setConfirmModalMessage(message);
-		setConfirmModalOnConfirm(() => onConfirm);
-		setConfirmModalOpen(true);
+		// Use openModal with data in a single call to avoid race condition where
+		// updateModalData fails because the modal hasn't been opened yet (no existing data)
+		useModalStore.getState().openModal('confirm', { message, onConfirm });
 	}, []);
 
 	// Delete group chat with confirmation dialog (for keyboard shortcut and CMD+K)
@@ -12969,6 +12981,22 @@ You are taking over this conversation. Based on the context above, provide a bri
 	// when fileTree is undefined, and a new reference whenever activeSession updates.
 	const stableFileTree = useMemo(() => activeSession?.fileTree || [], [activeSession?.fileTree]);
 
+	// Bind user's context warning thresholds to getContextColor so the header bar
+	// colors match the bottom warning sash thresholds from settings.
+	const boundGetContextColor: typeof getContextColor = useCallback(
+		(usage, th) =>
+			getContextColor(
+				usage,
+				th,
+				contextManagementSettings.contextWarningYellowThreshold,
+				contextManagementSettings.contextWarningRedThreshold
+			),
+		[
+			contextManagementSettings.contextWarningYellowThreshold,
+			contextManagementSettings.contextWarningRedThreshold,
+		]
+	);
+
 	const mainPanelProps = useMainPanelProps({
 		// Core state
 		logViewerOpen,
@@ -13111,7 +13139,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 		handleInputKeyDown,
 		handlePaste,
 		handleDrop,
-		getContextColor,
+		getContextColor: boundGetContextColor,
 		setActiveSessionId,
 		handleStopBatchRun,
 		showConfirmation,
@@ -13314,6 +13342,10 @@ You are taking over this conversation. Based on the context above, provide a bri
 		handleEditGroupChat,
 		handleOpenRenameGroupChatModal,
 		handleOpenDeleteGroupChatModal,
+
+		// Context warning thresholds
+		contextWarningYellowThreshold: contextManagementSettings.contextWarningYellowThreshold,
+		contextWarningRedThreshold: contextManagementSettings.contextWarningRedThreshold,
 
 		// Ref
 		sidebarContainerRef,
@@ -13556,10 +13588,11 @@ You are taking over this conversation. Based on the context above, provide a bri
 					confirmModalOpen={confirmModalOpen}
 					confirmModalMessage={confirmModalMessage}
 					confirmModalOnConfirm={confirmModalOnConfirm}
+					confirmModalTitle={confirmModalTitle}
+					confirmModalDestructive={confirmModalDestructive}
 					onCloseConfirmModal={handleCloseConfirmModal}
 					quitConfirmModalOpen={quitConfirmModalOpen}
 					onConfirmQuit={handleConfirmQuit}
-					onConfirmQuitAndDelete={handleConfirmQuitAndDelete}
 					onCancelQuit={handleCancelQuit}
 					// AppSessionModals props
 					newInstanceModalOpen={newInstanceModalOpen}
@@ -14535,7 +14568,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 						theme={theme}
 						isOpen={tourOpen}
 						fromWizard={tourFromWizard}
-						shortcuts={shortcuts}
+						shortcuts={{ ...shortcuts, ...tabShortcuts }}
 						onClose={() => {
 							setTourOpen(false);
 							setTourCompleted(true);

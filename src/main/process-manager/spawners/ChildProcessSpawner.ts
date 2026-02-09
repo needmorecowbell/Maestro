@@ -284,6 +284,7 @@ export class ChildProcessSpawner {
 			// IMPORTANT: SSH stdin script mode (sshStdinScript) MUST enable stream-json parsing
 			// because the SSH command wraps the actual agent command. Without this, the output
 			// parser won't process JSON output from remote agents, causing raw JSON to display.
+			// NOTE: sendPromptViaStdinRaw sends RAW text (not JSON), so it should NOT set isStreamJsonMode
 			const argsContain = (pattern: string) => finalArgs.some((arg) => arg.includes(pattern));
 			const isStreamJsonMode =
 				argsContain('stream-json') ||
@@ -291,7 +292,6 @@ export class ChildProcessSpawner {
 				(argsContain('--format') && argsContain('json')) ||
 				(hasImages && !!prompt) ||
 				!!config.sendPromptViaStdin ||
-				!!config.sendPromptViaStdinRaw ||
 				!!config.sshStdinScript;
 
 			// Get the output parser for this agent type
@@ -438,7 +438,7 @@ export class ChildProcessSpawner {
 				this.exitHandler.handleError(sessionId, error);
 			});
 
-			// Handle stdin for SSH script, stream-json, or batch mode
+			// Handle stdin for SSH script, raw stdin, stream-json, or batch mode
 			if (config.sshStdinScript) {
 				// SSH stdin script mode: send the entire script to /bin/bash on remote
 				// This bypasses all shell escaping issues by piping the script via stdin
@@ -448,27 +448,27 @@ export class ChildProcessSpawner {
 				});
 				childProcess.stdin?.write(config.sshStdinScript);
 				childProcess.stdin?.end();
+			} else if (config.sendPromptViaStdinRaw && prompt) {
+				// Raw stdin mode: send prompt as literal text (non-stream-json agents on Windows)
+				// Note: When sending via stdin, PowerShell treats the input as literal text,
+				// NOT as code to parse. No escaping is needed for special characters.
+				logger.debug('[ProcessManager] Sending raw prompt via stdin', 'ProcessManager', {
+					sessionId,
+					promptLength: prompt.length,
+				});
+				childProcess.stdin?.write(prompt);
+				childProcess.stdin?.end();
 			} else if (isStreamJsonMode && prompt) {
-				if (config.sendPromptViaStdinRaw) {
-					// Send raw prompt via stdin
-					logger.debug('[ProcessManager] Sending raw prompt via stdin', 'ProcessManager', {
-						sessionId,
-						promptLength: prompt.length,
-					});
-					childProcess.stdin?.write(prompt);
-					childProcess.stdin?.end();
-				} else {
-					// Stream-json mode: send the message via stdin
-					const streamJsonMessage = buildStreamJsonMessage(prompt, images || []);
-					logger.debug('[ProcessManager] Sending stream-json message via stdin', 'ProcessManager', {
-						sessionId,
-						messageLength: streamJsonMessage.length,
-						imageCount: (images || []).length,
-						hasImages: !!(images && images.length > 0),
-					});
-					childProcess.stdin?.write(streamJsonMessage + '\n');
-					childProcess.stdin?.end();
-				}
+				// Stream-json mode: send the message via stdin as JSON
+				const streamJsonMessage = buildStreamJsonMessage(prompt, images || []);
+				logger.debug('[ProcessManager] Sending stream-json message via stdin', 'ProcessManager', {
+					sessionId,
+					messageLength: streamJsonMessage.length,
+					imageCount: (images || []).length,
+					hasImages: !!(images && images.length > 0),
+				});
+				childProcess.stdin?.write(streamJsonMessage + '\n');
+				childProcess.stdin?.end();
 			} else if (isBatchMode) {
 				// Regular batch mode: close stdin immediately
 				logger.debug('[ProcessManager] Closing stdin for batch mode', 'ProcessManager', {

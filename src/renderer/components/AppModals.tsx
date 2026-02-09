@@ -286,12 +286,13 @@ export interface AppConfirmModalsProps {
 	confirmModalOpen: boolean;
 	confirmModalMessage: string;
 	confirmModalOnConfirm: (() => void) | null;
+	confirmModalTitle?: string;
+	confirmModalDestructive?: boolean;
 	onCloseConfirmModal: () => void;
 
 	// Quit Confirm Modal
 	quitConfirmModalOpen: boolean;
 	onConfirmQuit: () => void;
-	onConfirmQuitAndDelete: () => void;
 	onCancelQuit: () => void;
 }
 
@@ -309,11 +310,12 @@ export function AppConfirmModals({
 	confirmModalOpen,
 	confirmModalMessage,
 	confirmModalOnConfirm,
+	confirmModalTitle,
+	confirmModalDestructive,
 	onCloseConfirmModal,
 	// Quit Confirm Modal
 	quitConfirmModalOpen,
 	onConfirmQuit,
-	onConfirmQuitAndDelete,
 	onCancelQuit,
 }: AppConfirmModalsProps) {
 	// Compute busy agents for QuitConfirmModal
@@ -327,6 +329,8 @@ export function AppConfirmModals({
 			{confirmModalOpen && (
 				<ConfirmModal
 					theme={theme}
+					title={confirmModalTitle}
+					destructive={confirmModalDestructive}
 					message={confirmModalMessage}
 					onConfirm={confirmModalOnConfirm}
 					onClose={onCloseConfirmModal}
@@ -340,7 +344,6 @@ export function AppConfirmModals({
 					busyAgentCount={busyAgents.length}
 					busyAgentNames={busyAgents.map((s) => s.name)}
 					onConfirmQuit={onConfirmQuit}
-					onConfirmQuitAndDelete={onConfirmQuitAndDelete}
 					onCancel={onCancelQuit}
 				/>
 			)}
@@ -1742,10 +1745,11 @@ export interface AppModalsProps {
 	confirmModalOpen: boolean;
 	confirmModalMessage: string;
 	confirmModalOnConfirm: (() => void) | null;
+	confirmModalTitle?: string;
+	confirmModalDestructive?: boolean;
 	onCloseConfirmModal: () => void;
 	quitConfirmModalOpen: boolean;
 	onConfirmQuit: () => void;
-	onConfirmQuitAndDelete: () => void;
 	onCancelQuit: () => void;
 
 	// --- AppSessionModals props ---
@@ -2098,10 +2102,11 @@ export function AppModals(props: AppModalsProps) {
 		confirmModalOpen,
 		confirmModalMessage,
 		confirmModalOnConfirm,
+		confirmModalTitle,
+		confirmModalDestructive,
 		onCloseConfirmModal,
 		quitConfirmModalOpen,
 		onConfirmQuit,
-		onConfirmQuitAndDelete,
 		onCancelQuit,
 		// Session modals
 		newInstanceModalOpen,
@@ -2371,10 +2376,11 @@ export function AppModals(props: AppModalsProps) {
 				confirmModalOpen={confirmModalOpen}
 				confirmModalMessage={confirmModalMessage}
 				confirmModalOnConfirm={confirmModalOnConfirm}
+				confirmModalTitle={confirmModalTitle}
+				confirmModalDestructive={confirmModalDestructive}
 				onCloseConfirmModal={onCloseConfirmModal}
 				quitConfirmModalOpen={quitConfirmModalOpen}
 				onConfirmQuit={onConfirmQuit}
-				onConfirmQuitAndDelete={onConfirmQuitAndDelete}
 				onCancelQuit={onCancelQuit}
 			/>
 

@@ -111,9 +111,15 @@ export function registerTabNamingHandlers(deps: TabNamingHandlerDependencies): v
 					// Build the prompt: combine the tab naming prompt with the user's message
 					const fullPrompt = `${tabNamingPrompt}\n\n---\n\nUser's message:\n\n${config.userMessage}`;
 
-					// Build agent arguments - minimal configuration, read-only mode
+					// Build agent arguments - read-only mode, runs in parallel
+					// Filter out --dangerously-skip-permissions from base args since tab naming
+					// runs in read-only/plan mode. Without skip-permissions, the agent doesn't
+					// need to acquire a workspace lock and can run in parallel with other instances.
+					const baseArgs = (agent.args ?? []).filter(
+						(arg) => arg !== '--dangerously-skip-permissions'
+					);
 					let finalArgs = buildAgentArgs(agent, {
-						baseArgs: agent.args ?? [],
+						baseArgs,
 						prompt: fullPrompt,
 						cwd: config.cwd,
 						readOnlyMode: true, // Always read-only since we're not modifying anything
