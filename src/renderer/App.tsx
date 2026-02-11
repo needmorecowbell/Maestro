@@ -13885,6 +13885,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 					onNamedSessionSelect={handleNamedSessionSelect}
 					fuzzyFileSearchOpen={fuzzyFileSearchOpen}
 					filteredFileTree={filteredFileTree}
+					fileExplorerExpanded={activeSession?.fileExplorerExpanded}
 					onCloseFileSearch={handleCloseFileSearch}
 					onFileSearchSelect={handleFileSearchSelect}
 					promptComposerOpen={promptComposerOpen}
