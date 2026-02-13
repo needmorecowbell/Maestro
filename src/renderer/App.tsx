@@ -1949,7 +1949,17 @@ function MaestroConsoleInner() {
 
 		const unsubModeratorUsage = window.maestro.groupChat.onModeratorUsage?.((id, usage) => {
 			if (id === activeGroupChatId) {
-				setModeratorUsage(usage);
+				// When contextUsage is -1, tokens were accumulated from multi-tool turns.
+				// Preserve previous context/token values; only update cost.
+				if (usage.contextUsage < 0) {
+					setModeratorUsage((prev) =>
+						prev
+							? { ...prev, totalCost: usage.totalCost }
+							: { contextUsage: 0, totalCost: usage.totalCost, tokenCount: 0 }
+					);
+				} else {
+					setModeratorUsage(usage);
+				}
 			}
 		});
 
@@ -6669,13 +6679,14 @@ You are taking over this conversation. Based on the context above, provide a bri
 
 	// Handler to stop batch run (with confirmation)
 	// If targetSessionId is provided, stops that specific session's batch run.
-	// Otherwise, stops the first active batch run or falls back to active session.
+	// Otherwise, falls back to active session, then first active batch run.
 	const handleStopBatchRun = useCallback(
 		(targetSessionId?: string) => {
-			// Use provided targetSessionId, or fall back to first active batch, or active session
+			// Use provided targetSessionId, or fall back to active session, or first active batch
 			const sessionId =
 				targetSessionId ??
-				(activeBatchSessionIds.length > 0 ? activeBatchSessionIds[0] : activeSession?.id);
+				activeSession?.id ??
+				(activeBatchSessionIds.length > 0 ? activeBatchSessionIds[0] : undefined);
 			console.log(
 				'[App:handleStopBatchRun] targetSessionId:',
 				targetSessionId,
