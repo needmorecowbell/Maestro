@@ -37,12 +37,22 @@ const writeQueues = new Map<string, Promise<void>>();
 /**
  * Enqueue an async callback so it runs after all previously queued writes for
  * the same group chat ID have settled. Returns the callback's result.
+ * Automatically cleans up the queue entry once it settles to prevent
+ * unbounded Map growth from long-lived processes.
  */
 function enqueueWrite<T>(chatId: string, fn: () => Promise<T>): Promise<T> {
 	const prev = writeQueues.get(chatId) ?? Promise.resolve();
 	const next = prev.then(fn, fn); // run fn regardless of prior success/failure
 	// Store the void version so the queue keeps its shape
-	writeQueues.set(chatId, next.then(() => {}, () => {}));
+	const settled = next.then(() => {}, () => {});
+	writeQueues.set(chatId, settled);
+	// Clean up the queue entry once this write settles — if nothing new was
+	// enqueued in the meantime the Map entry is just a resolved promise.
+	settled.then(() => {
+		if (writeQueues.get(chatId) === settled) {
+			writeQueues.delete(chatId);
+		}
+	});
 	return next;
 }
 
@@ -310,28 +320,30 @@ export async function listGroupChats(): Promise<GroupChat[]> {
 
 /**
  * Deletes a group chat and all its data.
+ * Serialized through the write queue to prevent delete-during-write races.
  * Retries on EPERM/EBUSY errors (common on Windows with OneDrive/antivirus file locks).
  *
  * @param id - The group chat ID to delete
  */
-export async function deleteGroupChat(id: string): Promise<void> {
-	const chatDir = getGroupChatDir(id);
-	const maxRetries = 3;
-	for (let attempt = 0; attempt <= maxRetries; attempt++) {
-		try {
-			await fs.rm(chatDir, { recursive: true, force: true });
-			writeQueues.delete(id);
-			return;
-		} catch (err) {
-			const code = (err as NodeJS.ErrnoException).code;
-			if ((code === 'EPERM' || code === 'EBUSY') && attempt < maxRetries) {
-				// Wait before retrying - file locks from OneDrive/antivirus may release
-				await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
-				continue;
+export function deleteGroupChat(id: string): Promise<void> {
+	return enqueueWrite(id, async () => {
+		const chatDir = getGroupChatDir(id);
+		const maxRetries = 3;
+		for (let attempt = 0; attempt <= maxRetries; attempt++) {
+			try {
+				await fs.rm(chatDir, { recursive: true, force: true });
+				return;
+			} catch (err) {
+				const code = (err as NodeJS.ErrnoException).code;
+				if ((code === 'EPERM' || code === 'EBUSY') && attempt < maxRetries) {
+					// Wait before retrying - file locks from OneDrive/antivirus may release
+					await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
+					continue;
+				}
+				throw err;
 			}
-			throw err;
 		}
-	}
+	});
 }
 
 /**

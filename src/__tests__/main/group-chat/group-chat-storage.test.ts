@@ -517,6 +517,47 @@ describe('group-chat-storage', () => {
 	});
 
 	// ===========================================================================
+	// Test 2.7b: Delete serialization through write queue
+	// ===========================================================================
+	describe('deleteGroupChat serialization', () => {
+		it('waits for pending writes before deleting', async () => {
+			const chat = await createGroupChat('Delete Race', 'claude-code');
+
+			// Fire an update and a delete concurrently — delete should wait
+			const updatePromise = updateGroupChat(chat.id, { name: 'About to delete' });
+			const deletePromise = deleteGroupChat(chat.id);
+
+			// Both should complete without throwing
+			await expect(updatePromise).resolves.toBeDefined();
+			await expect(deletePromise).resolves.not.toThrow();
+
+			// Chat should be gone after the delete
+			const loaded = await loadGroupChat(chat.id);
+			expect(loaded).toBeNull();
+		});
+
+		it('does not corrupt data when delete races with participant update', async () => {
+			const chat = await createGroupChat('Delete Participant Race', 'claude-code');
+			await addParticipantToChat(chat.id, {
+				name: 'Worker',
+				agentId: 'claude-code',
+				sessionId: 'ses-w',
+				addedAt: Date.now(),
+			});
+
+			// Fire participant update then delete — both serialize through the queue
+			const updatePromise = updateParticipant(chat.id, 'Worker', { tokenCount: 999 });
+			const deletePromise = deleteGroupChat(chat.id);
+
+			await Promise.all([updatePromise, deletePromise]);
+
+			// Chat directory should not exist
+			const loaded = await loadGroupChat(chat.id);
+			expect(loaded).toBeNull();
+		});
+	});
+
+	// ===========================================================================
 	// Test 2.8: Participant management (add, remove, get)
 	// ===========================================================================
 	describe('participant management', () => {

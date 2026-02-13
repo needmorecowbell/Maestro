@@ -226,6 +226,38 @@ describe('CsvTableRenderer', () => {
 		});
 	});
 
+	describe('numeric detection', () => {
+		it('right-aligns columns with majority numeric values', () => {
+			const { container } = render(
+				<CsvTableRenderer content={"Value\n100\n200\n300"} theme={mockTheme} />
+			);
+
+			// Numeric columns get right-aligned td cells
+			const cells = container.querySelectorAll('tbody td');
+			// Skip row-number cell (index 0), check data cell (index 1)
+			expect((cells[1] as HTMLElement).style.textAlign).toBe('right');
+		});
+
+		it('does not treat trailing-dot numbers as numeric (e.g., "123.")', () => {
+			const { container } = render(
+				<CsvTableRenderer content={"Value\n123.\n456.\n789."} theme={mockTheme} />
+			);
+
+			// "123." is not a valid number — column should be left-aligned
+			const cells = container.querySelectorAll('tbody td');
+			expect((cells[1] as HTMLElement).style.textAlign).toBe('left');
+		});
+
+		it('treats proper decimals as numeric', () => {
+			const { container } = render(
+				<CsvTableRenderer content={"Value\n1.50\n2.75\n3.00"} theme={mockTheme} />
+			);
+
+			const cells = container.querySelectorAll('tbody td');
+			expect((cells[1] as HTMLElement).style.textAlign).toBe('right');
+		});
+	});
+
 	describe('search filtering', () => {
 		it('filters rows to only those matching the search query', () => {
 			const { container } = render(
@@ -293,6 +325,21 @@ describe('CsvTableRenderer', () => {
 			);
 
 			expect(onMatchCount).toHaveBeenCalledWith(2);
+		});
+
+		it('truncates very long search queries to prevent ReDoS', () => {
+			const longQuery = 'a'.repeat(300);
+			const { container } = render(
+				<CsvTableRenderer
+					content={"Name\n" + 'a'.repeat(250)}
+					theme={mockTheme}
+					searchQuery={longQuery}
+				/>
+			);
+
+			// Should render without hanging — the query is truncated to 200 chars
+			const rows = container.querySelectorAll('tbody tr');
+			expect(rows).toHaveLength(1);
 		});
 
 		it('highlights matching text in cells', () => {

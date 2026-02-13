@@ -81,8 +81,8 @@ function parseCsv(content: string, delimiter = ','): string[][] {
 function isNumericValue(value: string): boolean {
 	const trimmed = value.trim();
 	if (trimmed === '') return false;
-	// Match: optional negative, digits with optional commas, optional decimal, optional % or currency prefix
-	return /^[($-]*[\d,]+\.?\d*[%)]*$/.test(trimmed);
+	// Match: optional currency/sign prefix, digits with optional commas, optional decimal, optional suffix
+	return /^[($\-]*[\d,]+(\.\d+)?[%)]*$/.test(trimmed);
 }
 
 /**
@@ -146,10 +146,15 @@ function highlightMatches(text: string, query: string, accentColor: string): Rea
 	const regex = new RegExp(`(${escaped})`, 'gi');
 	const parts = text.split(regex);
 	if (parts.length === 1) return text;
-	return parts.map((part, i) =>
-		regex.test(part) ? (
+	// Use running character offset as key to guarantee uniqueness across
+	// identical substrings appearing at different positions.
+	let offset = 0;
+	return parts.map((part) => {
+		const key = offset;
+		offset += part.length;
+		return regex.test(part) ? (
 			<mark
-				key={`${i}-${part}`}
+				key={key}
 				style={{
 					backgroundColor: accentColor,
 					color: '#fff',
@@ -160,14 +165,14 @@ function highlightMatches(text: string, query: string, accentColor: string): Rea
 				{part}
 			</mark>
 		) : (
-			part
-		),
-	);
+			<span key={key}>{part}</span>
+		);
+	});
 }
 
 export function CsvTableRenderer({ content, theme, delimiter = ',', searchQuery, onMatchCount }: CsvTableRendererProps) {
 	const [sort, setSort] = useState<SortState | null>(null);
-	const query = searchQuery?.trim() ?? '';
+	const query = (searchQuery?.trim() ?? '').slice(0, 200);
 
 	const allRows = useMemo(() => parseCsv(content, delimiter), [content, delimiter]);
 
