@@ -756,13 +756,73 @@ describe('FileExplorerPanel', () => {
 		});
 
 		it('does not start timer when interval is 0', async () => {
-			render(<FileExplorerPanel {...defaultProps} />);
+			const session = createMockSession({ fileTreeAutoRefreshInterval: 0 });
+			render(<FileExplorerPanel {...defaultProps} session={session} />);
 
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(60000);
 			});
 
 			expect(defaultProps.refreshFileTree).not.toHaveBeenCalled();
+		});
+
+		it('skips auto-refresh when previous call is still in flight', async () => {
+			let resolveRefresh: () => void;
+			const slowRefresh = vi.fn(() => new Promise<void>((resolve) => {
+				resolveRefresh = resolve;
+			}));
+			const session = createMockSession({ fileTreeAutoRefreshInterval: 1 });
+			render(<FileExplorerPanel {...defaultProps} session={session} refreshFileTree={slowRefresh} />);
+
+			// First interval fires, refresh starts but doesn't resolve
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(1000);
+			});
+			expect(slowRefresh).toHaveBeenCalledTimes(1);
+
+			// Second interval fires while first is still in flight — should be skipped
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(1000);
+			});
+			expect(slowRefresh).toHaveBeenCalledTimes(1);
+
+			// Resolve the first call and let spin timeout clear
+			await act(async () => {
+				resolveRefresh!();
+				await vi.advanceTimersByTimeAsync(500);
+			});
+
+			// Third interval fires — should proceed now
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(1000);
+			});
+			expect(slowRefresh).toHaveBeenCalledTimes(2);
+		});
+
+		it('handles auto-refresh errors gracefully', async () => {
+			const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+			const failingRefresh = vi.fn().mockRejectedValue(new Error('network failure'));
+			const session = createMockSession({ fileTreeAutoRefreshInterval: 5 });
+			render(<FileExplorerPanel {...defaultProps} session={session} refreshFileTree={failingRefresh} />);
+
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(5000);
+			});
+
+			expect(failingRefresh).toHaveBeenCalledTimes(1);
+			expect(errorSpy).toHaveBeenCalledWith('[FileExplorer] Auto-refresh failed:', expect.any(Error));
+
+			// Spin timeout should still clear, allowing the next refresh to fire
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(500);
+			});
+
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(5000);
+			});
+			expect(failingRefresh).toHaveBeenCalledTimes(2);
+
+			errorSpy.mockRestore();
 		});
 
 		it('clears timer on unmount', async () => {

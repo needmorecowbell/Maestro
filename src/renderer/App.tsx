@@ -1163,6 +1163,7 @@ function MaestroConsoleInner() {
 
 			// Migration: ensure fileTreeAutoRefreshInterval is set (default 180s for legacy sessions)
 			if (session.fileTreeAutoRefreshInterval == null) {
+				console.warn(`[restoreSession] Session missing fileTreeAutoRefreshInterval, defaulting to 180s`);
 				session = { ...session, fileTreeAutoRefreshInterval: 180 };
 			}
 
