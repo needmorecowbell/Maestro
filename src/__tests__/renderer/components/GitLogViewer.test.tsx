@@ -511,7 +511,7 @@ diff --git a/src/test.ts b/src/test.ts
 			fireEvent.click(screen.getByText('Second commit'));
 
 			// Check that second commit's hash is shown (this would trigger a new show call)
-			expect(gitShowMock()).toHaveBeenCalledWith('/test/project', 'abc2');
+			expect(gitShowMock()).toHaveBeenCalledWith('/test/project', 'abc2', undefined);
 		});
 
 		it('should display commit position in footer', async () => {
@@ -885,7 +885,8 @@ diff --git a/src/test.ts b/src/test.ts
 
 			expect(gitShowMock()).toHaveBeenCalledWith(
 				'/test/project',
-				'abc123def456789012345678901234567890abcd'
+				'abc123def456789012345678901234567890abcd',
+				undefined
 			);
 		});
 
@@ -1256,7 +1257,7 @@ this is not valid diff`,
 			render(<GitLogViewer {...defaultProps} cwd="/custom/path" />);
 
 			await waitFor(() => {
-				expect(gitLogMock()).toHaveBeenCalledWith('/custom/path', { limit: 200 });
+				expect(gitLogMock()).toHaveBeenCalledWith('/custom/path', { limit: 200 }, undefined);
 			});
 		});
 
@@ -1276,13 +1277,13 @@ this is not valid diff`,
 			});
 
 			// Initially loads first commit diff
-			expect(gitShowMock()).toHaveBeenCalledWith('/test/project', 'first-hash');
+			expect(gitShowMock()).toHaveBeenCalledWith('/test/project', 'first-hash', undefined);
 
 			// Navigate to second commit
 			fireEvent.keyDown(window, { key: 'ArrowDown' });
 
 			await waitFor(() => {
-				expect(gitShowMock()).toHaveBeenCalledWith('/test/project', 'second-hash');
+				expect(gitShowMock()).toHaveBeenCalledWith('/test/project', 'second-hash', undefined);
 			});
 		});
 	});

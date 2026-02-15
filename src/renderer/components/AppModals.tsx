@@ -1231,7 +1231,16 @@ export function AppUtilityModals({
 			{/* --- GIT LOG VIEWER (lazy-loaded) --- */}
 			{gitLogOpen && activeSession && (
 				<Suspense fallback={null}>
-					<GitLogViewer cwd={gitViewerCwd} theme={theme} onClose={onCloseGitLog} />
+					<GitLogViewer
+						cwd={gitViewerCwd}
+						theme={theme}
+						onClose={onCloseGitLog}
+						sshRemoteId={
+							activeSession?.sshRemoteId ||
+							activeSession?.sessionSshRemoteConfig?.remoteId ||
+							undefined
+						}
+					/>
 				</Suspense>
 			)}
 
