@@ -32,6 +32,7 @@ import {
 	PartyPopper,
 	Tag,
 	User,
+	ArrowDownToLine,
 	Clapperboard,
 } from 'lucide-react';
 import { useSettings } from '../hooks';
@@ -328,6 +329,9 @@ export const SettingsModal = memo(function SettingsModal(props: SettingsModalPro
 		// Automatic tab naming settings
 		automaticTabNamingEnabled,
 		setAutomaticTabNamingEnabled,
+		// Auto-scroll in AI mode
+		autoScrollAiMode,
+		setAutoScrollAiMode,
 		// Director's Notes settings
 		directorNotesSettings,
 		setDirectorNotesSettings,
@@ -1472,6 +1476,17 @@ export const SettingsModal = memo(function SettingsModal(props: SettingsModalPro
 								description="When you send your first message to a new tab, an AI will analyze it and generate a descriptive tab name. The naming request runs in parallel and leaves no history."
 								checked={automaticTabNamingEnabled}
 								onChange={setAutomaticTabNamingEnabled}
+								theme={theme}
+							/>
+
+							{/* Auto-scroll AI Output */}
+							<SettingCheckbox
+								icon={ArrowDownToLine}
+								sectionLabel="Auto-scroll AI Output"
+								title="Auto-scroll AI output"
+								description="Automatically scroll to the bottom when new AI output arrives. When disabled, a floating button appears for new messages."
+								checked={autoScrollAiMode}
+								onChange={setAutoScrollAiMode}
 								theme={theme}
 							/>
 

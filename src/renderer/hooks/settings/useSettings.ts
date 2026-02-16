@@ -366,6 +366,10 @@ export interface UseSettingsReturn {
 	suppressWindowsWarning: boolean;
 	setSuppressWindowsWarning: (value: boolean) => void;
 
+	// Auto-scroll in AI mode
+	autoScrollAiMode: boolean;
+	setAutoScrollAiMode: (value: boolean) => void;
+
 	// Director's Notes settings
 	directorNotesSettings: DirectorNotesSettings;
 	setDirectorNotesSettings: (value: DirectorNotesSettings) => void;
@@ -532,6 +536,9 @@ export function useSettings(): UseSettingsReturn {
 
 	// Windows warning suppression
 	const [suppressWindowsWarning, setSuppressWindowsWarningState] = useState(false); // Default: show warning
+
+	// Auto-scroll in AI mode (default: off to preserve existing behavior)
+	const [autoScrollAiMode, setAutoScrollAiModeState] = useState(false);
 
 	// Director's Notes settings
 	const [directorNotesSettings, setDirectorNotesSettingsState] = useState<DirectorNotesSettings>(
@@ -1367,6 +1374,12 @@ export function useSettings(): UseSettingsReturn {
 		window.maestro.settings.set('suppressWindowsWarning', value);
 	}, []);
 
+	// Auto-scroll in AI mode toggle
+	const setAutoScrollAiMode = useCallback((value: boolean) => {
+		setAutoScrollAiModeState(value);
+		window.maestro.settings.set('autoScrollAiMode', value);
+	}, []);
+
 	// Director's Notes settings setter
 	const setDirectorNotesSettings = useCallback((value: DirectorNotesSettings) => {
 		setDirectorNotesSettingsState(value);
@@ -1449,6 +1462,7 @@ export function useSettings(): UseSettingsReturn {
 			const savedAutomaticTabNamingEnabled = allSettings['automaticTabNamingEnabled'];
 			const savedFileTabAutoRefreshEnabled = allSettings['fileTabAutoRefreshEnabled'];
 			const savedSuppressWindowsWarning = allSettings['suppressWindowsWarning'];
+			const savedAutoScrollAiMode = allSettings['autoScrollAiMode'];
 			const savedDirectorNotesSettings = allSettings['directorNotesSettings'];
 
 			// Conductor Profile (About Me)
@@ -1844,6 +1858,11 @@ export function useSettings(): UseSettingsReturn {
 				setSuppressWindowsWarningState(savedSuppressWindowsWarning as boolean);
 			}
 
+			// Auto-scroll in AI mode
+			if (savedAutoScrollAiMode !== undefined) {
+				setAutoScrollAiModeState(savedAutoScrollAiMode as boolean);
+			}
+
 			// Director's Notes settings
 			if (savedDirectorNotesSettings !== undefined) {
 				setDirectorNotesSettingsState({
@@ -2037,6 +2056,8 @@ export function useSettings(): UseSettingsReturn {
 			setFileTabAutoRefreshEnabled,
 			suppressWindowsWarning,
 			setSuppressWindowsWarning,
+			autoScrollAiMode,
+			setAutoScrollAiMode,
 			directorNotesSettings,
 			setDirectorNotesSettings,
 		}),
@@ -2189,6 +2210,8 @@ export function useSettings(): UseSettingsReturn {
 			setFileTabAutoRefreshEnabled,
 			suppressWindowsWarning,
 			setSuppressWindowsWarning,
+			autoScrollAiMode,
+			setAutoScrollAiMode,
 			directorNotesSettings,
 			setDirectorNotesSettings,
 		]

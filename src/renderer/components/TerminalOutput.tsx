@@ -6,6 +6,8 @@ import {
 	Copy,
 	Check,
 	ArrowDown,
+	ArrowDownToLine,
+	ScrollText,
 	Eye,
 	FileText,
 	RotateCcw,
@@ -962,6 +964,8 @@ interface TerminalOutputProps {
 	onFileClick?: (path: string) => void; // Callback when a file link is clicked
 	onShowErrorDetails?: () => void; // Callback to show the error modal (for error log entries)
 	onFileSaved?: () => void; // Callback when markdown content is saved to file (e.g., to refresh file list)
+	autoScrollAiMode?: boolean; // Whether to auto-scroll in AI mode (like terminal mode)
+	setAutoScrollAiMode?: (value: boolean) => void; // Toggle auto-scroll in AI mode
 	onOpenInTab?: (file: { path: string; name: string; content: string; sshRemoteId?: string }) => void; // Callback to open saved file in a tab
 }
 
@@ -999,6 +1003,8 @@ export const TerminalOutput = memo(
 			onFileClick,
 			onShowErrorDetails,
 			onFileSaved,
+			autoScrollAiMode,
+			setAutoScrollAiMode,
 			onOpenInTab,
 		} = props;
 
@@ -1055,6 +1061,10 @@ export const TerminalOutput = memo(
 		const lastLogCountRef = useRef(0);
 		// Track previous isAtBottom to detect changes for callback
 		const prevIsAtBottomRef = useRef(true);
+		// Track whether auto-scroll is paused because user scrolled up (state so button re-renders)
+		const [autoScrollPaused, setAutoScrollPaused] = useState(false);
+		// Guard to distinguish programmatic scrollTo from user scrolls
+		const programmaticScrollRef = useRef(false);
 
 		// Track read state per tab - stores the log count when user scrolled to bottom
 		const tabReadStateRef = useRef<Map<string, number>>(new Map());
@@ -1308,10 +1318,15 @@ export const TerminalOutput = memo(
 			if (atBottom) {
 				setHasNewMessages(false);
 				setNewMessageCount(0);
+				// Resume auto-scroll when user scrolls back to bottom
+				setAutoScrollPaused(false);
 				// Save read state for current tab
 				if (activeTabId) {
 					tabReadStateRef.current.set(activeTabId, filteredLogs.length);
 				}
+			} else if (autoScrollAiMode) {
+				// Pause auto-scroll when user scrolls away from bottom
+				setAutoScrollPaused(true);
 			}
 
 			// Throttled scroll position save (200ms)
@@ -1324,7 +1339,7 @@ export const TerminalOutput = memo(
 					scrollSaveTimerRef.current = null;
 				}, 200);
 			}
-		}, [activeTabId, filteredLogs.length, onScrollPositionChange, onAtBottomChange]);
+		}, [activeTabId, filteredLogs.length, onScrollPositionChange, onAtBottomChange, autoScrollAiMode]);
 
 		// PERF: Throttle at 16ms (60fps) instead of 4ms to reduce state updates during scroll
 		const handleScroll = useThrottledCallback(handleScrollInner, 16);
@@ -1395,21 +1410,34 @@ export const TerminalOutput = memo(
 			lastLogCountRef.current = currentCount;
 		}, [filteredLogs.length, isAtBottom, activeTabId]);
 
-		// Auto-scroll to bottom in terminal mode when new output arrives
-		// Terminal mode should always auto-scroll since users expect to see command output immediately
+		// Reset auto-scroll pause when user explicitly re-enables auto-scroll (button or shortcut)
 		useEffect(() => {
-			if (session.inputMode === 'terminal' && scrollContainerRef.current) {
+			if (autoScrollAiMode) {
+				setAutoScrollPaused(false);
+			}
+		}, [autoScrollAiMode]);
+
+		// Auto-scroll to bottom when new output arrives
+		// Terminal mode always auto-scrolls; AI mode auto-scrolls when autoScrollAiMode is enabled
+		// Auto-scroll pauses when user scrolls up, resumes when they scroll back to bottom
+		useEffect(() => {
+			const shouldAutoScroll =
+				session.inputMode === 'terminal' ||
+				(session.inputMode === 'ai' && autoScrollAiMode && !autoScrollPaused);
+			if (shouldAutoScroll && scrollContainerRef.current) {
 				// Use requestAnimationFrame to ensure DOM has updated with new content
 				requestAnimationFrame(() => {
 					if (scrollContainerRef.current) {
 						scrollContainerRef.current.scrollTo({
 							top: scrollContainerRef.current.scrollHeight,
-							behavior: 'smooth',
+							// Use 'auto' (instant) for continuous auto-scroll to prevent jitter
+							// when messages arrive rapidly during streaming
+							behavior: 'auto',
 						});
 					}
 				});
 			}
-		}, [session.inputMode, session.shellLogs.length]);
+		}, [session.inputMode, session.shellLogs.length, filteredLogs.length, autoScrollAiMode, autoScrollPaused]);
 
 		// Restore scroll position when component mounts or initialScrollTop changes
 		// Uses requestAnimationFrame to ensure DOM is ready
@@ -1664,7 +1692,7 @@ export const TerminalOutput = memo(
 					<div ref={logsEndRef} />
 				</div>
 
-				{/* New Message Indicator - floating arrow button (AI mode only, terminal auto-scrolls) */}
+				{/* New Message Indicator - floating arrow button (AI mode only) */}
 				{hasNewMessages && !isAtBottom && session.inputMode === 'ai' && (
 					<button
 						onClick={scrollToBottom}
@@ -1684,6 +1712,33 @@ export const TerminalOutput = memo(
 						)}
 					</button>
 				)}
+
+				{/* Inline auto-scroll toggle - floating button (AI mode only) */}
+				{/* Shows active state only when auto-scroll is on AND not paused by user scrolling up */}
+				{session.inputMode === 'ai' && setAutoScrollAiMode && (() => {
+					const isActive = autoScrollAiMode && !autoScrollPaused;
+					return (
+						<button
+							onClick={() => {
+								if (autoScrollPaused) {
+									// Resume: clear pause and scroll to bottom
+									setAutoScrollPaused(false);
+								} else {
+									setAutoScrollAiMode(!autoScrollAiMode);
+								}
+							}}
+							className="absolute bottom-4 left-4 p-2 rounded-full shadow-lg transition-all hover:scale-105 z-20"
+							style={{
+								backgroundColor: isActive ? theme.colors.accent : theme.colors.bgSidebar,
+								color: isActive ? theme.colors.accentForeground : theme.colors.textDim,
+								border: `1px solid ${isActive ? 'transparent' : theme.colors.border}`,
+							}}
+							title={isActive ? 'Auto-scroll ON (click to disable)' : autoScrollPaused ? 'Auto-scroll paused (click to resume)' : 'Auto-scroll OFF (click to enable)'}
+						>
+							{isActive ? <ArrowDownToLine className="w-4 h-4" /> : <ScrollText className="w-4 h-4" />}
+						</button>
+					);
+				})()}
 
 				{/* Copied to Clipboard Notification */}
 				{showCopiedNotification && (
