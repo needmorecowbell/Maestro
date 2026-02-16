@@ -95,7 +95,10 @@ import { ChildProcessSpawner } from '../../../../main/process-manager/spawners/C
 import type { ManagedProcess, ProcessConfig } from '../../../../main/process-manager/types';
 import { getAgentCapabilities } from '../../../../main/agents';
 import { buildStreamJsonMessage } from '../../../../main/process-manager/utils/streamJsonBuilder';
-import { saveImageToTempFile, buildImagePromptPrefix } from '../../../../main/process-manager/utils/imageUtils';
+import {
+	saveImageToTempFile,
+	buildImagePromptPrefix,
+} from '../../../../main/process-manager/utils/imageUtils';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 

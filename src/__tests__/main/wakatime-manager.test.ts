@@ -237,8 +237,7 @@ describe('WakaTimeManager', () => {
 
 		it('should guard against concurrent installations', async () => {
 			// detectCli fails
-			vi.mocked(execFileNoThrow)
-				.mockResolvedValue({ exitCode: 1, stdout: '', stderr: '' });
+			vi.mocked(execFileNoThrow).mockResolvedValue({ exitCode: 1, stdout: '', stderr: '' });
 			vi.mocked(fs.existsSync).mockReturnValue(false);
 
 			// Mock download to fail (but slowly, to test concurrency)
@@ -312,9 +311,7 @@ describe('WakaTimeManager', () => {
 			vi.mocked(fs.existsSync).mockImplementation((p: any) => {
 				return String(p).endsWith('.wakatime.cfg');
 			});
-			vi.mocked(fs.readFileSync).mockReturnValue(
-				'[settings]\napi_key = cfg-api-key-456\n'
-			);
+			vi.mocked(fs.readFileSync).mockReturnValue('[settings]\napi_key = cfg-api-key-456\n');
 
 			// CLI detection + heartbeat
 			vi.mocked(execFileNoThrow)
@@ -324,12 +321,18 @@ describe('WakaTimeManager', () => {
 			await manager.sendHeartbeat('session-1', 'My Project');
 
 			expect(execFileNoThrow).toHaveBeenCalledWith('wakatime-cli', [
-				'--key', 'cfg-api-key-456',
-				'--entity', 'Maestro',
-				'--entity-type', 'app',
-				'--project', 'My Project',
-				'--plugin', 'maestro/1.0.0 maestro-wakatime/1.0.0',
-				'--category', 'ai coding',
+				'--key',
+				'cfg-api-key-456',
+				'--entity',
+				'Maestro',
+				'--entity-type',
+				'app',
+				'--project',
+				'My Project',
+				'--plugin',
+				'maestro/1.0.0 maestro-wakatime/1.0.0',
+				'--category',
+				'ai coding',
 			]);
 		});
 
@@ -350,9 +353,10 @@ describe('WakaTimeManager', () => {
 
 			// Should use the settings key, not read from cfg
 			expect(fs.readFileSync).not.toHaveBeenCalled();
-			expect(execFileNoThrow).toHaveBeenCalledWith('wakatime-cli', expect.arrayContaining([
-				'--key', 'settings-key-789',
-			]));
+			expect(execFileNoThrow).toHaveBeenCalledWith(
+				'wakatime-cli',
+				expect.arrayContaining(['--key', 'settings-key-789'])
+			);
 		});
 
 		it('should handle malformed ~/.wakatime.cfg gracefully', async () => {
@@ -435,12 +439,18 @@ describe('WakaTimeManager', () => {
 			await manager.sendHeartbeat('session-1', 'My Project');
 
 			expect(execFileNoThrow).toHaveBeenCalledWith('wakatime-cli', [
-				'--key', 'test-api-key-123',
-				'--entity', 'Maestro',
-				'--entity-type', 'app',
-				'--project', 'My Project',
-				'--plugin', 'maestro/1.0.0 maestro-wakatime/1.0.0',
-				'--category', 'ai coding',
+				'--key',
+				'test-api-key-123',
+				'--entity',
+				'Maestro',
+				'--entity-type',
+				'app',
+				'--project',
+				'My Project',
+				'--plugin',
+				'maestro/1.0.0 maestro-wakatime/1.0.0',
+				'--category',
+				'ai coding',
 			]);
 			expect(logger.debug).toHaveBeenCalledWith(
 				expect.stringContaining('Heartbeat sent for session session-1'),
@@ -565,7 +575,7 @@ describe('WakaTimeManager', () => {
 			await manager.ensureCliInstalled();
 
 			// Allow any pending microtasks
-			await new Promise(resolve => setTimeout(resolve, 10));
+			await new Promise((resolve) => setTimeout(resolve, 10));
 
 			expect(https.get).not.toHaveBeenCalled();
 		});
@@ -596,8 +606,11 @@ describe('WakaTimeManager', () => {
 
 		it('should handle GitHub API failure gracefully', async () => {
 			// CLI detected on PATH
-			vi.mocked(execFileNoThrow)
-				.mockResolvedValueOnce({ exitCode: 0, stdout: 'wakatime-cli 1.73.1\n', stderr: '' });
+			vi.mocked(execFileNoThrow).mockResolvedValueOnce({
+				exitCode: 0,
+				stdout: 'wakatime-cli 1.73.1\n',
+				stderr: '',
+			});
 
 			mockGithubApiError();
 
@@ -615,8 +628,11 @@ describe('WakaTimeManager', () => {
 
 		it('should handle missing tag_name in GitHub response gracefully', async () => {
 			// CLI detected on PATH
-			vi.mocked(execFileNoThrow)
-				.mockResolvedValueOnce({ exitCode: 0, stdout: 'wakatime-cli 1.73.1\n', stderr: '' });
+			vi.mocked(execFileNoThrow).mockResolvedValueOnce({
+				exitCode: 0,
+				stdout: 'wakatime-cli 1.73.1\n',
+				stderr: '',
+			});
 
 			// GitHub returns an unexpected format (no tag_name)
 			mockGithubApiResponse({ name: 'Latest Release' });

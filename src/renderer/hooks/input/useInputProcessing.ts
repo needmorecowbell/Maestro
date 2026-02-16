@@ -736,18 +736,28 @@ export function useInputProcessing(deps: UseInputProcessingDeps): UseInputProces
 									if (s.id !== activeSessionId) return s;
 									const tab = s.aiTabs.find((t) => t.id === activeTabForNaming.id);
 									if (!tab || tab.name !== null) {
-										window.maestro.logger.log('info', 'Auto tab naming skipped (tab already named)', 'TabNaming', {
-											tabId: activeTabForNaming.id,
-											generatedName,
-											existingName: tab?.name,
-										});
+										window.maestro.logger.log(
+											'info',
+											'Auto tab naming skipped (tab already named)',
+											'TabNaming',
+											{
+												tabId: activeTabForNaming.id,
+												generatedName,
+												existingName: tab?.name,
+											}
+										);
 										return s;
 									}
-									window.maestro.logger.log('info', `Auto tab named: "${generatedName}"`, 'TabNaming', {
-										tabId: activeTabForNaming.id,
-										sessionId: activeSessionId,
-										generatedName,
-									});
+									window.maestro.logger.log(
+										'info',
+										`Auto tab named: "${generatedName}"`,
+										'TabNaming',
+										{
+											tabId: activeTabForNaming.id,
+											sessionId: activeSessionId,
+											generatedName,
+										}
+									);
 									return {
 										...s,
 										aiTabs: s.aiTabs.map((t) =>
@@ -939,7 +949,8 @@ export function useInputProcessing(deps: UseInputProcessingDeps): UseInputProces
 							// Get history file path for task recall
 							// Skip for SSH sessions — the local path is unreachable from the remote host
 							let historyFilePath: string | undefined;
-							const isSSH = freshSession.sshRemoteId || freshSession.sessionSshRemoteConfig?.enabled;
+							const isSSH =
+								freshSession.sshRemoteId || freshSession.sessionSshRemoteConfig?.enabled;
 							if (!isSSH) {
 								try {
 									historyFilePath =

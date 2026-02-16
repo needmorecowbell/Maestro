@@ -393,9 +393,10 @@ export function registerProcessHandlers(deps: ProcessHandlerDependencies): void 
 
 						// Determine if this is a resume with prompt-embed images
 						// agentSessionId presence indicates resume; imageResumeMode tells us to embed paths in prompt
-						const isResumeWithImages = hasImages
-							&& agent?.capabilities?.imageResumeMode === 'prompt-embed'
-							&& config.agentSessionId;
+						const isResumeWithImages =
+							hasImages &&
+							agent?.capabilities?.imageResumeMode === 'prompt-embed' &&
+							config.agentSessionId;
 
 						const sshCommand = await buildSshCommandWithStdin(sshResult.config, {
 							command: remoteCommand,

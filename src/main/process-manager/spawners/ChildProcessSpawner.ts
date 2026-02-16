@@ -117,8 +117,8 @@ export class ChildProcessSpawner {
 				}
 			}
 
-			const isResumeWithPromptEmbed = capabilities.imageResumeMode === 'prompt-embed'
-				&& args.some(a => a === 'resume');
+			const isResumeWithPromptEmbed =
+				capabilities.imageResumeMode === 'prompt-embed' && args.some((a) => a === 'resume');
 
 			if (isResumeWithPromptEmbed) {
 				// Resume mode: embed file paths in prompt text, don't use -i flag
@@ -134,12 +134,16 @@ export class ChildProcessSpawner {
 					}
 					promptAddedToArgs = true;
 				}
-				logger.debug('[ProcessManager] Resume mode: embedded image paths in prompt', 'ProcessManager', {
-					sessionId,
-					imageCount: images.length,
-					tempFiles: tempImageFiles,
-					promptViaStdin,
-				});
+				logger.debug(
+					'[ProcessManager] Resume mode: embedded image paths in prompt',
+					'ProcessManager',
+					{
+						sessionId,
+						imageCount: images.length,
+						tempFiles: tempImageFiles,
+						promptViaStdin,
+					}
+				);
 			} else {
 				// Initial spawn: use -i flag as before
 				for (const tempPath of tempImageFiles) {

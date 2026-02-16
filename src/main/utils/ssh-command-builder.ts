@@ -275,12 +275,17 @@ export async function buildSshCommandWithStdin(
 				remoteImagePaths.push(remoteTempPath);
 			} else {
 				// Normal mode: add -i (or equivalent) CLI args
-				imageArgParts.push(...remoteOptions.imageArgs(remoteTempPath).map((arg) => shellEscape(arg)));
+				imageArgParts.push(
+					...remoteOptions.imageArgs(remoteTempPath).map((arg) => shellEscape(arg))
+				);
 			}
 		}
 		logger.info('SSH: embedded remote image decode commands', '[ssh-command-builder]', {
 			imageCount: remoteOptions.images.length,
-			decodedCount: remoteOptions.imageResumeMode === 'prompt-embed' ? remoteImagePaths.length : imageArgParts.length / 2,
+			decodedCount:
+				remoteOptions.imageResumeMode === 'prompt-embed'
+					? remoteImagePaths.length
+					: imageArgParts.length / 2,
 			imageResumeMode: remoteOptions.imageResumeMode || 'default',
 		});
 	}
@@ -315,7 +320,7 @@ export async function buildSshCommandWithStdin(
 	// a cleaner process tree. When stdinInput is provided, the prompt will be appended
 	// after the script and passed through to the command via stdin inheritance.
 	if (allRemoteTempPaths.length > 0) {
-		const rmPaths = allRemoteTempPaths.map(p => shellEscape(p)).join(' ');
+		const rmPaths = allRemoteTempPaths.map((p) => shellEscape(p)).join(' ');
 		scriptLines.push(`${cmdParts.join(' ')}; rm -f ${rmPaths}`);
 	} else {
 		scriptLines.push(`exec ${cmdParts.join(' ')}`);

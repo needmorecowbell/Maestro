@@ -28,10 +28,12 @@ vi.mock('../../../../main/utils/logger', () => ({
 import { registerWakatimeHandlers } from '../../../../main/ipc/handlers/wakatime';
 
 /** Create a mock WakaTimeManager with configurable behavior */
-function createMockWakaTimeManager(overrides: {
-	ensureCliInstalled?: () => Promise<boolean>;
-	getCliPath?: () => string | null;
-} = {}) {
+function createMockWakaTimeManager(
+	overrides: {
+		ensureCliInstalled?: () => Promise<boolean>;
+		getCliPath?: () => string | null;
+	} = {}
+) {
 	return {
 		ensureCliInstalled: overrides.ensureCliInstalled ?? vi.fn().mockResolvedValue(true),
 		getCliPath: overrides.getCliPath ?? vi.fn().mockReturnValue('/usr/local/bin/wakatime-cli'),
@@ -74,7 +76,9 @@ describe('WakaTime IPC Handlers', () => {
 			expect(result).toEqual({ available: true, version: 'wakatime-cli 1.73.0' });
 			expect(mockManager.ensureCliInstalled).toHaveBeenCalled();
 			expect(mockManager.getCliPath).toHaveBeenCalled();
-			expect(mockExecFileNoThrow).toHaveBeenCalledWith('/usr/local/bin/wakatime-cli', ['--version']);
+			expect(mockExecFileNoThrow).toHaveBeenCalledWith('/usr/local/bin/wakatime-cli', [
+				'--version',
+			]);
 		});
 
 		it('should return available: false when ensureCliInstalled fails', async () => {
@@ -159,10 +163,11 @@ describe('WakaTime IPC Handlers', () => {
 
 			expect(result).toEqual({ valid: true });
 			expect(mockManager.ensureCliInstalled).toHaveBeenCalled();
-			expect(mockExecFileNoThrow).toHaveBeenCalledWith(
-				'/usr/local/bin/wakatime-cli',
-				['--key', 'waka_test_key_123', '--today']
-			);
+			expect(mockExecFileNoThrow).toHaveBeenCalledWith('/usr/local/bin/wakatime-cli', [
+				'--key',
+				'waka_test_key_123',
+				'--today',
+			]);
 		});
 
 		it('should return valid: false when CLI rejects the key', async () => {
@@ -225,10 +230,11 @@ describe('WakaTime IPC Handlers', () => {
 			const result = await handler({}, 'waka_test_key_123');
 
 			expect(result).toEqual({ valid: true });
-			expect(mockExecFileNoThrow).toHaveBeenCalledWith(
-				cliPath,
-				['--key', 'waka_test_key_123', '--today']
-			);
+			expect(mockExecFileNoThrow).toHaveBeenCalledWith(cliPath, [
+				'--key',
+				'waka_test_key_123',
+				'--today',
+			]);
 		});
 	});
 });

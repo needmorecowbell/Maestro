@@ -27,20 +27,28 @@ const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // Check for CLI updates o
 /** Map Node.js platform to WakaTime release naming */
 function getWakaTimePlatform(): string | null {
 	switch (process.platform) {
-		case 'darwin': return 'darwin';
-		case 'win32': return 'windows';
-		case 'linux': return 'linux';
-		default: return null;
+		case 'darwin':
+			return 'darwin';
+		case 'win32':
+			return 'windows';
+		case 'linux':
+			return 'linux';
+		default:
+			return null;
 	}
 }
 
 /** Map Node.js arch to WakaTime release naming */
 function getWakaTimeArch(): string | null {
 	switch (process.arch) {
-		case 'arm64': return 'arm64';
-		case 'x64': return 'amd64';
-		case 'ia32': return '386';
-		default: return null;
+		case 'arm64':
+			return 'arm64';
+		case 'x64':
+			return 'amd64';
+		case 'ia32':
+			return '386';
+		default:
+			return null;
 	}
 }
 
@@ -51,31 +59,38 @@ function downloadFile(url: string, destPath: string, maxRedirects = 5): Promise<
 			reject(new Error('Too many redirects'));
 			return;
 		}
-		https.get(url, (response) => {
-			// Follow redirects (GitHub releases redirect to S3)
-			if (response.statusCode && response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
-				response.resume(); // consume response to free up memory
-				downloadFile(response.headers.location, destPath, maxRedirects - 1).then(resolve, reject);
-				return;
-			}
+		https
+			.get(url, (response) => {
+				// Follow redirects (GitHub releases redirect to S3)
+				if (
+					response.statusCode &&
+					response.statusCode >= 300 &&
+					response.statusCode < 400 &&
+					response.headers.location
+				) {
+					response.resume(); // consume response to free up memory
+					downloadFile(response.headers.location, destPath, maxRedirects - 1).then(resolve, reject);
+					return;
+				}
 
-			if (response.statusCode !== 200) {
-				response.resume();
-				reject(new Error(`Download failed with status ${response.statusCode}`));
-				return;
-			}
+				if (response.statusCode !== 200) {
+					response.resume();
+					reject(new Error(`Download failed with status ${response.statusCode}`));
+					return;
+				}
 
-			const fileStream = fs.createWriteStream(destPath);
-			response.pipe(fileStream);
-			fileStream.on('finish', () => {
-				fileStream.close();
-				resolve();
-			});
-			fileStream.on('error', (err) => {
-				fs.unlink(destPath, () => {}); // clean up partial file
-				reject(err);
-			});
-		}).on('error', reject);
+				const fileStream = fs.createWriteStream(destPath);
+				response.pipe(fileStream);
+				fileStream.on('finish', () => {
+					fileStream.close();
+					resolve();
+				});
+				fileStream.on('error', (err) => {
+					fs.unlink(destPath, () => {}); // clean up partial file
+					reject(err);
+				});
+			})
+			.on('error', reject);
 	});
 }
 
@@ -92,24 +107,36 @@ function fetchJson(url: string, maxRedirects = 5): Promise<unknown> {
 			path: parsedUrl.pathname + parsedUrl.search,
 			headers: { 'User-Agent': 'maestro-wakatime' },
 		};
-		https.get(options, (response) => {
-			if (response.statusCode && response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
-				response.resume();
-				fetchJson(response.headers.location, maxRedirects - 1).then(resolve, reject);
-				return;
-			}
-			if (response.statusCode !== 200) {
-				response.resume();
-				reject(new Error(`HTTP ${response.statusCode}`));
-				return;
-			}
-			let data = '';
-			response.on('data', (chunk: Buffer) => { data += chunk.toString(); });
-			response.on('end', () => {
-				try { resolve(JSON.parse(data)); }
-				catch (err) { reject(err); }
-			});
-		}).on('error', reject);
+		https
+			.get(options, (response) => {
+				if (
+					response.statusCode &&
+					response.statusCode >= 300 &&
+					response.statusCode < 400 &&
+					response.headers.location
+				) {
+					response.resume();
+					fetchJson(response.headers.location, maxRedirects - 1).then(resolve, reject);
+					return;
+				}
+				if (response.statusCode !== 200) {
+					response.resume();
+					reject(new Error(`HTTP ${response.statusCode}`));
+					return;
+				}
+				let data = '';
+				response.on('data', (chunk: Buffer) => {
+					data += chunk.toString();
+				});
+				response.on('end', () => {
+					try {
+						resolve(JSON.parse(data));
+					} catch (err) {
+						reject(err);
+					}
+				});
+			})
+			.on('error', reject);
 	});
 }
 
@@ -199,7 +226,10 @@ export class WakaTimeManager {
 		const plat = getWakaTimePlatform();
 		const arch = getWakaTimeArch();
 		if (!plat || !arch) {
-			logger.warn(`Unsupported platform/arch for WakaTime CLI auto-install: ${process.platform}/${process.arch}`, LOG_CONTEXT);
+			logger.warn(
+				`Unsupported platform/arch for WakaTime CLI auto-install: ${process.platform}/${process.arch}`,
+				LOG_CONTEXT
+			);
 			return false;
 		}
 
@@ -222,10 +252,10 @@ export class WakaTimeManager {
 			// Extract
 			if (process.platform === 'win32') {
 				// Use PowerShell to extract on Windows
-				const extractResult = await execFileNoThrow(
-					'powershell',
-					['-Command', `Expand-Archive -Force -Path '${zipPath}' -DestinationPath '${installDir}'`]
-				);
+				const extractResult = await execFileNoThrow('powershell', [
+					'-Command',
+					`Expand-Archive -Force -Path '${zipPath}' -DestinationPath '${installDir}'`,
+				]);
 				if (extractResult.exitCode !== 0) {
 					logger.warn(`Failed to extract WakaTime CLI: ${extractResult.stderr}`, LOG_CONTEXT);
 					return false;
@@ -252,11 +282,18 @@ export class WakaTimeManager {
 
 			return true;
 		} catch (err) {
-			logger.warn(`Failed to auto-install WakaTime CLI: ${err instanceof Error ? err.message : String(err)}`, LOG_CONTEXT);
+			logger.warn(
+				`Failed to auto-install WakaTime CLI: ${err instanceof Error ? err.message : String(err)}`,
+				LOG_CONTEXT
+			);
 			return false;
 		} finally {
 			// Clean up zip file
-			try { fs.unlinkSync(zipPath); } catch { /* ignore */ }
+			try {
+				fs.unlinkSync(zipPath);
+			} catch {
+				/* ignore */
+			}
 		}
 	}
 
@@ -268,7 +305,9 @@ export class WakaTimeManager {
 	private async checkForUpdate(): Promise<void> {
 		try {
 			// Get the latest release tag from GitHub
-			const release = await fetchJson('https://api.github.com/repos/wakatime/wakatime-cli/releases/latest') as { tag_name?: string };
+			const release = (await fetchJson(
+				'https://api.github.com/repos/wakatime/wakatime-cli/releases/latest'
+			)) as { tag_name?: string };
 			const latestTag = release?.tag_name;
 			if (!latestTag) {
 				logger.debug('Could not determine latest WakaTime CLI version from GitHub', LOG_CONTEXT);
@@ -299,7 +338,10 @@ export class WakaTimeManager {
 			this.cliPath = null;
 			await this.doInstall();
 		} catch (err) {
-			logger.debug(`WakaTime CLI update check failed: ${err instanceof Error ? err.message : String(err)}`, LOG_CONTEXT);
+			logger.debug(
+				`WakaTime CLI update check failed: ${err instanceof Error ? err.message : String(err)}`,
+				LOG_CONTEXT
+			);
 		}
 	}
 
@@ -356,11 +398,13 @@ export class WakaTimeManager {
 				try {
 					const ext = file.slice(1); // e.g., '.csproj'
 					const entries = fs.readdirSync(cwd);
-					if (entries.some(e => e.endsWith(ext))) {
+					if (entries.some((e) => e.endsWith(ext))) {
 						this.languageCache.set(sessionId, language);
 						return language;
 					}
-				} catch { /* ignore */ }
+				} catch {
+					/* ignore */
+				}
 			} else {
 				if (fs.existsSync(path.join(cwd, file))) {
 					this.languageCache.set(sessionId, language);
@@ -405,7 +449,7 @@ export class WakaTimeManager {
 		if (now - lastBeat < HEARTBEAT_DEBOUNCE_MS) return;
 
 		// Ensure CLI is available (auto-installs if needed)
-		if (!await this.ensureCliInstalled()) {
+		if (!(await this.ensureCliInstalled())) {
 			logger.warn('WakaTime CLI not available — skipping heartbeat', LOG_CONTEXT);
 			return;
 		}
@@ -413,12 +457,18 @@ export class WakaTimeManager {
 		this.lastHeartbeatPerSession.set(sessionId, now);
 
 		const args = [
-			'--key', apiKey,
-			'--entity', 'Maestro',
-			'--entity-type', 'app',
-			'--project', projectName,
-			'--plugin', `maestro/${app.getVersion()} maestro-wakatime/${app.getVersion()}`,
-			'--category', 'ai coding',
+			'--key',
+			apiKey,
+			'--entity',
+			'Maestro',
+			'--entity-type',
+			'app',
+			'--project',
+			projectName,
+			'--plugin',
+			`maestro/${app.getVersion()} maestro-wakatime/${app.getVersion()}`,
+			'--category',
+			'ai coding',
 		];
 
 		// Detect project language from manifest files in cwd

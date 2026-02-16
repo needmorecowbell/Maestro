@@ -161,37 +161,32 @@ export const HistoryPanel = React.memo(
 		};
 
 		// Filter entries based on active filters, search text, and lookback period
-		const allFilteredEntries = useMemo(
-			() => {
-				// Compute lookback cutoff once (null = all time, no cutoff)
-				const cutoffTime = graphLookbackHours !== null
-					? Date.now() - graphLookbackHours * 60 * 60 * 1000
-					: 0;
+		const allFilteredEntries = useMemo(() => {
+			// Compute lookback cutoff once (null = all time, no cutoff)
+			const cutoffTime =
+				graphLookbackHours !== null ? Date.now() - graphLookbackHours * 60 * 60 * 1000 : 0;
 
-				return historyEntries.filter((entry) => {
-					if (!entry || !entry.type) return false;
-					if (!activeFilters.has(entry.type)) return false;
+			return historyEntries.filter((entry) => {
+				if (!entry || !entry.type) return false;
+				if (!activeFilters.has(entry.type)) return false;
 
-					// Apply lookback time filter
-					if (cutoffTime > 0 && entry.timestamp < cutoffTime) return false;
+				// Apply lookback time filter
+				if (cutoffTime > 0 && entry.timestamp < cutoffTime) return false;
 
-					// Apply text search filter
-					if (searchFilter) {
-						const searchLower = searchFilter.toLowerCase();
-						const summaryMatch = entry.summary?.toLowerCase().includes(searchLower);
-						const responseMatch = entry.fullResponse?.toLowerCase().includes(searchLower);
-						// Search by session ID (full ID or short octet form)
-						const sessionIdMatch = entry.agentSessionId?.toLowerCase().includes(searchLower);
-						const sessionNameMatch = entry.sessionName?.toLowerCase().includes(searchLower);
-						if (!summaryMatch && !responseMatch && !sessionIdMatch && !sessionNameMatch)
-							return false;
-					}
+				// Apply text search filter
+				if (searchFilter) {
+					const searchLower = searchFilter.toLowerCase();
+					const summaryMatch = entry.summary?.toLowerCase().includes(searchLower);
+					const responseMatch = entry.fullResponse?.toLowerCase().includes(searchLower);
+					// Search by session ID (full ID or short octet form)
+					const sessionIdMatch = entry.agentSessionId?.toLowerCase().includes(searchLower);
+					const sessionNameMatch = entry.sessionName?.toLowerCase().includes(searchLower);
+					if (!summaryMatch && !responseMatch && !sessionIdMatch && !sessionNameMatch) return false;
+				}
 
-					return true;
-				});
-			},
-			[historyEntries, activeFilters, searchFilter, graphLookbackHours]
-		);
+				return true;
+			});
+		}, [historyEntries, activeFilters, searchFilter, graphLookbackHours]);
 
 		// Note: With virtualization, we no longer need to slice entries
 		// The virtualizer handles rendering only visible items efficiently

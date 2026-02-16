@@ -315,7 +315,7 @@ describe('ssh-command-builder', () => {
 			expect(remoteCommand).toContain("OPTION_VAR='\\''from-option'\\''");
 			expect(remoteCommand).toContain("SHARED_VAR='\\''option-value'\\''");
 			// Config value should not appear for SHARED_VAR
-			expect(remoteCommand).not.toContain("config-value");
+			expect(remoteCommand).not.toContain('config-value');
 		});
 
 		it('handles config without remoteEnv', async () => {
@@ -739,9 +739,7 @@ describe('ssh-command-builder', () => {
 			});
 
 			// The exec line should NOT have heredoc - just the command
-			const execLine = result.stdinScript
-				?.split('\n')
-				.find((line) => line.startsWith('exec '));
+			const execLine = result.stdinScript?.split('\n').find((line) => line.startsWith('exec '));
 			expect(execLine).toBe("exec opencode 'run' '--format' 'json'");
 
 			// The prompt should appear after the exec line (stdin passthrough)
@@ -757,17 +755,15 @@ describe('ssh-command-builder', () => {
 			const result = await buildSshCommandWithStdin(baseConfig, {
 				command: 'opencode',
 				args: ['run'],
-				stdinInput: "What's the $PATH? Use `echo` and \"quotes\"",
+				stdinInput: 'What\'s the $PATH? Use `echo` and "quotes"',
 			});
 
 			// The prompt should be verbatim - no escaping needed since it's stdin passthrough
 			expect(result.stdinScript).toBeDefined();
-			expect(result.stdinScript).toContain("What's the $PATH? Use `echo` and \"quotes\"");
+			expect(result.stdinScript).toContain('What\'s the $PATH? Use `echo` and "quotes"');
 
 			// Verify the prompt is AFTER the exec line (not in heredoc)
-			const execLine = result.stdinScript
-				?.split('\n')
-				.find((line) => line.startsWith('exec '));
+			const execLine = result.stdinScript?.split('\n').find((line) => line.startsWith('exec '));
 			expect(execLine).toBe("exec opencode 'run'");
 		});
 
@@ -805,9 +801,7 @@ describe('ssh-command-builder', () => {
 				prompt: "Say 'hello'",
 			});
 
-			const execLine = result.stdinScript
-				?.split('\n')
-				.find((line) => line.startsWith('exec '));
+			const execLine = result.stdinScript?.split('\n').find((line) => line.startsWith('exec '));
 			// The prompt is escaped with single quotes - "Say 'hello'" becomes "'Say '\\''hello'\\''"
 			expect(execLine).toContain("opencode 'run' 'Say '\\''hello'\\'''");
 		});
@@ -887,9 +881,7 @@ describe('ssh-command-builder', () => {
 			expect(result.stdinScript).toContain('MAESTRO_IMG_0_EOF');
 			// The command line should include the -i flag with the temp file path
 			// (no exec prefix when temp files exist, so cleanup can run after)
-			const cmdLine = result.stdinScript
-				?.split('\n')
-				.find((line) => line.startsWith('codex '));
+			const cmdLine = result.stdinScript?.split('\n').find((line) => line.startsWith('codex '));
 			expect(cmdLine).toContain("'-i'");
 			expect(cmdLine).toContain('/tmp/maestro-image-');
 			// Should have cleanup rm -f after the command
@@ -897,10 +889,7 @@ describe('ssh-command-builder', () => {
 		});
 
 		it('handles multiple images for file-based agents', async () => {
-			const images = [
-				'data:image/png;base64,AAAA',
-				'data:image/jpeg;base64,BBBB',
-			];
+			const images = ['data:image/png;base64,AAAA', 'data:image/jpeg;base64,BBBB'];
 			const result = await buildSshCommandWithStdin(baseConfig, {
 				command: 'opencode',
 				args: ['run'],
@@ -916,9 +905,7 @@ describe('ssh-command-builder', () => {
 			expect(result.stdinScript).toContain('.png');
 			expect(result.stdinScript).toContain('.jpeg');
 			// Command line should have both -f flags (no exec prefix when temp files exist)
-			const cmdLine = result.stdinScript
-				?.split('\n')
-				.find((line) => line.startsWith('opencode '));
+			const cmdLine = result.stdinScript?.split('\n').find((line) => line.startsWith('opencode '));
 			expect(cmdLine).toContain("'-f'");
 			// Count occurrences of -f
 			const fFlagCount = (cmdLine?.match(/'-f'/g) || []).length;
@@ -928,10 +915,7 @@ describe('ssh-command-builder', () => {
 		});
 
 		it('skips invalid image data URLs', async () => {
-			const images = [
-				'not-a-data-url',
-				'data:image/png;base64,ValidBase64==',
-			];
+			const images = ['not-a-data-url', 'data:image/png;base64,ValidBase64=='];
 			const result = await buildSshCommandWithStdin(baseConfig, {
 				command: 'codex',
 				args: ['exec'],
@@ -944,9 +928,7 @@ describe('ssh-command-builder', () => {
 			expect(result.stdinScript).toContain('ValidBase64==');
 			expect(result.stdinScript).not.toContain('not-a-data-url');
 			// Only one -i flag in command line (no exec prefix when temp files exist)
-			const cmdLine = result.stdinScript
-				?.split('\n')
-				.find((line) => line.startsWith('codex '));
+			const cmdLine = result.stdinScript?.split('\n').find((line) => line.startsWith('codex '));
 			const iFlagCount = (cmdLine?.match(/'-i'/g) || []).length;
 			expect(iFlagCount).toBe(1);
 		});
@@ -981,9 +963,7 @@ describe('ssh-command-builder', () => {
 			expect(result.stdinScript).toContain('iVBORw0KGgoAAAANSUhEUg==');
 			// The command line should NOT have -i flags (prompt-embed mode)
 			// No exec prefix because temp files exist and need cleanup
-			const cmdLine = result.stdinScript
-				?.split('\n')
-				.find((line) => line.startsWith('codex '));
+			const cmdLine = result.stdinScript?.split('\n').find((line) => line.startsWith('codex '));
 			expect(cmdLine).not.toContain("'-i'");
 			// Should have cleanup rm -f
 			expect(cmdLine).toContain('; rm -f');
@@ -998,10 +978,7 @@ describe('ssh-command-builder', () => {
 		});
 
 		it('embeds multiple image paths in stdinInput when imageResumeMode is prompt-embed', async () => {
-			const images = [
-				'data:image/png;base64,AAAA',
-				'data:image/jpeg;base64,BBBB',
-			];
+			const images = ['data:image/png;base64,AAAA', 'data:image/jpeg;base64,BBBB'];
 			const result = await buildSshCommandWithStdin(baseConfig, {
 				command: 'codex',
 				args: ['exec', 'resume'],
@@ -1015,9 +992,7 @@ describe('ssh-command-builder', () => {
 			expect(result.stdinScript).toContain('MAESTRO_IMG_0_EOF');
 			expect(result.stdinScript).toContain('MAESTRO_IMG_1_EOF');
 			// Command line should NOT have -i flags (no exec prefix when temp files exist)
-			const cmdLine = result.stdinScript
-				?.split('\n')
-				.find((line) => line.startsWith('codex '));
+			const cmdLine = result.stdinScript?.split('\n').find((line) => line.startsWith('codex '));
 			expect(cmdLine).not.toContain("'-i'");
 			// Should have cleanup rm -f
 			expect(cmdLine).toContain('; rm -f');
@@ -1054,9 +1029,7 @@ describe('ssh-command-builder', () => {
 				.findIndex((line) => line.startsWith('codex '));
 			expect(cmdLineIdx).toBeGreaterThan(-1);
 			// Should NOT have -i flags anywhere in the command portion
-			const cmdPortion = result.stdinScript?.substring(
-				result.stdinScript.indexOf('codex')
-			);
+			const cmdPortion = result.stdinScript?.substring(result.stdinScript.indexOf('codex'));
 			expect(cmdPortion).not.toContain("'-i'");
 			// Should have cleanup rm -f
 			expect(result.stdinScript).toContain('; rm -f');
@@ -1074,9 +1047,7 @@ describe('ssh-command-builder', () => {
 			});
 
 			// Should use -i flags (not prompt-embed), no exec prefix when temp files exist
-			const cmdLine = result.stdinScript
-				?.split('\n')
-				.find((line) => line.startsWith('codex '));
+			const cmdLine = result.stdinScript?.split('\n').find((line) => line.startsWith('codex '));
 			expect(cmdLine).toContain("'-i'");
 			// Should have cleanup rm -f
 			expect(cmdLine).toContain('; rm -f');
@@ -1116,9 +1087,7 @@ describe('ssh-command-builder', () => {
 				});
 
 				// Should use exec (no temp files to clean up)
-				const execLine = result.stdinScript
-					?.split('\n')
-					.find((line) => line.startsWith('exec '));
+				const execLine = result.stdinScript?.split('\n').find((line) => line.startsWith('exec '));
 				expect(execLine).toBeDefined();
 				expect(execLine).toContain('exec codex');
 				// Should NOT have rm -f
@@ -1134,18 +1103,13 @@ describe('ssh-command-builder', () => {
 					imageArgs: (path: string) => ['-i', path],
 				});
 
-				const execLine = result.stdinScript
-					?.split('\n')
-					.find((line) => line.startsWith('exec '));
+				const execLine = result.stdinScript?.split('\n').find((line) => line.startsWith('exec '));
 				expect(execLine).toBeDefined();
 				expect(execLine).not.toContain('rm -f');
 			});
 
 			it('includes all temp file paths in rm -f cleanup for multiple images', async () => {
-				const images = [
-					'data:image/png;base64,AAAA',
-					'data:image/jpeg;base64,BBBB',
-				];
+				const images = ['data:image/png;base64,AAAA', 'data:image/jpeg;base64,BBBB'];
 				const result = await buildSshCommandWithStdin(baseConfig, {
 					command: 'codex',
 					args: ['exec'],
@@ -1154,9 +1118,7 @@ describe('ssh-command-builder', () => {
 					imageArgs: (path: string) => ['-i', path],
 				});
 
-				const cmdLine = result.stdinScript
-					?.split('\n')
-					.find((line) => line.startsWith('codex '));
+				const cmdLine = result.stdinScript?.split('\n').find((line) => line.startsWith('codex '));
 				expect(cmdLine).toContain('; rm -f');
 				// Should contain paths for both images
 				const rmPart = cmdLine?.split('; rm -f ')[1] ?? '';
@@ -1175,9 +1137,7 @@ describe('ssh-command-builder', () => {
 					imageResumeMode: 'prompt-embed',
 				});
 
-				const cmdLine = result.stdinScript
-					?.split('\n')
-					.find((line) => line.startsWith('codex '));
+				const cmdLine = result.stdinScript?.split('\n').find((line) => line.startsWith('codex '));
 				expect(cmdLine).toContain('; rm -f');
 				expect(cmdLine).toContain('/tmp/maestro-image-');
 			});
@@ -1201,10 +1161,7 @@ describe('ssh-command-builder', () => {
 			});
 
 			it('returns multiple remoteTempImagePaths for multiple images', async () => {
-				const images = [
-					'data:image/png;base64,AAAA',
-					'data:image/jpeg;base64,BBBB',
-				];
+				const images = ['data:image/png;base64,AAAA', 'data:image/jpeg;base64,BBBB'];
 				const result = await buildSshCommandWithStdin(baseConfig, {
 					command: 'codex',
 					args: ['exec'],
@@ -1252,7 +1209,14 @@ describe('ssh-command-builder', () => {
 
 			const result = await buildSshCommandWithStdin(baseConfig, {
 				command: 'claude',
-				args: ['--print', '--verbose', '--output-format', 'stream-json', '--input-format', 'stream-json'],
+				args: [
+					'--print',
+					'--verbose',
+					'--output-format',
+					'stream-json',
+					'--input-format',
+					'stream-json',
+				],
 				stdinInput: streamJsonPrompt,
 			});
 
@@ -1260,9 +1224,7 @@ describe('ssh-command-builder', () => {
 			expect(result.stdinScript).toContain(streamJsonPrompt);
 
 			// Verify exec line doesn't have the prompt
-			const execLine = result.stdinScript
-				?.split('\n')
-				.find((line) => line.startsWith('exec '));
+			const execLine = result.stdinScript?.split('\n').find((line) => line.startsWith('exec '));
 			expect(execLine).not.toContain('{"type"');
 		});
 	});

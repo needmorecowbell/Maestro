@@ -42,7 +42,9 @@ export function setupWakaTimeListener(
 	// Cache enabled state so data/thinking-chunk listeners can bail out
 	// without hitting the store on every stdout chunk
 	let enabled = settingsStore.get('wakatimeEnabled', false);
-	settingsStore.onDidChange('wakatimeEnabled', (v) => { enabled = !!v; });
+	settingsStore.onDidChange('wakatimeEnabled', (v) => {
+		enabled = !!v;
+	});
 
 	// Send heartbeat on any AI output (covers interactive sessions)
 	// The 2-minute debounce in WakaTimeManager prevents flooding
@@ -61,7 +63,9 @@ export function setupWakaTimeListener(
 	// Also send heartbeat on query-complete for batch/auto-run processes
 	processManager.on('query-complete', (_sessionId: string, queryData: QueryCompleteData) => {
 		if (!enabled) return;
-		const projectName = queryData.projectPath ? path.basename(queryData.projectPath) : queryData.sessionId;
+		const projectName = queryData.projectPath
+			? path.basename(queryData.projectPath)
+			: queryData.sessionId;
 		void wakaTimeManager.sendHeartbeat(queryData.sessionId, projectName, queryData.projectPath);
 	});
 

@@ -72,7 +72,7 @@ describe('WakaTime Listener', () => {
 		expect(mockWakaTimeManager.sendHeartbeat).toHaveBeenCalledWith(
 			'session-abc',
 			'project',
-			'/home/user/project',
+			'/home/user/project'
 		);
 	});
 
@@ -95,7 +95,7 @@ describe('WakaTime Listener', () => {
 		expect(mockWakaTimeManager.sendHeartbeat).toHaveBeenCalledWith(
 			'session-thinking',
 			'project',
-			'/home/user/project',
+			'/home/user/project'
 		);
 	});
 
@@ -146,7 +146,7 @@ describe('WakaTime Listener', () => {
 		expect(mockWakaTimeManager.sendHeartbeat).toHaveBeenCalledWith(
 			'session-no-path',
 			'fallback',
-			'/home/user/fallback',
+			'/home/user/fallback'
 		);
 	});
 
@@ -169,7 +169,7 @@ describe('WakaTime Listener', () => {
 		expect(mockWakaTimeManager.sendHeartbeat).toHaveBeenCalledWith(
 			'session-abc',
 			'project',
-			'/home/user/project',
+			'/home/user/project'
 		);
 	});
 
@@ -190,7 +190,7 @@ describe('WakaTime Listener', () => {
 		expect(mockWakaTimeManager.sendHeartbeat).toHaveBeenCalledWith(
 			'session-fallback',
 			'session-fallback',
-			undefined,
+			undefined
 		);
 	});
 
@@ -270,7 +270,10 @@ describe('WakaTime Listener', () => {
 		setupWakaTimeListener(mockProcessManager, mockWakaTimeManager, mockSettingsStore);
 
 		// Verify onDidChange was registered
-		expect(mockSettingsStore.onDidChange).toHaveBeenCalledWith('wakatimeEnabled', expect.any(Function));
+		expect(mockSettingsStore.onDidChange).toHaveBeenCalledWith(
+			'wakatimeEnabled',
+			expect.any(Function)
+		);
 
 		// Simulate runtime toggle: disable WakaTime
 		const changeCallback = mockSettingsStore.onDidChange.mock.calls[0][1];
