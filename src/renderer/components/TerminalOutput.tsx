@@ -1063,8 +1063,6 @@ export const TerminalOutput = memo(
 		const prevIsAtBottomRef = useRef(true);
 		// Track whether auto-scroll is paused because user scrolled up (state so button re-renders)
 		const [autoScrollPaused, setAutoScrollPaused] = useState(false);
-		// Guard to distinguish programmatic scrollTo from user scrolls
-		const programmaticScrollRef = useRef(false);
 
 		// Track read state per tab - stores the log count when user scrolled to bottom
 		const tabReadStateRef = useRef<Map<string, number>>(new Map());
