@@ -11941,6 +11941,8 @@ You are taking over this conversation. Based on the context above, provide a bri
 					onOpenMarketplace={handleOpenMarketplace}
 					onOpenSymphony={() => setSymphonyModalOpen(true)}
 					onOpenDirectorNotes={() => setDirectorNotesOpen(true)}
+					autoScrollAiMode={autoScrollAiMode}
+					setAutoScrollAiMode={setAutoScrollAiMode}
 					tabSwitcherOpen={tabSwitcherOpen}
 					onCloseTabSwitcher={handleCloseTabSwitcher}
 					onTabSelect={handleUtilityTabSelect}
