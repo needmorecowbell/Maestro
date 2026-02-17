@@ -70,6 +70,20 @@ export class PtySpawner {
 			let ptyEnv: NodeJS.ProcessEnv;
 			if (isTerminal) {
 				ptyEnv = buildPtyTerminalEnv(shellEnvVars);
+
+				// Log environment variable application for terminal sessions
+				if (shellEnvVars && Object.keys(shellEnvVars).length > 0) {
+					const globalVarKeys = Object.keys(shellEnvVars);
+					logger.debug(
+						'[ProcessManager] Applying global environment variables to terminal session',
+						'ProcessManager',
+						{
+							sessionId,
+							globalVarCount: globalVarKeys.length,
+							globalVarKeys: globalVarKeys.slice(0, 10), // First 10 keys for visibility
+						}
+					);
+				}
 			} else {
 				// For AI agents in PTY mode: pass full env (they need NODE_PATH, etc.)
 				ptyEnv = process.env;

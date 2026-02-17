@@ -34,6 +34,7 @@ import {
 	Timer,
 	User,
 	Clapperboard,
+	HelpCircle,
 } from 'lucide-react';
 import { useSettings } from '../hooks';
 import type {
@@ -206,7 +207,7 @@ function EnvVarsEditor({ envVars, setEnvVars, theme }: EnvVarsEditorProps) {
 				</button>
 			</div>
 			<p className="text-xs opacity-50 mt-1">
-				Environment variables passed to every shell session.
+				Environment variables passed to all terminal sessions and AI agent processes.
 			</p>
 		</div>
 	);
@@ -1419,13 +1420,36 @@ export const SettingsModal = memo(function SettingsModal(props: SettingsModalPro
 											</p>
 										</div>
 
-										{/* Shell Environment Variables */}
-										<p className="text-xs opacity-50 mb-2">
-											Environment variables to apply to all terminal sessions and AI agents. Format:
-											KEY=VALUE (one per line). These variables will be available to all agent
-											sessions and override process defaults. Agent-specific settings can override
-											these values.
-										</p>
+										{/* Global Environment Variables */}
+										<div className="flex items-start gap-2 mb-2">
+											<div className="flex-1">
+												<p className="text-xs opacity-50">
+													<strong>Global Environment Variables</strong> apply to all terminal
+													sessions and AI agent processes. Format: KEY=VALUE (one per line).
+													Variables with special characters should be quoted. Agent-specific
+													settings can override these values. Typical use cases: API keys, proxy
+													settings, custom tool paths.
+												</p>
+											</div>
+											<div
+												className="group relative flex-shrink-0 mt-0.5"
+												title="Environment variables configured here are available to all terminal sessions, all AI agent processes (Claude, OpenCode, etc.), and any spawned child processes. Agent-specific settings can override these values."
+											>
+												<HelpCircle
+													className="w-4 h-4 cursor-help"
+													style={{ color: theme.colors.textDim }}
+												/>
+												<div className="absolute hidden group-hover:block bg-black/80 text-white text-xs rounded p-2 z-50 w-60 -right-2 top-5 whitespace-normal">
+													<p className="mb-1 font-semibold">Environment variables apply to:</p>
+													<ul className="list-disc list-inside space-y-0.5">
+														<li>All terminal sessions</li>
+														<li>All AI agent processes (Claude, OpenCode, etc.)</li>
+														<li>Any spawned child processes</li>
+													</ul>
+													<p className="mt-1">Agent-specific settings can override these values.</p>
+												</div>
+											</div>
+										</div>
 										<EnvVarsEditor
 											envVars={props.shellEnvVars}
 											setEnvVars={props.setShellEnvVars}
@@ -2166,8 +2190,9 @@ export const SettingsModal = memo(function SettingsModal(props: SettingsModalPro
 											Settings folder
 										</p>
 										<p className="text-xs opacity-60 mt-0.5">
-											Choose where Maestro stores settings, sessions, and groups. Use a synced
-											folder (iCloud Drive, Dropbox, OneDrive) to share across devices.
+											Choose where Maestro stores settings, sessions, and groups (including global
+											environment variables, agents, and configurations). Use a synced folder
+											(iCloud Drive, Dropbox, OneDrive) to share across devices.
 										</p>
 										<p className="text-xs opacity-50 mt-1 italic">
 											Note: Only run Maestro on one device at a time to avoid sync conflicts.
