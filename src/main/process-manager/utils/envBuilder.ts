@@ -74,10 +74,16 @@ const STRIPPED_ENV_VARS = [
 
 /**
  * Build environment for child process (non-PTY) spawning
+ *
+ * Environment precedence (highest to lowest):
+ * 1. Session-level custom env vars (sessionCustomEnvVars from spawn request)
+ * 2. Global shell env vars (from Settings → General → Shell Configuration)
+ * 3. Process environment (with Electron/IDE vars stripped)
  */
 export function buildChildProcessEnv(
 	customEnvVars?: Record<string, string>,
-	isResuming?: boolean
+	isResuming?: boolean,
+	globalShellEnvVars?: Record<string, string>
 ): NodeJS.ProcessEnv {
 	const env = { ...process.env };
 
@@ -95,9 +101,16 @@ export function buildChildProcessEnv(
 		env.MAESTRO_SESSION_RESUMED = '1';
 	}
 
-	// Apply custom environment variables
+	// Apply global shell environment variables (lower priority than session overrides)
+	const home = os.homedir();
+	if (globalShellEnvVars && Object.keys(globalShellEnvVars).length > 0) {
+		for (const [key, value] of Object.entries(globalShellEnvVars)) {
+			env[key] = value.startsWith('~/') ? path.join(home, value.slice(2)) : value;
+		}
+	}
+
+	// Apply session-level custom environment variables (highest priority - override global)
 	if (customEnvVars && Object.keys(customEnvVars).length > 0) {
-		const home = os.homedir();
 		for (const [key, value] of Object.entries(customEnvVars)) {
 			env[key] = value.startsWith('~/') ? path.join(home, value.slice(2)) : value;
 		}

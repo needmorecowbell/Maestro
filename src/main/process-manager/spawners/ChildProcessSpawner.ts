@@ -63,6 +63,7 @@ export class ChildProcessSpawner {
 			promptArgs,
 			contextWindow,
 			customEnvVars,
+			shellEnvVars,
 			noPromptSeparator,
 			sendPromptViaStdin,
 			sendPromptViaStdinRaw,
@@ -208,7 +209,7 @@ export class ChildProcessSpawner {
 		try {
 			// Build environment
 			const isResuming = finalArgs.includes('--resume') || finalArgs.includes('--session');
-			const env = buildChildProcessEnv(customEnvVars, isResuming);
+			const env = buildChildProcessEnv(customEnvVars, isResuming, shellEnvVars);
 
 			logger.debug('[ProcessManager] About to spawn child process', 'ProcessManager', {
 				command,

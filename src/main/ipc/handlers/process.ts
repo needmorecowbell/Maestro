@@ -207,6 +207,10 @@ export function registerProcessHandlers(deps: ProcessHandlerDependencies): void 
 				let shellArgsStr: string | undefined;
 				let shellEnvVars: Record<string, string> | undefined;
 
+				// Always load global shell env vars (applies to both terminals and agents)
+				// Global env vars are set via Settings → General → Shell Configuration
+				const globalShellEnvVars = settingsStore.get('shellEnvVars', {}) as Record<string, string>;
+
 				if (config.toolType === 'terminal') {
 					// Custom shell path overrides the detected/selected shell path
 					const customShellPath = settingsStore.get('customShellPath', '');
@@ -216,7 +220,7 @@ export function registerProcessHandlers(deps: ProcessHandlerDependencies): void 
 					}
 					// Load additional shell args and env vars
 					shellArgsStr = settingsStore.get('shellArgs', '');
-					shellEnvVars = settingsStore.get('shellEnvVars', {}) as Record<string, string>;
+					shellEnvVars = globalShellEnvVars;
 				}
 
 				// Extract session ID from args for logging (supports both --resume and --session flags)
@@ -472,7 +476,7 @@ export function registerProcessHandlers(deps: ProcessHandlerDependencies): void 
 					shell: shellToUse,
 					runInShell: useShell,
 					shellArgs: shellArgsStr, // Shell-specific CLI args (for terminal sessions)
-					shellEnvVars: shellEnvVars, // Shell-specific env vars (for terminal sessions)
+					shellEnvVars: globalShellEnvVars, // Global shell env vars (for both terminals and agents)
 					contextWindow, // Pass configured context window to process manager
 					// When using SSH, env vars are passed in the stdin script, not locally
 					customEnvVars: customEnvVarsToPass,
