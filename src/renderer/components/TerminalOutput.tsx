@@ -1727,8 +1727,14 @@ export const TerminalOutput = memo(
 					<button
 						onClick={() => {
 							if (autoScrollPaused) {
-								// Resume: clear pause and scroll to bottom
+								// Resume: clear pause and snap to bottom immediately
 								setAutoScrollPaused(false);
+								if (scrollContainerRef.current) {
+									scrollContainerRef.current.scrollTo({
+										top: scrollContainerRef.current.scrollHeight,
+										behavior: 'auto',
+									});
+								}
 							} else {
 								setAutoScrollAiMode(!autoScrollAiMode);
 							}
