@@ -317,8 +317,11 @@ export function useWorktreeHandlers(): WorktreeHandlersReturn {
 						);
 						if (existingByBranch) continue;
 
-						// Also check by path
-						const existingByPath = latestSessions.find((s) => s.cwd === subdir.path);
+						// Also check by path (normalize for comparison)
+						const normalizedSubdirPath = normalizePath(subdir.path);
+						const existingByPath = latestSessions.find(
+							(s) => normalizePath(s.cwd) === normalizedSubdirPath
+						);
 						if (existingByPath) continue;
 
 						const gitInfo = await fetchGitInfo(subdir.path, parentSshRemoteId);
@@ -819,8 +822,11 @@ export function useWorktreeHandlers(): WorktreeHandlersReturn {
 
 							// Skip if session already exists (check current sessions)
 							const currentSessions2 = useSessionStore.getState().sessions;
+							const normalizedSubdirPath2 = normalizePath(subdir.path);
 							const existingSession = currentSessions2.find(
-								(s) => s.cwd === subdir.path || s.projectRoot === subdir.path
+								(s) =>
+									normalizePath(s.cwd) === normalizedSubdirPath2 ||
+									normalizePath(s.projectRoot || '') === normalizedSubdirPath2
 							);
 							if (existingSession) {
 								continue;
