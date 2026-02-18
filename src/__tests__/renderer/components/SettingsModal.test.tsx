@@ -258,6 +258,8 @@ const createDefaultProps = (overrides = {}) => ({
 	setCrashReportingEnabled: vi.fn(),
 	customAICommands: [],
 	setCustomAICommands: vi.fn(),
+	autoScrollAiMode: true,
+	setAutoScrollAiMode: vi.fn(),
 	encoreFeatures: { directorNotes: false },
 	setEncoreFeatures: mockSetEncoreFeatures,
 	...overrides,
@@ -2418,6 +2420,15 @@ describe('SettingsModal', () => {
 	});
 
 	describe('EnvVarsEditor - validation and filtering', () => {
+		// Helper to expand the Shell Configuration section so EnvVarsEditor is visible
+		const expandShellConfig = async () => {
+			const shellConfigButton = screen.getByRole('button', { name: 'Shell Configuration' });
+			fireEvent.click(shellConfigButton);
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(50);
+			});
+		};
+
 		it('should only add valid entries to envVars state (not invalid ones)', async () => {
 			const setShellEnvVars = vi.fn();
 			render(
@@ -2433,6 +2444,8 @@ describe('SettingsModal', () => {
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(100);
 			});
+
+			await expandShellConfig();
 
 			// Find the "Add Variable" button and click it
 			const addButton = screen.getByRole('button', { name: 'Add Variable' });
@@ -2479,6 +2492,8 @@ describe('SettingsModal', () => {
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(100);
 			});
+
+			await expandShellConfig();
 
 			// Add first valid entry
 			const addButton = screen.getByRole('button', { name: 'Add Variable' });
@@ -2542,6 +2557,8 @@ describe('SettingsModal', () => {
 				await vi.advanceTimersByTimeAsync(100);
 			});
 
+			await expandShellConfig();
+
 			const addButton = screen.getByRole('button', { name: 'Add Variable' });
 			fireEvent.click(addButton);
 
@@ -2563,7 +2580,7 @@ describe('SettingsModal', () => {
 			});
 
 			// Should show warning about special characters
-			expect(screen.getByText(/Value contains special characters/)).toBeInTheDocument();
+			expect(screen.getByText(/contains disallowed special characters/)).toBeInTheDocument();
 
 			// The value should still be added (warning, not error) but if we have strict validation,
 			// it won't be in the state. The current implementation adds it with a warning.
@@ -2586,6 +2603,8 @@ describe('SettingsModal', () => {
 				await vi.advanceTimersByTimeAsync(100);
 			});
 
+			await expandShellConfig();
+
 			// Should show "✓ Valid (1 variables loaded)"
 			expect(screen.getByText(/✓ Valid.*1.*variables loaded/)).toBeInTheDocument();
 		});
@@ -2605,6 +2624,8 @@ describe('SettingsModal', () => {
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(100);
 			});
+
+			await expandShellConfig();
 
 			// Add an invalid entry
 			const addButton = screen.getByRole('button', { name: 'Add Variable' });

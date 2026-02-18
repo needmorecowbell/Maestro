@@ -215,6 +215,8 @@ export function buildChildProcessEnv(
 
 	if (isResuming) {
 		env.MAESTRO_SESSION_RESUMED = '1';
+	} else {
+		delete env.MAESTRO_SESSION_RESUMED;
 	}
 
 	// Apply global shell environment variables (lower priority than session overrides)
