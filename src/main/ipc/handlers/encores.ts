@@ -4,10 +4,10 @@
  * Provides handlers for querying and managing encores from the renderer process.
  */
 
-import { ipcMain, App } from 'electron';
+import { ipcMain } from 'electron';
 import { logger } from '../../utils/logger';
 import { createIpcHandler, type CreateHandlerOptions } from '../../utils/ipcHandler';
-import { getEncoreManager, createEncoreManager } from '../../encore-manager';
+import { getEncoreManager } from '../../encore-manager';
 import type { EncoreIpcBridge } from '../../encore-ipc-bridge';
 
 const LOG_CONTEXT = '[Encores]';
@@ -17,7 +17,6 @@ const LOG_CONTEXT = '[Encores]';
 // ============================================================================
 
 export interface EncoreHandlerDependencies {
-	app: App;
 	ipcBridge?: EncoreIpcBridge;
 }
 
@@ -49,15 +48,12 @@ function requireEncoreManager() {
  * Register all Plugin-related IPC handlers.
  */
 export function registerEncoreHandlers(deps: EncoreHandlerDependencies): void {
-	const { app, ipcBridge } = deps;
+	const { ipcBridge } = deps;
 
-	// Ensure EncoreManager is created (initialization happens in main startup)
-	let manager = getEncoreManager();
-	if (!manager) {
-		manager = createEncoreManager(app);
-		manager.initialize().catch((err) => {
-			logger.error(`Failed to initialize encore manager: ${err}`, LOG_CONTEXT);
-		});
+	// EncoreManager must already be created and initialized by main startup
+	// (see index.ts — createEncoreManager + initialize runs before this)
+	if (!getEncoreManager()) {
+		logger.error('registerEncoreHandlers called before EncoreManager was initialized', LOG_CONTEXT);
 	}
 
 	// -------------------------------------------------------------------------

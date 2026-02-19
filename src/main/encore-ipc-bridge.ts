@@ -8,6 +8,7 @@
  */
 
 import { logger } from './utils/logger';
+import { captureException } from './utils/sentry';
 
 const LOG_CONTEXT = '[Encores]';
 
@@ -68,6 +69,7 @@ export class EncoreIpcBridge {
 					`IPC bridge send error on '${key}': ${err instanceof Error ? err.message : String(err)}`,
 					LOG_CONTEXT
 				);
+				captureException(err, { encoreId, channel, key });
 			}
 		}
 	}

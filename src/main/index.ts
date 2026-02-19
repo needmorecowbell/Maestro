@@ -688,7 +688,7 @@ function setupIpcHandlers() {
 	registerWakatimeHandlers(wakatimeManager);
 
 	// Register Plugin system IPC handlers
-	registerEncoreHandlers({ app, ipcBridge: encoreIpcBridge });
+	registerEncoreHandlers({ ipcBridge: encoreIpcBridge });
 }
 
 // Handle process output streaming (set up after initialization)

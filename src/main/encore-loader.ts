@@ -221,13 +221,9 @@ export async function bootstrapBundledEncores(encoresDir: string): Promise<void>
 			if (shouldCopy) {
 				// Remove existing destination if it exists
 				await fs.rm(destPath, { recursive: true, force: true });
-				await fs.mkdir(destPath, { recursive: true });
 
-				// Copy all files from source to destination
-				const files = await fs.readdir(srcPath);
-				for (const file of files) {
-					await fs.copyFile(path.join(srcPath, file), path.join(destPath, file));
-				}
+				// Copy entire encore directory (including subdirectories)
+				await fs.cp(srcPath, destPath, { recursive: true });
 			}
 		} catch (err) {
 			logger.warn(`Failed to bootstrap bundled encore '${entry}': ${err instanceof Error ? err.message : String(err)}`, LOG_CONTEXT);

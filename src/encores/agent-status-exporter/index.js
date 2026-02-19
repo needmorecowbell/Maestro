@@ -77,13 +77,9 @@ async function writeStatus() {
 
 		const json = JSON.stringify(output, null, 2);
 
-		// Check for custom output path; fall back to plugin storage
-		let customPath = null;
-		try {
-			customPath = await api.settings.get('outputPath');
-		} catch {
-			// settings:read not available — use default
-		}
+		// Check for custom output path; fall back to encore storage.
+		// api.settings is always available since this encore declares settings:read.
+		const customPath = await api.settings.get('outputPath');
 
 		if (customPath && typeof customPath === 'string' && pathModule.isAbsolute(customPath)) {
 			await fsPromises.mkdir(pathModule.dirname(customPath), { recursive: true });
@@ -92,7 +88,19 @@ async function writeStatus() {
 			await api.storage.write('status.json', json);
 		}
 	} catch (err) {
-		console.error(`${LOG_TAG} Failed to write status:`, err);
+		// Filesystem permission/access errors are expected (e.g., user-configured
+		// outputPath becomes inaccessible). Log but don't escalate — the heartbeat
+		// interval must keep running so subsequent writes can succeed.
+		const code = err && err.code;
+		if (code === 'EACCES' || code === 'EPERM' || code === 'ENOSPC' || code === 'EROFS') {
+			console.warn(`${LOG_TAG} Write failed (${code}):`, err.message);
+			return;
+		}
+
+		// Unexpected error — log with full stack for debugging. Cannot rethrow
+		// because writeStatus is called from setInterval/setTimeout and an
+		// unhandled rejection would crash the main process.
+		console.error(`${LOG_TAG} Unexpected error writing status:`, err);
 	}
 }
 
@@ -143,15 +151,10 @@ async function activate(pluginApi) {
 	// Subscribe to tool executions
 	api.process.onToolExecution((sessionId, tool) => {
 		const agent = ensureAgent(sessionId);
-		try {
-			agent.lastTool = {
-				name: (tool && tool.toolName) || 'unknown',
-				timestamp: Date.now(),
-			};
-		} catch {
-			// Handle missing/unknown tool data defensively
-			agent.lastTool = { name: 'unknown', timestamp: Date.now() };
-		}
+		agent.lastTool = {
+			name: tool?.toolName ?? 'unknown',
+			timestamp: Date.now(),
+		};
 		debounceWriteStatus();
 	});
 

@@ -284,9 +284,7 @@ export function registerAllHandlers(deps: HandlerDependencies): void {
 		getAgentDetector: deps.getAgentDetector,
 	});
 	// Register encore system handlers
-	registerEncoreHandlers({
-		app: deps.app,
-	});
+	registerEncoreHandlers({});
 	// Setup logger event forwarding to renderer
 	setupLoggerEventForwarding(deps.getMainWindow);
 }
