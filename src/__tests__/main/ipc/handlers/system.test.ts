@@ -505,13 +505,46 @@ describe('system IPC handlers', () => {
 			expect(shell.openExternal).toHaveBeenCalledWith('https://example.com');
 		});
 
-		it('should handle different URL types', async () => {
+		it('should allow http URLs', async () => {
+			vi.mocked(shell.openExternal).mockResolvedValue(undefined);
+
+			const handler = handlers.get('shell:openExternal');
+			await handler!({} as any, 'http://example.com');
+
+			expect(shell.openExternal).toHaveBeenCalledWith('http://example.com');
+		});
+
+		it('should allow mailto URLs', async () => {
 			vi.mocked(shell.openExternal).mockResolvedValue(undefined);
 
 			const handler = handlers.get('shell:openExternal');
 			await handler!({} as any, 'mailto:test@example.com');
 
 			expect(shell.openExternal).toHaveBeenCalledWith('mailto:test@example.com');
+		});
+
+		it('should reject file:// URLs', async () => {
+			const handler = handlers.get('shell:openExternal');
+			await expect(handler!({} as any, 'file:///etc/passwd')).rejects.toThrow(
+				'Protocol not allowed: file:'
+			);
+			expect(shell.openExternal).not.toHaveBeenCalled();
+		});
+
+		it('should reject javascript: URLs', async () => {
+			const handler = handlers.get('shell:openExternal');
+			await expect(handler!({} as any, 'javascript:alert(1)')).rejects.toThrow(
+				'Protocol not allowed: javascript:'
+			);
+			expect(shell.openExternal).not.toHaveBeenCalled();
+		});
+
+		it('should reject data: URLs', async () => {
+			const handler = handlers.get('shell:openExternal');
+			await expect(handler!({} as any, 'data:text/html,<h1>hi</h1>')).rejects.toThrow(
+				'Protocol not allowed: data:'
+			);
+			expect(shell.openExternal).not.toHaveBeenCalled();
 		});
 
 		it('should gracefully handle Launch Services errors', async () => {
@@ -521,7 +554,7 @@ describe('system IPC handlers', () => {
 
 			const handler = handlers.get('shell:openExternal');
 			// Should not throw - known recoverable error is caught and logged
-			await expect(handler!({} as any, 'file:///some/path.xyz')).resolves.toBeUndefined();
+			await expect(handler!({} as any, 'https://example.com/some/path')).resolves.toBeUndefined();
 		});
 
 		it('should re-throw unexpected openExternal errors', async () => {

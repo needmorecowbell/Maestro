@@ -190,15 +190,20 @@ export function registerSystemHandlers(deps: SystemHandlerDependencies): void {
 	});
 
 	// Shell operations - open external URLs
+	const ALLOWED_PROTOCOLS = ['http:', 'https:', 'mailto:'];
 	ipcMain.handle('shell:openExternal', async (_event, url: string) => {
 		// Validate URL before opening - Fixes MAESTRO-1S
 		if (!url || typeof url !== 'string') {
 			throw new Error('Invalid URL: URL must be a non-empty string');
 		}
+		let parsed: URL;
 		try {
-			new URL(url);
+			parsed = new URL(url);
 		} catch {
 			throw new Error(`Invalid URL: ${url}`);
+		}
+		if (!ALLOWED_PROTOCOLS.includes(parsed.protocol)) {
+			throw new Error(`Protocol not allowed: ${parsed.protocol}`);
 		}
 		try {
 			await shell.openExternal(url);

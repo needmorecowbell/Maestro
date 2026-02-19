@@ -2,6 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https: wss: ws:; worker-src 'self' blob:; media-src 'self' blob:;" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Maestro - Agent Orchestration Command Center</title>
 
@@ -136,88 +137,11 @@
 
     <div id="root"></div>
 
-    <!-- Splash screen progress animation -->
-    <script>
-      (function() {
-        var progress = 0;
-        var progressBar = document.getElementById('splash-progress');
-        var progressText = document.getElementById('splash-text');
+    <!-- Splash screen progress animation (external for CSP compliance) -->
+    <script src="./splash.js"></script>
 
-        // Capture any errors and display them on the splash screen
-        window.onerror = function(message, source, lineno, colno, error) {
-          if (progressText) {
-            progressText.style.color = '#ff6b6b';
-            progressText.textContent = 'Error: ' + (error?.message || message);
-          }
-          console.error('[Splash] Error:', message, source, lineno, colno, error);
-          return false;
-        };
-        window.onunhandledrejection = function(event) {
-          if (progressText) {
-            progressText.style.color = '#ff6b6b';
-            progressText.textContent = 'Error: ' + (event.reason?.message || String(event.reason));
-          }
-          console.error('[Splash] Unhandled rejection:', event.reason);
-        };
-
-        // Animate progress bar while waiting for React
-        var interval = setInterval(function() {
-          // Slow progress that caps at 70% until React takes over
-          progress += Math.random() * 3 + 1;
-          if (progress > 70) progress = 70;
-          if (progressBar) progressBar.style.width = progress + '%';
-        }, 100);
-
-        // Store interval ID so React can clear it
-        window.__splashInterval = interval;
-        window.__splashProgress = function() { return progress; };
-
-        // Function for React to call when ready
-        window.__hideSplash = function() {
-          clearInterval(interval);
-
-          // Complete the progress bar
-          if (progressBar) progressBar.style.width = '100%';
-          if (progressText) progressText.textContent = 'Ready';
-
-          // Helper to fade out the splash
-          function fadeOut() {
-            var splash = document.getElementById('initial-splash');
-            if (splash) {
-              splash.classList.add('hidden');
-              // Remove from DOM after animation
-              setTimeout(function() {
-                if (splash && splash.parentNode) {
-                  splash.parentNode.removeChild(splash);
-                }
-              }, 500);
-            }
-          }
-
-          // Wait for fonts to be loaded to prevent layout shift from font swap
-          if (document.fonts && document.fonts.ready) {
-            document.fonts.ready.then(function() {
-              // Small delay after fonts ready for any final layout settling
-              setTimeout(fadeOut, 50);
-            });
-          } else {
-            // Fallback for browsers without Font Loading API
-            setTimeout(fadeOut, 200);
-          }
-        };
-      })();
-    </script>
-
-    <!-- React DevTools: connects to standalone react-devtools app (npm install -g react-devtools) -->
-    <!-- Only attempts connection in dev mode (Vite serves on localhost:5173) -->
-    <script>
-			var script = document.createElement('script');
-			if (window.location.hostname === 'localhost') {
-        script.src = 'http://localhost:8097';
-        script.async = false;
-        document.head.appendChild(script);
-      }
-    </script>
+    <!-- React DevTools: connects to standalone react-devtools app (dev mode only) -->
+    <script src="./devtools-connect.js"></script>
 
     <script type="module" src="/main.tsx"></script>
   </body>

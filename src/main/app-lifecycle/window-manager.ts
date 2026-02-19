@@ -3,6 +3,7 @@
  * Handles window state persistence, DevTools, crash detection, and auto-updater initialization.
  */
 
+import * as path from 'path';
 import { BrowserWindow, ipcMain } from 'electron';
 import type Store from 'electron-store';
 import type { WindowState } from '../stores/types';
@@ -91,6 +92,7 @@ export function createWindowManager(deps: WindowManagerDependencies): WindowMana
 					preload: preloadPath,
 					contextIsolation: true,
 					nodeIntegration: false,
+					sandbox: true,
 				},
 			});
 
@@ -157,6 +159,39 @@ export function createWindowManager(deps: WindowManagerDependencies): WindowMana
 					mainWindow.webContents.openDevTools();
 				}
 			}
+
+			// ================================================================
+			// Navigation & Window Security Hardening
+			// ================================================================
+
+			// Deny all popup/new-window requests — external links use IPC shell:openExternal
+			mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+				logger.warn(`Blocked window.open request: ${url}`, 'Window');
+				return { action: 'deny' };
+			});
+
+			// Restrict navigation to the app itself — prevent renderer from navigating away
+			mainWindow.webContents.on('will-navigate', (event, url) => {
+				const parsedUrl = new URL(url);
+				if (isDevelopment) {
+					// In dev mode, allow Vite dev server navigation
+					const devUrl = new URL(devServerUrl);
+					if (parsedUrl.origin === devUrl.origin) return;
+				} else {
+					// In production, only allow file:// URLs within the app's renderer directory
+					if (parsedUrl.protocol === 'file:' && url.includes(path.dirname(rendererPath).replace(/\\/g, '/'))) return;
+				}
+				event.preventDefault();
+				logger.warn(`Blocked navigation to: ${url}`, 'Window');
+			});
+
+			// Deny all browser permission requests (camera, mic, geolocation, etc.)
+			// Maestro is a terminal app — none of these are needed
+			mainWindow.webContents.session.setPermissionRequestHandler(
+				(_webContents, _permission, callback) => {
+					callback(false);
+				}
+			);
 
 			mainWindow.on('closed', () => {
 				logger.info('Browser window closed', 'Window');
