@@ -1,24 +1,24 @@
 /**
  * Plugin IPC Handlers
  *
- * Provides handlers for querying and managing plugins from the renderer process.
+ * Provides handlers for querying and managing encores from the renderer process.
  */
 
 import { ipcMain, App } from 'electron';
 import { logger } from '../../utils/logger';
 import { createIpcHandler, type CreateHandlerOptions } from '../../utils/ipcHandler';
-import { getPluginManager, createPluginManager } from '../../plugin-manager';
-import type { PluginIpcBridge } from '../../plugin-ipc-bridge';
+import { getEncoreManager, createEncoreManager } from '../../encore-manager';
+import type { EncoreIpcBridge } from '../../encore-ipc-bridge';
 
-const LOG_CONTEXT = '[Plugins]';
+const LOG_CONTEXT = '[Encores]';
 
 // ============================================================================
 // Dependencies Interface
 // ============================================================================
 
-export interface PluginHandlerDependencies {
+export interface EncoreHandlerDependencies {
 	app: App;
-	ipcBridge?: PluginIpcBridge;
+	ipcBridge?: EncoreIpcBridge;
 }
 
 /**
@@ -31,10 +31,10 @@ const handlerOpts = (operation: string, logSuccess = true): CreateHandlerOptions
 });
 
 /**
- * Get the PluginManager, throwing if not initialized.
+ * Get the EncoreManager, throwing if not initialized.
  */
-function requirePluginManager() {
-	const manager = getPluginManager();
+function requireEncoreManager() {
+	const manager = getEncoreManager();
 	if (!manager) {
 		throw new Error('Plugin manager not initialized');
 	}
@@ -48,123 +48,123 @@ function requirePluginManager() {
 /**
  * Register all Plugin-related IPC handlers.
  */
-export function registerPluginHandlers(deps: PluginHandlerDependencies): void {
+export function registerEncoreHandlers(deps: EncoreHandlerDependencies): void {
 	const { app, ipcBridge } = deps;
 
-	// Ensure PluginManager is created (initialization happens in main startup)
-	let manager = getPluginManager();
+	// Ensure EncoreManager is created (initialization happens in main startup)
+	let manager = getEncoreManager();
 	if (!manager) {
-		manager = createPluginManager(app);
+		manager = createEncoreManager(app);
 		manager.initialize().catch((err) => {
-			logger.error(`Failed to initialize plugin manager: ${err}`, LOG_CONTEXT);
+			logger.error(`Failed to initialize encore manager: ${err}`, LOG_CONTEXT);
 		});
 	}
 
 	// -------------------------------------------------------------------------
-	// plugins:getAll — returns all LoadedPlugin[]
+	// encores:getAll — returns all LoadedEncore[]
 	// -------------------------------------------------------------------------
 	ipcMain.handle(
-		'plugins:getAll',
+		'encores:getAll',
 		createIpcHandler(handlerOpts('getAll', false), async () => {
-			const pm = requirePluginManager();
-			return { plugins: pm.getPlugins() };
+			const pm = requireEncoreManager();
+			return { encores: pm.getEncores() };
 		})
 	);
 
 	// -------------------------------------------------------------------------
-	// plugins:enable — enables a plugin by ID
+	// encores:enable — enables an encore by ID
 	// -------------------------------------------------------------------------
 	ipcMain.handle(
-		'plugins:enable',
+		'encores:enable',
 		createIpcHandler(handlerOpts('enable'), async (id: string) => {
-			const pm = requirePluginManager();
-			const result = await pm.enablePlugin(id);
+			const pm = requireEncoreManager();
+			const result = await pm.enableEncore(id);
 			return { enabled: result };
 		})
 	);
 
 	// -------------------------------------------------------------------------
-	// plugins:disable — disables a plugin by ID
+	// encores:disable — disables an encore by ID
 	// -------------------------------------------------------------------------
 	ipcMain.handle(
-		'plugins:disable',
+		'encores:disable',
 		createIpcHandler(handlerOpts('disable'), async (id: string) => {
-			const pm = requirePluginManager();
-			const result = await pm.disablePlugin(id);
+			const pm = requireEncoreManager();
+			const result = await pm.disableEncore(id);
 			return { disabled: result };
 		})
 	);
 
 	// -------------------------------------------------------------------------
-	// plugins:getDir — returns the plugins directory path
+	// encores:getDir — returns the encores directory path
 	// -------------------------------------------------------------------------
 	ipcMain.handle(
-		'plugins:getDir',
+		'encores:getDir',
 		createIpcHandler(handlerOpts('getDir', false), async () => {
-			const pm = requirePluginManager();
-			return { dir: pm.getPluginsDir() };
+			const pm = requireEncoreManager();
+			return { dir: pm.getEncoresDir() };
 		})
 	);
 
 	// -------------------------------------------------------------------------
-	// plugins:refresh — re-scans plugins directory
+	// encores:refresh — re-scans encores directory
 	// -------------------------------------------------------------------------
 	ipcMain.handle(
-		'plugins:refresh',
+		'encores:refresh',
 		createIpcHandler(handlerOpts('refresh'), async () => {
-			const pm = requirePluginManager();
+			const pm = requireEncoreManager();
 			await pm.initialize();
-			return { plugins: pm.getPlugins() };
+			return { encores: pm.getEncores() };
 		})
 	);
 
 	// -------------------------------------------------------------------------
-	// plugins:settings:get — get all settings for a plugin
+	// encores:settings:get — get all settings for an encore
 	// -------------------------------------------------------------------------
 	ipcMain.handle(
-		'plugins:settings:get',
-		createIpcHandler(handlerOpts('settings:get', false), async (pluginId: string) => {
-			const pm = requirePluginManager();
-			return { settings: pm.getAllPluginSettings(pluginId) };
+		'encores:settings:get',
+		createIpcHandler(handlerOpts('settings:get', false), async (encoreId: string) => {
+			const pm = requireEncoreManager();
+			return { settings: pm.getAllEncoreSettings(encoreId) };
 		})
 	);
 
 	// -------------------------------------------------------------------------
-	// plugins:settings:set — set a single plugin setting
+	// encores:settings:set — set a single encore setting
 	// -------------------------------------------------------------------------
 	ipcMain.handle(
-		'plugins:settings:set',
-		createIpcHandler(handlerOpts('settings:set'), async (pluginId: string, key: string, value: unknown) => {
-			const pm = requirePluginManager();
-			pm.setPluginSetting(pluginId, key, value);
+		'encores:settings:set',
+		createIpcHandler(handlerOpts('settings:set'), async (encoreId: string, key: string, value: unknown) => {
+			const pm = requireEncoreManager();
+			pm.setEncoreSetting(encoreId, key, value);
 			return { set: true };
 		})
 	);
 
 	// -------------------------------------------------------------------------
-	// plugins:bridge:invoke — invoke a handler registered by a main-process plugin
+	// encores:bridge:invoke — invoke a handler registered by a main-process encore
 	// -------------------------------------------------------------------------
 	ipcMain.handle(
-		'plugins:bridge:invoke',
-		createIpcHandler(handlerOpts('bridge:invoke', false), async (pluginId: string, channel: string, ...args: unknown[]) => {
+		'encores:bridge:invoke',
+		createIpcHandler(handlerOpts('bridge:invoke', false), async (encoreId: string, channel: string, ...args: unknown[]) => {
 			if (!ipcBridge) {
 				throw new Error('Plugin IPC bridge not initialized');
 			}
-			const result = await ipcBridge.invoke(pluginId, channel, ...args);
+			const result = await ipcBridge.invoke(encoreId, channel, ...args);
 			return { result } as Record<string, unknown>;
 		})
 	);
 
 	// -------------------------------------------------------------------------
-	// plugins:bridge:send — fire-and-forget message to a main-process plugin
+	// encores:bridge:send — fire-and-forget message to a main-process encore
 	// -------------------------------------------------------------------------
 	ipcMain.handle(
-		'plugins:bridge:send',
-		createIpcHandler(handlerOpts('bridge:send', false), async (pluginId: string, channel: string, ...args: unknown[]) => {
+		'encores:bridge:send',
+		createIpcHandler(handlerOpts('bridge:send', false), async (encoreId: string, channel: string, ...args: unknown[]) => {
 			if (!ipcBridge) {
 				throw new Error('Plugin IPC bridge not initialized');
 			}
-			ipcBridge.send(pluginId, channel, ...args);
+			ipcBridge.send(encoreId, channel, ...args);
 			return {} as Record<string, unknown>;
 		})
 	);

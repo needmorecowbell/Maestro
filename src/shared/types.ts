@@ -393,12 +393,12 @@ export interface GlobalAgentStats {
 }
 
 // ============================================================================
-// Plugin Types (re-exported from plugin-types.ts)
+// Plugin Types (re-exported from encore-types.ts)
 // ============================================================================
 
 export type {
-	PluginManifest,
-	PluginPermission,
-	PluginState,
-	LoadedPlugin,
-} from './plugin-types';
+	EncoreManifest,
+	EncorePermission,
+	EncoreState,
+	LoadedEncore,
+} from './encore-types';

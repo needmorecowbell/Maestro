@@ -1,8 +1,8 @@
 /**
- * Plugin Host
+ * Encore Host
  *
- * Manages plugin lifecycle and provides scoped API objects to plugins.
- * Each plugin receives a PluginAPI object with only the namespaces
+ * Manages encore lifecycle and provides scoped API objects to encores.
+ * Each encore receives a EncoreAPI object with only the namespaces
  * permitted by its declared permissions.
  */
 
@@ -15,144 +15,144 @@ import type { ProcessManager } from './process-manager';
 import type Store from 'electron-store';
 import type { MaestroSettings, SessionsData } from './stores/types';
 import type {
-	LoadedPlugin,
-	PluginAPI,
-	PluginContext,
-	PluginModule,
-	PluginProcessAPI,
-	PluginProcessControlAPI,
-	PluginStatsAPI,
-	PluginSettingsAPI,
-	PluginStorageAPI,
-	PluginNotificationsAPI,
-	PluginMaestroAPI,
-	PluginIpcBridgeAPI,
-} from '../shared/plugin-types';
+	LoadedEncore,
+	EncoreAPI,
+	EncoreContext,
+	EncoreModule,
+	EncoreProcessAPI,
+	EncoreProcessControlAPI,
+	EncoreStatsAPI,
+	EncoreSettingsAPI,
+	EncoreStorageAPI,
+	EncoreNotificationsAPI,
+	EncoreMaestroAPI,
+	EncoreIpcBridgeAPI,
+} from '../shared/encore-types';
 import type { StatsAggregation } from '../shared/stats-types';
 import { getStatsDB } from './stats/singleton';
-import { PluginStorage } from './plugin-storage';
-import type { PluginIpcBridge } from './plugin-ipc-bridge';
+import { EncoreStorage } from './encore-storage';
+import type { EncoreIpcBridge } from './encore-ipc-bridge';
 
-const LOG_CONTEXT = '[Plugins]';
+const LOG_CONTEXT = '[Encores]';
 
 // ============================================================================
 // Dependencies Interface
 // ============================================================================
 
-export interface PluginHostDependencies {
+export interface EncoreHostDependencies {
 	getProcessManager: () => ProcessManager | null;
 	getMainWindow: () => BrowserWindow | null;
 	settingsStore: Store<MaestroSettings>;
 	sessionsStore?: Store<SessionsData>;
 	app: App;
-	ipcBridge?: PluginIpcBridge;
+	ipcBridge?: EncoreIpcBridge;
 }
 
 // ============================================================================
-// PluginHost
+// EncoreHost
 // ============================================================================
 
-export class PluginHost {
-	private deps: PluginHostDependencies;
-	private pluginContexts: Map<string, PluginContext> = new Map();
+export class EncoreHost {
+	private deps: EncoreHostDependencies;
+	private encoreContexts: Map<string, EncoreContext> = new Map();
 	/**
-	 * Stores loaded plugin module references for deactivation.
-	 * TRUST BOUNDARY: Plugin modules run in the same Node.js process as Maestro.
-	 * For v1, this is acceptable because we only ship trusted/first-party plugins.
+	 * Stores loaded encore module references for deactivation.
+	 * TRUST BOUNDARY: Encore modules run in the same Node.js process as Maestro.
+	 * For v1, this is acceptable because we only ship trusted/first-party encores.
 	 * Third-party sandboxing (e.g., vm2, worker threads) is a v2 concern.
 	 */
-	private pluginModules: Map<string, PluginModule> = new Map();
-	private pluginStorages: Map<string, PluginStorage> = new Map();
+	private encoreModules: Map<string, EncoreModule> = new Map();
+	private encoreStorages: Map<string, EncoreStorage> = new Map();
 
-	constructor(deps: PluginHostDependencies) {
+	constructor(deps: EncoreHostDependencies) {
 		this.deps = deps;
 	}
 
 	/**
-	 * Activates a plugin by loading its main entry point and calling activate().
-	 * The plugin receives a scoped PluginAPI based on its declared permissions.
+	 * Activates an encore by loading its main entry point and calling activate().
+	 * The encore receives a scoped EncoreAPI based on its declared permissions.
 	 */
-	async activatePlugin(plugin: LoadedPlugin): Promise<void> {
-		const pluginId = plugin.manifest.id;
+	async activateEncore(encore: LoadedEncore): Promise<void> {
+		const encoreId = encore.manifest.id;
 
 		try {
-			const entryPoint = path.join(plugin.path, plugin.manifest.main);
+			const entryPoint = path.join(encore.path, encore.manifest.main);
 
 			// Verify the entry point exists
 			try {
 				await fs.access(entryPoint);
 			} catch {
-				throw new Error(`Plugin entry point not found: ${plugin.manifest.main}`);
+				throw new Error(`Encore entry point not found: ${encore.manifest.main}`);
 			}
 
-			// Load the module using require() — plugins are Node.js modules for v1 simplicity
+			// Load the module using require() — encores are Node.js modules for v1 simplicity
 			// eslint-disable-next-line @typescript-eslint/no-var-requires
-			const pluginModule: PluginModule = require(entryPoint);
+			const encoreModule: EncoreModule = require(entryPoint);
 
 			// Create context and activate
-			const context = this.createPluginContext(plugin);
+			const context = this.createEncoreContext(encore);
 
-			if (typeof pluginModule.activate === 'function') {
-				await pluginModule.activate(context.api);
+			if (typeof encoreModule.activate === 'function') {
+				await encoreModule.activate(context.api);
 			}
 
-			this.pluginModules.set(pluginId, pluginModule);
-			plugin.state = 'active';
-			logger.info(`Plugin '${pluginId}' activated`, LOG_CONTEXT);
+			this.encoreModules.set(encoreId, encoreModule);
+			encore.state = 'active';
+			logger.info(`Encore '${encoreId}' activated`, LOG_CONTEXT);
 		} catch (err) {
-			plugin.state = 'error';
-			plugin.error = err instanceof Error ? err.message : String(err);
-			logger.error(`Plugin '${pluginId}' failed to activate: ${plugin.error}`, LOG_CONTEXT);
-			await captureException(err, { pluginId });
+			encore.state = 'error';
+			encore.error = err instanceof Error ? err.message : String(err);
+			logger.error(`Encore '${encoreId}' failed to activate: ${encore.error}`, LOG_CONTEXT);
+			await captureException(err, { encoreId });
 		}
 	}
 
 	/**
-	 * Deactivates a plugin by calling its deactivate() function and cleaning up.
+	 * Deactivates an encore by calling its deactivate() function and cleaning up.
 	 * Deactivation errors are logged but never propagated.
 	 */
-	async deactivatePlugin(pluginId: string): Promise<void> {
+	async deactivateEncore(encoreId: string): Promise<void> {
 		try {
-			const pluginModule = this.pluginModules.get(pluginId);
-			if (pluginModule && typeof pluginModule.deactivate === 'function') {
-				await pluginModule.deactivate();
+			const encoreModule = this.encoreModules.get(encoreId);
+			if (encoreModule && typeof encoreModule.deactivate === 'function') {
+				await encoreModule.deactivate();
 			}
 		} catch (err) {
 			logger.error(
-				`Plugin '${pluginId}' threw during deactivation: ${err instanceof Error ? err.message : String(err)}`,
+				`Encore '${encoreId}' threw during deactivation: ${err instanceof Error ? err.message : String(err)}`,
 				LOG_CONTEXT
 			);
 		}
 
-		this.pluginModules.delete(pluginId);
-		this.pluginStorages.delete(pluginId);
-		this.destroyPluginContext(pluginId);
+		this.encoreModules.delete(encoreId);
+		this.encoreStorages.delete(encoreId);
+		this.destroyEncoreContext(encoreId);
 
-		// Remove any IPC bridge handlers registered by this plugin
+		// Remove any IPC bridge handlers registered by this encore
 		if (this.deps.ipcBridge) {
-			this.deps.ipcBridge.unregisterAll(pluginId);
+			this.deps.ipcBridge.unregisterAll(encoreId);
 		}
 	}
 
 	/**
-	 * Creates a scoped API based on the plugin's declared permissions.
+	 * Creates a scoped API based on the encore's declared permissions.
 	 */
-	createPluginContext(plugin: LoadedPlugin): PluginContext {
+	createEncoreContext(encore: LoadedEncore): EncoreContext {
 		const eventSubscriptions: Array<() => void> = [];
 
-		const api: PluginAPI = {
-			process: this.createProcessAPI(plugin, eventSubscriptions),
-			processControl: this.createProcessControlAPI(plugin),
-			stats: this.createStatsAPI(plugin, eventSubscriptions),
-			settings: this.createSettingsAPI(plugin),
-			storage: this.createStorageAPI(plugin),
-			notifications: this.createNotificationsAPI(plugin),
-			maestro: this.createMaestroAPI(plugin),
-			ipcBridge: this.createIpcBridgeAPI(plugin),
+		const api: EncoreAPI = {
+			process: this.createProcessAPI(encore, eventSubscriptions),
+			processControl: this.createProcessControlAPI(encore),
+			stats: this.createStatsAPI(encore, eventSubscriptions),
+			settings: this.createSettingsAPI(encore),
+			storage: this.createStorageAPI(encore),
+			notifications: this.createNotificationsAPI(encore),
+			maestro: this.createMaestroAPI(encore),
+			ipcBridge: this.createIpcBridgeAPI(encore),
 		};
 
-		const context: PluginContext = {
-			pluginId: plugin.manifest.id,
+		const context: EncoreContext = {
+			encoreId: encore.manifest.id,
 			api,
 			cleanup: () => {
 				for (const unsub of eventSubscriptions) {
@@ -163,46 +163,46 @@ export class PluginHost {
 			eventSubscriptions,
 		};
 
-		this.pluginContexts.set(plugin.manifest.id, context);
-		logger.info(`Plugin context created for '${plugin.manifest.id}'`, LOG_CONTEXT);
+		this.encoreContexts.set(encore.manifest.id, context);
+		logger.info(`Encore context created for '${encore.manifest.id}'`, LOG_CONTEXT);
 		return context;
 	}
 
 	/**
-	 * Cleans up event listeners, timers, etc. for a plugin.
+	 * Cleans up event listeners, timers, etc. for an encore.
 	 */
-	destroyPluginContext(pluginId: string): void {
-		const context = this.pluginContexts.get(pluginId);
+	destroyEncoreContext(encoreId: string): void {
+		const context = this.encoreContexts.get(encoreId);
 		if (!context) {
-			logger.warn(`No context to destroy for plugin '${pluginId}'`, LOG_CONTEXT);
+			logger.warn(`No context to destroy for encore '${encoreId}'`, LOG_CONTEXT);
 			return;
 		}
 
 		context.cleanup();
-		this.pluginContexts.delete(pluginId);
-		logger.info(`Plugin context destroyed for '${pluginId}'`, LOG_CONTEXT);
+		this.encoreContexts.delete(encoreId);
+		logger.info(`Encore context destroyed for '${encoreId}'`, LOG_CONTEXT);
 	}
 
 	/**
-	 * Returns a plugin context by ID, if one exists.
+	 * Returns an encore context by ID, if one exists.
 	 */
-	getPluginContext(pluginId: string): PluginContext | undefined {
-		return this.pluginContexts.get(pluginId);
+	getEncoreContext(encoreId: string): EncoreContext | undefined {
+		return this.encoreContexts.get(encoreId);
 	}
 
 	// ========================================================================
 	// Private API Factory Methods
 	// ========================================================================
 
-	private hasPermission(plugin: LoadedPlugin, permission: string): boolean {
-		return plugin.manifest.permissions.includes(permission as any);
+	private hasPermission(encore: LoadedEncore, permission: string): boolean {
+		return encore.manifest.permissions.includes(permission as any);
 	}
 
 	private createProcessAPI(
-		plugin: LoadedPlugin,
+		encore: LoadedEncore,
 		eventSubscriptions: Array<() => void>
-	): PluginProcessAPI | undefined {
-		if (!this.hasPermission(plugin, 'process:read')) {
+	): EncoreProcessAPI | undefined {
+		if (!this.hasPermission(encore, 'process:read')) {
 			return undefined;
 		}
 
@@ -283,36 +283,36 @@ export class PluginHost {
 		};
 	}
 
-	private createProcessControlAPI(plugin: LoadedPlugin): PluginProcessControlAPI | undefined {
-		if (!this.hasPermission(plugin, 'process:write')) {
+	private createProcessControlAPI(encore: LoadedEncore): EncoreProcessControlAPI | undefined {
+		if (!this.hasPermission(encore, 'process:write')) {
 			return undefined;
 		}
 
 		const getProcessManager = this.deps.getProcessManager;
-		const pluginId = plugin.manifest.id;
+		const encoreId = encore.manifest.id;
 
 		return {
 			kill: (sessionId: string) => {
 				const pm = getProcessManager();
 				if (!pm) return false;
-				logger.info(`[Plugin:${pluginId}] killed session ${sessionId}`, LOG_CONTEXT);
+				logger.info(`[Encore:${encoreId}] killed session ${sessionId}`, LOG_CONTEXT);
 				return pm.kill(sessionId);
 			},
 
 			write: (sessionId: string, data: string) => {
 				const pm = getProcessManager();
 				if (!pm) return false;
-				logger.info(`[Plugin:${pluginId}] wrote to session ${sessionId}`, LOG_CONTEXT);
+				logger.info(`[Encore:${encoreId}] wrote to session ${sessionId}`, LOG_CONTEXT);
 				return pm.write(sessionId, data);
 			},
 		};
 	}
 
 	private createStatsAPI(
-		plugin: LoadedPlugin,
+		encore: LoadedEncore,
 		eventSubscriptions: Array<() => void>
-	): PluginStatsAPI | undefined {
-		if (!this.hasPermission(plugin, 'stats:read')) {
+	): EncoreStatsAPI | undefined {
+		if (!this.hasPermission(encore, 'stats:read')) {
 			return undefined;
 		}
 
@@ -346,16 +346,16 @@ export class PluginHost {
 		};
 	}
 
-	private createSettingsAPI(plugin: LoadedPlugin): PluginSettingsAPI | undefined {
-		const canRead = this.hasPermission(plugin, 'settings:read');
-		const canWrite = this.hasPermission(plugin, 'settings:write');
+	private createSettingsAPI(encore: LoadedEncore): EncoreSettingsAPI | undefined {
+		const canRead = this.hasPermission(encore, 'settings:read');
+		const canWrite = this.hasPermission(encore, 'settings:write');
 
 		if (!canRead && !canWrite) {
 			return undefined;
 		}
 
 		const store = this.deps.settingsStore;
-		const prefix = `plugin:${plugin.manifest.id}:`;
+		const prefix = `encore:${encore.manifest.id}:`;
 
 		return {
 			get: async (key: string) => {
@@ -364,7 +364,7 @@ export class PluginHost {
 
 			set: async (key: string, value: unknown) => {
 				if (!canWrite) {
-					throw new Error(`Plugin '${plugin.manifest.id}' does not have 'settings:write' permission`);
+					throw new Error(`Encore '${encore.manifest.id}' does not have 'settings:write' permission`);
 				}
 				store.set(`${prefix}${key}` as any, value as any);
 			},
@@ -382,14 +382,14 @@ export class PluginHost {
 		};
 	}
 
-	private createStorageAPI(plugin: LoadedPlugin): PluginStorageAPI | undefined {
-		if (!this.hasPermission(plugin, 'storage')) {
+	private createStorageAPI(encore: LoadedEncore): EncoreStorageAPI | undefined {
+		if (!this.hasPermission(encore, 'storage')) {
 			return undefined;
 		}
 
-		const storageDir = path.join(this.deps.app.getPath('userData'), 'plugins', plugin.manifest.id, 'data');
-		const storage = new PluginStorage(plugin.manifest.id, storageDir);
-		this.pluginStorages.set(plugin.manifest.id, storage);
+		const storageDir = path.join(this.deps.app.getPath('userData'), 'encores', encore.manifest.id, 'data');
+		const storage = new EncoreStorage(encore.manifest.id, storageDir);
+		this.encoreStorages.set(encore.manifest.id, storage);
 
 		return {
 			read: (filename: string) => storage.read(filename),
@@ -399,30 +399,30 @@ export class PluginHost {
 		};
 	}
 
-	private createIpcBridgeAPI(plugin: LoadedPlugin): PluginIpcBridgeAPI | undefined {
+	private createIpcBridgeAPI(encore: LoadedEncore): EncoreIpcBridgeAPI | undefined {
 		const bridge = this.deps.ipcBridge;
 		if (!bridge) {
 			return undefined;
 		}
 
-		const pluginId = plugin.manifest.id;
+		const encoreId = encore.manifest.id;
 		const getMainWindow = this.deps.getMainWindow;
 
 		return {
 			onMessage: (channel: string, handler: (...args: unknown[]) => unknown) => {
-				return bridge.register(pluginId, channel, handler);
+				return bridge.register(encoreId, channel, handler);
 			},
 			sendToRenderer: (channel: string, ...args: unknown[]) => {
 				const win = getMainWindow();
 				if (win) {
-					win.webContents.send(`plugin:${pluginId}:${channel}`, ...args);
+					win.webContents.send(`encore:${encoreId}:${channel}`, ...args);
 				}
 			},
 		};
 	}
 
-	private createNotificationsAPI(plugin: LoadedPlugin): PluginNotificationsAPI | undefined {
-		if (!this.hasPermission(plugin, 'notifications')) {
+	private createNotificationsAPI(encore: LoadedEncore): EncoreNotificationsAPI | undefined {
+		if (!this.hasPermission(encore, 'notifications')) {
 			return undefined;
 		}
 
@@ -434,21 +434,21 @@ export class PluginHost {
 			playSound: async (sound: string) => {
 				const win = this.deps.getMainWindow();
 				if (win) {
-					win.webContents.send('plugin:playSound', sound);
+					win.webContents.send('encore:playSound', sound);
 				}
 			},
 		};
 	}
 
-	private createMaestroAPI(plugin: LoadedPlugin): PluginMaestroAPI {
-		const pluginsDir = path.join(this.deps.app.getPath('userData'), 'plugins');
+	private createMaestroAPI(encore: LoadedEncore): EncoreMaestroAPI {
+		const encoresDir = path.join(this.deps.app.getPath('userData'), 'encores');
 
 		return {
 			version: this.deps.app.getVersion(),
 			platform: process.platform,
-			pluginId: plugin.manifest.id,
-			pluginDir: plugin.path,
-			dataDir: path.join(pluginsDir, plugin.manifest.id, 'data'),
+			encoreId: encore.manifest.id,
+			encoreDir: encore.path,
+			dataDir: path.join(encoresDir, encore.manifest.id, 'data'),
 		};
 	}
 }

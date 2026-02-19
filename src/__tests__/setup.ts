@@ -537,12 +537,12 @@ const mockMaestro = {
 	},
 	// Synchronous platform string (replaces async os.getPlatform IPC)
 	platform: 'darwin',
-	plugins: {
-		getAll: vi.fn().mockResolvedValue({ success: true, plugins: [] }),
+	encores: {
+		getAll: vi.fn().mockResolvedValue({ success: true, encores: [] }),
 		enable: vi.fn().mockResolvedValue({ success: true, enabled: true }),
 		disable: vi.fn().mockResolvedValue({ success: true, disabled: true }),
-		getDir: vi.fn().mockResolvedValue({ success: true, dir: '/tmp/plugins' }),
-		refresh: vi.fn().mockResolvedValue({ success: true, plugins: [] }),
+		getDir: vi.fn().mockResolvedValue({ success: true, dir: '/tmp/encores' }),
+		refresh: vi.fn().mockResolvedValue({ success: true, encores: [] }),
 		settings: {
 			get: vi.fn().mockResolvedValue({ success: true, settings: {} }),
 			set: vi.fn().mockResolvedValue({ success: true, set: true }),

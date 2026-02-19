@@ -412,10 +412,10 @@ export function useMainKeyboardHandler(): UseMainKeyboardHandlerReturn {
 				e.preventDefault();
 				ctx.setDirectorNotesOpen?.(true);
 				trackShortcut('directorNotes');
-			} else if (ctx.isShortcut(e, 'openPlugins')) {
+			} else if (ctx.isShortcut(e, 'openEncores')) {
 				e.preventDefault();
-				useModalStore.getState().openModal('settings', { tab: 'plugins' });
-				trackShortcut('openPlugins');
+				useModalStore.getState().openModal('settings', { tab: 'encore' });
+				trackShortcut('openEncores');
 			} else if (ctx.isShortcut(e, 'jumpToBottom')) {
 				e.preventDefault();
 				// Jump to the bottom of the current main panel output (AI logs or terminal output)

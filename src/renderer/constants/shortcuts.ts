@@ -78,9 +78,9 @@ export const DEFAULT_SHORTCUTS: Record<string, Shortcut> = {
 		label: "Director's Notes",
 		keys: ['Meta', 'Shift', 'o'],
 	},
-	openPlugins: {
-		id: 'openPlugins',
-		label: 'Open Plugins',
+	openEncores: {
+		id: 'openEncores',
+		label: 'Open Encore Features',
 		keys: ['Meta', 'Shift', 'x'],
 	},
 };

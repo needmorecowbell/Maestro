@@ -53,7 +53,7 @@ import {
 	registerAgentErrorHandlers,
 	registerDirectorNotesHandlers,
 	registerWakatimeHandlers,
-	registerPluginHandlers,
+	registerEncoreHandlers,
 	setupLoggerEventForwarding,
 	cleanupAllGroomingSessions,
 	getActiveGroomingSessionCount,
@@ -92,9 +92,9 @@ import {
 } from './constants';
 // initAutoUpdater is now used by window-manager.ts (Phase 4 refactoring)
 import { checkWslEnvironment } from './utils/wslDetector';
-import { createPluginManager } from './plugin-manager';
-import { PluginHost } from './plugin-host';
-import { PluginIpcBridge } from './plugin-ipc-bridge';
+import { createEncoreManager } from './encore-manager';
+import { EncoreHost } from './encore-host';
+import { EncoreIpcBridge } from './encore-ipc-bridge';
 // Extracted modules (Phase 1 refactoring)
 import { parseParticipantSessionId } from './group-chat/session-parser';
 import { extractTextFromStreamJson } from './group-chat/output-parser';
@@ -245,7 +245,7 @@ let mainWindow: BrowserWindow | null = null;
 let processManager: ProcessManager | null = null;
 let webServer: WebServer | null = null;
 let agentDetector: AgentDetector | null = null;
-const pluginIpcBridge = new PluginIpcBridge();
+const encoreIpcBridge = new EncoreIpcBridge();
 
 // Create safeSend with dependency injection (Phase 2 refactoring)
 const safeSend = createSafeSend(() => mainWindow);
@@ -373,25 +373,25 @@ app.whenReady().then(async () => {
 	logger.debug('Setting up process event listeners', 'Startup');
 	setupProcessListeners();
 
-	// Initialize plugin system
-	logger.info('Initializing plugin system', 'Startup');
+	// Initialize encore system
+	logger.info('Initializing encore system', 'Startup');
 	try {
-		const pluginManager = createPluginManager(app);
-		const pluginHost = new PluginHost({
+		const encoreManager = createEncoreManager(app);
+		const encoreHost = new EncoreHost({
 			getProcessManager: () => processManager,
 			getMainWindow: () => mainWindow,
 			settingsStore: store,
 			sessionsStore,
 			app,
-			ipcBridge: pluginIpcBridge,
+			ipcBridge: encoreIpcBridge,
 		});
-		pluginManager.setHost(pluginHost);
-		pluginManager.setSettingsStore(store);
-		await pluginManager.initialize();
-		logger.info('Plugin system initialized', 'Startup');
+		encoreManager.setHost(encoreHost);
+		encoreManager.setSettingsStore(store);
+		await encoreManager.initialize();
+		logger.info('Encore system initialized', 'Startup');
 	} catch (error) {
-		logger.error(`Failed to initialize plugin system: ${error}`, 'Startup');
-		logger.warn('Continuing without plugins - plugin features will be unavailable', 'Startup');
+		logger.error(`Failed to initialize encore system: ${error}`, 'Startup');
+		logger.warn('Continuing without encores - encore features will be unavailable', 'Startup');
 	}
 
 	// Create main window
@@ -688,7 +688,7 @@ function setupIpcHandlers() {
 	registerWakatimeHandlers(wakatimeManager);
 
 	// Register Plugin system IPC handlers
-	registerPluginHandlers({ app, ipcBridge: pluginIpcBridge });
+	registerEncoreHandlers({ app, ipcBridge: encoreIpcBridge });
 }
 
 // Handle process output streaming (set up after initialization)

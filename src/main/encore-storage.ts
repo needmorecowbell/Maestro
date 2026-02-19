@@ -1,8 +1,8 @@
 /**
  * Plugin-Scoped Storage
  *
- * Provides file-based storage scoped to each plugin.
- * Files are stored under `userData/plugins/<pluginId>/data/`.
+ * Provides file-based storage scoped to each encore.
+ * Files are stored under `userData/encores/<encoreId>/data/`.
  * All filenames are validated to prevent path traversal attacks.
  */
 
@@ -10,7 +10,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import { logger } from './utils/logger';
 
-const LOG_CONTEXT = '[Plugins]';
+const LOG_CONTEXT = '[Encores]';
 
 /**
  * Validates a filename to prevent path traversal.
@@ -45,19 +45,19 @@ function validateFilename(filename: string, baseDir: string): void {
 
 /**
  * Plugin-scoped file storage.
- * Each plugin gets its own isolated storage directory.
+ * Each encore gets its own isolated storage directory.
  */
-export class PluginStorage {
-	private pluginId: string;
+export class EncoreStorage {
+	private encoreId: string;
 	private baseDir: string;
 
-	constructor(pluginId: string, baseDir: string) {
-		this.pluginId = pluginId;
+	constructor(encoreId: string, baseDir: string) {
+		this.encoreId = encoreId;
 		this.baseDir = baseDir;
 	}
 
 	/**
-	 * Reads a file from the plugin's storage directory.
+	 * Reads a file from the encore's storage directory.
 	 * Returns null if the file does not exist.
 	 */
 	async read(filename: string): Promise<string | null> {
@@ -70,18 +70,18 @@ export class PluginStorage {
 	}
 
 	/**
-	 * Writes data to a file in the plugin's storage directory.
+	 * Writes data to a file in the encore's storage directory.
 	 * Creates the directory on first write (lazy creation).
 	 */
 	async write(filename: string, data: string): Promise<void> {
 		validateFilename(filename, this.baseDir);
 		await fs.mkdir(this.baseDir, { recursive: true });
 		await fs.writeFile(path.join(this.baseDir, filename), data, 'utf-8');
-		logger.debug(`[Plugin:${this.pluginId}] wrote file '${filename}'`, LOG_CONTEXT);
+		logger.debug(`[Plugin:${this.encoreId}] wrote file '${filename}'`, LOG_CONTEXT);
 	}
 
 	/**
-	 * Lists all files in the plugin's storage directory.
+	 * Lists all files in the encore's storage directory.
 	 * Returns an empty array if the directory doesn't exist.
 	 */
 	async list(): Promise<string[]> {
@@ -93,7 +93,7 @@ export class PluginStorage {
 	}
 
 	/**
-	 * Deletes a file from the plugin's storage directory.
+	 * Deletes a file from the encore's storage directory.
 	 * No-op if the file doesn't exist.
 	 */
 	async delete(filename: string): Promise<void> {
@@ -106,7 +106,7 @@ export class PluginStorage {
 	}
 
 	/**
-	 * Returns the base directory for this plugin's storage.
+	 * Returns the base directory for this encore's storage.
 	 */
 	getBaseDir(): string {
 		return this.baseDir;

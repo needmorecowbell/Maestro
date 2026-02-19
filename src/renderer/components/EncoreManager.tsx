@@ -1,8 +1,8 @@
 /**
- * PluginManager - Browse, enable, configure, and read about plugins.
+ * EncoreManager - Browse, enable, configure, and read about encores.
  *
- * Shows all discovered plugins with their state, permissions, and toggle controls.
- * Click a plugin to expand its detail view with README and settings.
+ * Shows all discovered encores with their state, permissions, and toggle controls.
+ * Click an encore to expand its detail view with README and settings.
  */
 
 import { useState, useCallback, useEffect } from 'react';
@@ -19,17 +19,17 @@ import {
 	ChevronRight,
 } from 'lucide-react';
 import type { Theme } from '../types';
-import type { LoadedPlugin, PluginPermission, PluginSettingDefinition } from '../../shared/plugin-types';
+import type { LoadedEncore, EncorePermission, EncoreSettingDefinition } from '../../shared/encore-types';
 import { Modal } from './ui/Modal';
 import { MODAL_PRIORITIES } from '../constants/modalPriorities';
 
-interface PluginManagerProps {
+interface EncoreManagerProps {
 	theme: Theme;
-	plugins: LoadedPlugin[];
+	encores: LoadedEncore[];
 	loading: boolean;
 	onClose: () => void;
-	onEnablePlugin: (id: string) => Promise<void>;
-	onDisablePlugin: (id: string) => Promise<void>;
+	onEnableEncore: (id: string) => Promise<void>;
+	onDisableEncore: (id: string) => Promise<void>;
 	onRefresh: () => Promise<void>;
 	/** When true, renders content directly without Modal wrapper (for embedding in Settings tab) */
 	embedded?: boolean;
@@ -37,7 +37,7 @@ interface PluginManagerProps {
 
 /** Returns a color for a permission badge based on its risk level */
 function getPermissionColor(
-	permission: PluginPermission,
+	permission: EncorePermission,
 	theme: Theme
 ): { bg: string; text: string } {
 	if (permission === 'middleware') {
@@ -71,15 +71,15 @@ function validateSetting(key: string, value: unknown): string | null {
 	return null;
 }
 
-/** Plugin settings editor for plugins that declare settings in their manifest */
-function PluginSettings({
-	plugin,
+/** Encore settings editor for encores that declare settings in their manifest */
+export function EncoreSettings({
+	encore,
 	theme,
 }: {
-	plugin: LoadedPlugin;
+	encore: LoadedEncore;
 	theme: Theme;
 }) {
-	const settings = plugin.manifest.settings;
+	const settings = encore.manifest.settings;
 
 	const [values, setValues] = useState<Record<string, unknown>>({});
 	const [localValues, setLocalValues] = useState<Record<string, string>>({});
@@ -91,7 +91,7 @@ function PluginSettings({
 		let cancelled = false;
 		(async () => {
 			try {
-				const result = await window.maestro.plugins.settings.get(plugin.manifest.id);
+				const result = await window.maestro.encores.settings.get(encore.manifest.id);
 				if (!cancelled && result?.success && result.settings) {
 					setValues(result.settings);
 				}
@@ -102,7 +102,7 @@ function PluginSettings({
 			}
 		})();
 		return () => { cancelled = true; };
-	}, [plugin.manifest.id]);
+	}, [encore.manifest.id]);
 
 	/** Save a setting immediately (for toggles, selects, numbers) */
 	const handleSave = useCallback(async (key: string, value: unknown) => {
@@ -112,7 +112,7 @@ function PluginSettings({
 
 		setValues((prev) => ({ ...prev, [key]: value }));
 		try {
-			await window.maestro.plugins.settings.set(plugin.manifest.id, key, value);
+			await window.maestro.encores.settings.set(encore.manifest.id, key, value);
 			setSavedKeys((prev) => new Set(prev).add(key));
 			setTimeout(() => {
 				setSavedKeys((prev) => {
@@ -124,7 +124,7 @@ function PluginSettings({
 		} catch {
 			// Ignore save errors
 		}
-	}, [plugin.manifest.id]);
+	}, [encore.manifest.id]);
 
 	/** Save a text setting on blur */
 	const handleBlurSave = useCallback((key: string, value: string) => {
@@ -138,7 +138,7 @@ function PluginSettings({
 			<h4 className="text-xs font-bold uppercase tracking-wide" style={{ color: theme.colors.textDim }}>
 				Settings
 			</h4>
-			{settings.map((setting: PluginSettingDefinition) => {
+			{settings.map((setting: EncoreSettingDefinition) => {
 				const savedValue = values[setting.key] ?? setting.default;
 				const error = errors[setting.key];
 				const saved = savedKeys.has(setting.key);
@@ -212,9 +212,9 @@ function PluginSettings({
 								}}
 								placeholder={(() => {
 								if (typeof setting.default === 'string' && setting.default) return setting.default;
-								// For path settings with empty default, show the plugin's default data dir as hint
+								// For path settings with empty default, show the encore's default data dir as hint
 								const isPathKey = setting.key.toLowerCase().includes('path') || setting.key.toLowerCase().includes('dir');
-								if (isPathKey && plugin.path) return `Default: ${plugin.path}/data/status.json`;
+								if (isPathKey && encore.path) return `Default: ${encore.path}/data/status.json`;
 								return 'Not set';
 							})()}
 								className="w-full px-2 py-1.5 rounded text-xs border bg-transparent outline-none"
@@ -308,30 +308,30 @@ function PluginSettings({
 	);
 }
 
-export function PluginManager({
+export function EncoreManager({
 	theme,
-	plugins,
+	encores,
 	loading,
 	onClose,
-	onEnablePlugin,
-	onDisablePlugin,
+	onEnableEncore,
+	onDisableEncore,
 	onRefresh,
 	embedded,
-}: PluginManagerProps) {
+}: EncoreManagerProps) {
 	const [togglingIds, setTogglingIds] = useState<Set<string>>(new Set());
 	const [refreshing, setRefreshing] = useState(false);
-	const [selectedPluginId, setSelectedPluginId] = useState<string | null>(null);
+	const [selectedEncoreId, setSelectedEncoreId] = useState<string | null>(null);
 
 	const handleToggle = useCallback(
-		async (plugin: LoadedPlugin, e?: React.MouseEvent) => {
+		async (encore: LoadedEncore, e?: React.MouseEvent) => {
 			if (e) e.stopPropagation();
-			const id = plugin.manifest.id;
+			const id = encore.manifest.id;
 			setTogglingIds((prev) => new Set(prev).add(id));
 			try {
-				if (plugin.state === 'active' || plugin.state === 'loaded') {
-					await onDisablePlugin(id);
+				if (encore.state === 'active' || encore.state === 'loaded') {
+					await onDisableEncore(id);
 				} else {
-					await onEnablePlugin(id);
+					await onEnableEncore(id);
 				}
 			} finally {
 				setTogglingIds((prev) => {
@@ -341,7 +341,7 @@ export function PluginManager({
 				});
 			}
 		},
-		[onEnablePlugin, onDisablePlugin]
+		[onEnableEncore, onDisableEncore]
 	);
 
 	const handleRefresh = useCallback(async () => {
@@ -355,66 +355,66 @@ export function PluginManager({
 
 	const handleOpenFolder = useCallback(async () => {
 		try {
-			const result = await window.maestro.plugins.getDir();
+			const result = await window.maestro.encores.getDir();
 			// IPC handler returns { success: true, dir: '...' } via createIpcHandler
 			const dir = result?.success ? result.dir : null;
 			if (dir) {
 				await window.maestro.shell.showItemInFolder(dir);
 			}
 		} catch (err) {
-			console.error('Failed to open plugins folder:', err);
+			console.error('Failed to open encores folder:', err);
 		}
 	}, []);
 
-	const isEnabled = (plugin: LoadedPlugin) =>
-		plugin.state === 'active' || plugin.state === 'loaded';
+	const isEnabled = (encore: LoadedEncore) =>
+		encore.state === 'active' || encore.state === 'loaded';
 
-	const selectedPlugin = selectedPluginId
-		? plugins.find((p) => p.manifest.id === selectedPluginId)
+	const selectedEncore = selectedEncoreId
+		? encores.find((p) => p.manifest.id === selectedEncoreId)
 		: null;
 
-	// Detail view for a selected plugin
-	const detailView = selectedPlugin && (
+	// Detail view for a selected encore
+	const detailView = selectedEncore && (
 		<div className="space-y-4">
 			{/* Back button */}
 			<button
-				onClick={() => setSelectedPluginId(null)}
+				onClick={() => setSelectedEncoreId(null)}
 				className="flex items-center gap-1 text-xs hover:underline"
 				style={{ color: theme.colors.textDim }}
 			>
 				<ChevronLeft className="w-3.5 h-3.5" />
-				Back to plugins
+				Back to encores
 			</button>
 
-			{/* Plugin header */}
+			{/* Encore header */}
 			<div className="flex items-center justify-between">
 				<div>
 					<div className="flex items-center gap-2">
 						<span className="text-sm font-bold" style={{ color: theme.colors.textMain }}>
-							{selectedPlugin.manifest.name}
+							{selectedEncore.manifest.name}
 						</span>
 						<span className="text-xs font-mono" style={{ color: theme.colors.textDim }}>
-							v{selectedPlugin.manifest.version}
+							v{selectedEncore.manifest.version}
 						</span>
 					</div>
 					<div className="text-xs mt-0.5" style={{ color: theme.colors.textDim }}>
-						by {selectedPlugin.manifest.author}
+						by {selectedEncore.manifest.author}
 					</div>
 				</div>
 
 				{/* Toggle */}
 				<button
-					onClick={(e) => handleToggle(selectedPlugin, e)}
-					disabled={togglingIds.has(selectedPlugin.manifest.id) || selectedPlugin.state === 'error'}
+					onClick={(e) => handleToggle(selectedEncore, e)}
+					disabled={togglingIds.has(selectedEncore.manifest.id) || selectedEncore.state === 'error'}
 					className="transition-colors"
-					title={isEnabled(selectedPlugin) ? 'Disable plugin' : 'Enable plugin'}
+					title={isEnabled(selectedEncore) ? 'Disable encore' : 'Enable encore'}
 					style={{
-						color: isEnabled(selectedPlugin) ? theme.colors.success : theme.colors.textDim,
+						color: isEnabled(selectedEncore) ? theme.colors.success : theme.colors.textDim,
 					}}
 				>
-					{togglingIds.has(selectedPlugin.manifest.id) ? (
+					{togglingIds.has(selectedEncore.manifest.id) ? (
 						<Loader2 className="w-5 h-5 animate-spin" />
-					) : isEnabled(selectedPlugin) ? (
+					) : isEnabled(selectedEncore) ? (
 						<ToggleRight className="w-5 h-5" />
 					) : (
 						<ToggleLeft className="w-5 h-5" />
@@ -423,9 +423,9 @@ export function PluginManager({
 			</div>
 
 			{/* Permissions */}
-			{selectedPlugin.manifest.permissions.length > 0 && (
+			{selectedEncore.manifest.permissions.length > 0 && (
 				<div className="flex flex-wrap gap-1">
-					{selectedPlugin.manifest.permissions.map((perm) => {
+					{selectedEncore.manifest.permissions.map((perm) => {
 						const colors = getPermissionColor(perm, theme);
 						return (
 							<span
@@ -441,18 +441,18 @@ export function PluginManager({
 			)}
 
 			{/* Error */}
-			{selectedPlugin.state === 'error' && selectedPlugin.error && (
+			{selectedEncore.state === 'error' && selectedEncore.error && (
 				<div className="flex items-start gap-1.5 text-xs" style={{ color: theme.colors.error }}>
 					<AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-					<span>{selectedPlugin.error}</span>
+					<span>{selectedEncore.error}</span>
 				</div>
 			)}
 
 			{/* Settings */}
-			<PluginSettings plugin={selectedPlugin} theme={theme} />
+			<EncoreSettings encore={selectedEncore} theme={theme} />
 
 			{/* README */}
-			{selectedPlugin.readme ? (
+			{selectedEncore.readme ? (
 				<div
 					className="prose prose-sm prose-invert max-w-none text-xs leading-relaxed"
 					style={{ color: theme.colors.textMain }}
@@ -534,12 +534,12 @@ export function PluginManager({
 							),
 						}}
 					>
-						{selectedPlugin.readme}
+						{selectedEncore.readme}
 					</ReactMarkdown>
 				</div>
 			) : (
 				<div className="text-xs py-4 text-center" style={{ color: theme.colors.textDim }}>
-					No README available for this plugin.
+					No README available for this encore.
 				</div>
 			)}
 		</div>
@@ -551,14 +551,14 @@ export function PluginManager({
 			{/* Toolbar */}
 			<div className="flex items-center justify-between">
 				<span className="text-xs" style={{ color: theme.colors.textDim }}>
-					{plugins.length} plugin{plugins.length !== 1 ? 's' : ''} discovered
+					{encores.length} encore{encores.length !== 1 ? 's' : ''} discovered
 				</span>
 				<div className="flex items-center gap-2">
 					<button
 						onClick={handleOpenFolder}
 						className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs border hover:bg-white/5 transition-colors"
 						style={{ borderColor: theme.colors.border, color: theme.colors.textMain }}
-						title="Open plugins folder"
+						title="Open encores folder"
 					>
 						<FolderOpen className="w-3.5 h-3.5" />
 						Open Folder
@@ -568,7 +568,7 @@ export function PluginManager({
 						disabled={refreshing}
 						className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs border hover:bg-white/5 transition-colors"
 						style={{ borderColor: theme.colors.border, color: theme.colors.textMain }}
-						title="Refresh plugin list"
+						title="Refresh encore list"
 					>
 						<RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
 						Refresh
@@ -576,43 +576,43 @@ export function PluginManager({
 				</div>
 			</div>
 
-			{/* Plugin List */}
+			{/* Encore List */}
 			{loading ? (
 				<div className="flex items-center justify-center py-8 gap-2">
 					<Loader2 className="w-4 h-4 animate-spin" style={{ color: theme.colors.textDim }} />
 					<span className="text-xs" style={{ color: theme.colors.textDim }}>
-						Loading plugins...
+						Loading encores...
 					</span>
 				</div>
-			) : plugins.length === 0 ? (
+			) : encores.length === 0 ? (
 				<div
 					className="text-center py-8 space-y-2"
 					style={{ color: theme.colors.textDim }}
 				>
 					<Puzzle className="w-8 h-8 mx-auto opacity-50" />
-					<p className="text-sm">No plugins installed</p>
+					<p className="text-sm">No encores installed</p>
 					<p className="text-xs">
-						Place plugin folders in the plugins directory to get started.
+						Place encore folders in the encores directory to get started.
 					</p>
 				</div>
 			) : (
 				<div className="space-y-2 max-h-[400px] overflow-y-auto scrollbar-thin">
-					{plugins.map((plugin) => {
-						const toggling = togglingIds.has(plugin.manifest.id);
-						const enabled = isEnabled(plugin);
+					{encores.map((encore) => {
+						const toggling = togglingIds.has(encore.manifest.id);
+						const enabled = isEnabled(encore);
 
 						return (
 							<div
-								key={plugin.manifest.id}
+								key={encore.manifest.id}
 								className="p-3 rounded border cursor-pointer hover:brightness-110 transition-all"
 								style={{
 									borderColor:
-										plugin.state === 'error'
+										encore.state === 'error'
 											? theme.colors.error
 											: theme.colors.border,
 									backgroundColor: theme.colors.bgActivity,
 								}}
-								onClick={() => setSelectedPluginId(plugin.manifest.id)}
+								onClick={() => setSelectedEncoreId(encore.manifest.id)}
 							>
 								{/* Header row */}
 								<div className="flex items-center justify-between mb-1">
@@ -621,23 +621,23 @@ export function PluginManager({
 											className="text-sm font-bold"
 											style={{ color: theme.colors.textMain }}
 										>
-											{plugin.manifest.name}
+											{encore.manifest.name}
 										</span>
 										<span
 											className="text-xs font-mono"
 											style={{ color: theme.colors.textDim }}
 										>
-											v{plugin.manifest.version}
+											v{encore.manifest.version}
 										</span>
 									</div>
 
 									<div className="flex items-center gap-1.5">
 										{/* Toggle */}
 										<button
-											onClick={(e) => handleToggle(plugin, e)}
-											disabled={toggling || plugin.state === 'error'}
+											onClick={(e) => handleToggle(encore, e)}
+											disabled={toggling || encore.state === 'error'}
 											className="transition-colors"
-											title={enabled ? 'Disable plugin' : 'Enable plugin'}
+											title={enabled ? 'Disable encore' : 'Enable encore'}
 											style={{
 												color: enabled
 													? theme.colors.success
@@ -659,7 +659,7 @@ export function PluginManager({
 
 								{/* Author */}
 								<div className="text-xs mb-1" style={{ color: theme.colors.textDim }}>
-									by {plugin.manifest.author}
+									by {encore.manifest.author}
 								</div>
 
 								{/* Description */}
@@ -667,13 +667,13 @@ export function PluginManager({
 									className="text-xs mb-2"
 									style={{ color: theme.colors.textMain }}
 								>
-									{plugin.manifest.description}
+									{encore.manifest.description}
 								</div>
 
 								{/* Permissions */}
-								{plugin.manifest.permissions.length > 0 && (
+								{encore.manifest.permissions.length > 0 && (
 									<div className="flex flex-wrap gap-1 mb-1">
-										{plugin.manifest.permissions.map((perm) => {
+										{encore.manifest.permissions.map((perm) => {
 											const colors = getPermissionColor(perm, theme);
 											return (
 												<span
@@ -692,13 +692,13 @@ export function PluginManager({
 								)}
 
 								{/* Error message */}
-								{plugin.state === 'error' && plugin.error && (
+								{encore.state === 'error' && encore.error && (
 									<div
 										className="flex items-start gap-1.5 mt-2 text-xs"
 										style={{ color: theme.colors.error }}
 									>
 										<AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-										<span>{plugin.error}</span>
+										<span>{encore.error}</span>
 									</div>
 								)}
 							</div>
@@ -709,7 +709,7 @@ export function PluginManager({
 		</div>
 	);
 
-	const content = selectedPlugin ? detailView : listView;
+	const content = selectedEncore ? detailView : listView;
 
 	if (embedded) {
 		return content;
@@ -718,8 +718,8 @@ export function PluginManager({
 	return (
 		<Modal
 			theme={theme}
-			title="Plugin Manager"
-			priority={MODAL_PRIORITIES.PLUGIN_MANAGER}
+			title="Encore Manager"
+			priority={MODAL_PRIORITIES.ENCORE_MANAGER}
 			onClose={onClose}
 			width={520}
 			headerIcon={<Puzzle className="w-4 h-4" />}

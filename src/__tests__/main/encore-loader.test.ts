@@ -2,9 +2,9 @@
  * Tests for Plugin Manifest Validation and Discovery
  *
  * Covers:
- * - validateManifest() type guard
- * - discoverPlugins() directory scanning
- * - loadPlugin() manifest reading
+ * - validateEncoreManifest() type guard
+ * - discoverEncores() directory scanning
+ * - loadEncore() manifest reading
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -45,17 +45,17 @@ vi.mock('fs/promises', () => ({
 	mkdir: (...args: unknown[]) => mockMkdir(...args),
 }));
 
-import { validateManifest, discoverPlugins, loadPlugin } from '../../main/plugin-loader';
+import { validateEncoreManifest, discoverEncores, loadEncore } from '../../main/encore-loader';
 
 /**
  * Helper to create a valid manifest object for testing.
  */
 function validManifest(overrides: Record<string, unknown> = {}) {
 	return {
-		id: 'test-plugin',
+		id: 'test-encore',
 		name: 'Test Plugin',
 		version: '1.0.0',
-		description: 'A test plugin',
+		description: 'A test encore',
 		author: 'Test Author',
 		main: 'index.js',
 		permissions: ['stats:read'],
@@ -63,9 +63,9 @@ function validManifest(overrides: Record<string, unknown> = {}) {
 	};
 }
 
-describe('validateManifest', () => {
+describe('validateEncoreManifest', () => {
 	it('accepts a valid manifest', () => {
-		expect(validateManifest(validManifest())).toBe(true);
+		expect(validateEncoreManifest(validManifest())).toBe(true);
 	});
 
 	it('accepts a valid manifest with all optional fields', () => {
@@ -77,89 +77,89 @@ describe('validateManifest', () => {
 			settings: [{ key: 'enabled', type: 'boolean', label: 'Enabled', default: true }],
 			tags: ['dashboard', 'monitoring'],
 		});
-		expect(validateManifest(manifest)).toBe(true);
+		expect(validateEncoreManifest(manifest)).toBe(true);
 	});
 
 	it('rejects null', () => {
-		expect(validateManifest(null)).toBe(false);
+		expect(validateEncoreManifest(null)).toBe(false);
 	});
 
 	it('rejects non-object', () => {
-		expect(validateManifest('string')).toBe(false);
+		expect(validateEncoreManifest('string')).toBe(false);
 	});
 
 	it('rejects manifest missing required field: id', () => {
 		const { id, ...rest } = validManifest();
-		expect(validateManifest(rest)).toBe(false);
+		expect(validateEncoreManifest(rest)).toBe(false);
 	});
 
 	it('rejects manifest missing required field: name', () => {
 		const { name, ...rest } = validManifest();
-		expect(validateManifest(rest)).toBe(false);
+		expect(validateEncoreManifest(rest)).toBe(false);
 	});
 
 	it('rejects manifest missing required field: version', () => {
 		const { version, ...rest } = validManifest();
-		expect(validateManifest(rest)).toBe(false);
+		expect(validateEncoreManifest(rest)).toBe(false);
 	});
 
 	it('rejects manifest missing required field: description', () => {
 		const { description, ...rest } = validManifest();
-		expect(validateManifest(rest)).toBe(false);
+		expect(validateEncoreManifest(rest)).toBe(false);
 	});
 
 	it('rejects manifest missing required field: author', () => {
 		const { author, ...rest } = validManifest();
-		expect(validateManifest(rest)).toBe(false);
+		expect(validateEncoreManifest(rest)).toBe(false);
 	});
 
 	it('rejects manifest missing required field: main', () => {
 		const { main, ...rest } = validManifest();
-		expect(validateManifest(rest)).toBe(false);
+		expect(validateEncoreManifest(rest)).toBe(false);
 	});
 
 	it('rejects manifest with empty string for required field', () => {
-		expect(validateManifest(validManifest({ id: '' }))).toBe(false);
-		expect(validateManifest(validManifest({ name: '  ' }))).toBe(false);
+		expect(validateEncoreManifest(validManifest({ id: '' }))).toBe(false);
+		expect(validateEncoreManifest(validManifest({ name: '  ' }))).toBe(false);
 	});
 
 	it('rejects manifest with invalid slug format (uppercase)', () => {
-		expect(validateManifest(validManifest({ id: 'TestPlugin' }))).toBe(false);
+		expect(validateEncoreManifest(validManifest({ id: 'TestPlugin' }))).toBe(false);
 	});
 
 	it('rejects manifest with invalid slug format (spaces)', () => {
-		expect(validateManifest(validManifest({ id: 'test plugin' }))).toBe(false);
+		expect(validateEncoreManifest(validManifest({ id: 'test encore' }))).toBe(false);
 	});
 
 	it('rejects manifest with invalid slug format (underscores)', () => {
-		expect(validateManifest(validManifest({ id: 'test_plugin' }))).toBe(false);
+		expect(validateEncoreManifest(validManifest({ id: 'test_plugin' }))).toBe(false);
 	});
 
 	it('rejects manifest with invalid slug format (leading hyphen)', () => {
-		expect(validateManifest(validManifest({ id: '-test' }))).toBe(false);
+		expect(validateEncoreManifest(validManifest({ id: '-test' }))).toBe(false);
 	});
 
 	it('accepts valid slug formats', () => {
-		expect(validateManifest(validManifest({ id: 'my-plugin' }))).toBe(true);
-		expect(validateManifest(validManifest({ id: 'plugin123' }))).toBe(true);
-		expect(validateManifest(validManifest({ id: 'a' }))).toBe(true);
+		expect(validateEncoreManifest(validManifest({ id: 'my-encore' }))).toBe(true);
+		expect(validateEncoreManifest(validManifest({ id: 'encore123' }))).toBe(true);
+		expect(validateEncoreManifest(validManifest({ id: 'a' }))).toBe(true);
 	});
 
 	it('rejects manifest with missing permissions array', () => {
 		const { permissions, ...rest } = validManifest();
-		expect(validateManifest(rest)).toBe(false);
+		expect(validateEncoreManifest(rest)).toBe(false);
 	});
 
 	it('rejects manifest with permissions as non-array', () => {
-		expect(validateManifest(validManifest({ permissions: 'stats:read' }))).toBe(false);
+		expect(validateEncoreManifest(validManifest({ permissions: 'stats:read' }))).toBe(false);
 	});
 
 	it('rejects unknown permissions', () => {
-		expect(validateManifest(validManifest({ permissions: ['unknown:perm'] }))).toBe(false);
+		expect(validateEncoreManifest(validManifest({ permissions: ['unknown:perm'] }))).toBe(false);
 	});
 
 	it('accepts empty permissions array', () => {
-		expect(validateManifest(validManifest({ permissions: [] }))).toBe(true);
+		expect(validateEncoreManifest(validManifest({ permissions: [] }))).toBe(true);
 	});
 
 	it('accepts all known permissions', () => {
@@ -168,36 +168,36 @@ describe('validateManifest', () => {
 			'settings:read', 'settings:write', 'notifications',
 			'network', 'storage', 'middleware',
 		];
-		expect(validateManifest(validManifest({ permissions: allPerms }))).toBe(true);
+		expect(validateEncoreManifest(validManifest({ permissions: allPerms }))).toBe(true);
 	});
 
 	it('does not fail on extra unknown fields (forward compatibility)', () => {
 		const manifest = validManifest({ futureField: 'some value', anotherField: 42 });
-		expect(validateManifest(manifest)).toBe(true);
+		expect(validateEncoreManifest(manifest)).toBe(true);
 	});
 });
 
-describe('loadPlugin', () => {
+describe('loadEncore', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 	});
 
-	it('loads a valid plugin as discovered', async () => {
+	it('loads a valid encore as discovered', async () => {
 		const manifest = validManifest();
 		mockReadFile.mockResolvedValue(JSON.stringify(manifest));
 
-		const result = await loadPlugin('/plugins/test-plugin');
+		const result = await loadEncore('/encores/test-encore');
 
 		expect(result.state).toBe('discovered');
-		expect(result.manifest.id).toBe('test-plugin');
-		expect(result.path).toBe('/plugins/test-plugin');
+		expect(result.manifest.id).toBe('test-encore');
+		expect(result.path).toBe('/encores/test-encore');
 		expect(result.error).toBeUndefined();
 	});
 
 	it('returns error state when manifest.json is missing', async () => {
 		mockReadFile.mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
 
-		const result = await loadPlugin('/plugins/broken');
+		const result = await loadEncore('/encores/broken');
 
 		expect(result.state).toBe('error');
 		expect(result.error).toContain('Failed to read manifest.json');
@@ -206,7 +206,7 @@ describe('loadPlugin', () => {
 	it('returns error state for invalid JSON', async () => {
 		mockReadFile.mockResolvedValue('not valid json {{{');
 
-		const result = await loadPlugin('/plugins/bad-json');
+		const result = await loadEncore('/encores/bad-json');
 
 		expect(result.state).toBe('error');
 		expect(result.error).toContain('Invalid JSON');
@@ -215,14 +215,14 @@ describe('loadPlugin', () => {
 	it('returns error state for manifest that fails validation', async () => {
 		mockReadFile.mockResolvedValue(JSON.stringify({ id: 'BAD ID' }));
 
-		const result = await loadPlugin('/plugins/bad-manifest');
+		const result = await loadEncore('/encores/bad-manifest');
 
 		expect(result.state).toBe('error');
 		expect(result.error).toContain('validation failed');
 	});
 });
 
-describe('discoverPlugins', () => {
+describe('discoverEncores', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		mockMkdir.mockResolvedValue(undefined);
@@ -231,68 +231,68 @@ describe('discoverPlugins', () => {
 	it('returns empty array for empty directory', async () => {
 		mockReaddir.mockResolvedValue([]);
 
-		const result = await discoverPlugins('/plugins');
+		const result = await discoverEncores('/encores');
 
 		expect(result).toEqual([]);
 	});
 
-	it('discovers valid plugins from subdirectories', async () => {
-		mockReaddir.mockResolvedValue(['plugin-a', 'plugin-b']);
+	it('discovers valid encores from subdirectories', async () => {
+		mockReaddir.mockResolvedValue(['encore-a', 'encore-b']);
 		mockStat.mockResolvedValue({ isDirectory: () => true });
 		mockReadFile.mockImplementation((filePath: string) => {
-			if (filePath.includes('plugin-a')) {
-				return Promise.resolve(JSON.stringify(validManifest({ id: 'plugin-a' })));
+			if (filePath.includes('encore-a')) {
+				return Promise.resolve(JSON.stringify(validManifest({ id: 'encore-a' })));
 			}
-			return Promise.resolve(JSON.stringify(validManifest({ id: 'plugin-b' })));
+			return Promise.resolve(JSON.stringify(validManifest({ id: 'encore-b' })));
 		});
 
-		const result = await discoverPlugins('/plugins');
+		const result = await discoverEncores('/encores');
 
 		expect(result).toHaveLength(2);
 		expect(result[0].state).toBe('discovered');
 		expect(result[1].state).toBe('discovered');
 	});
 
-	it('returns error state for plugins with invalid manifests', async () => {
-		mockReaddir.mockResolvedValue(['good-plugin', 'bad-plugin']);
+	it('returns error state for encores with invalid manifests', async () => {
+		mockReaddir.mockResolvedValue(['good-encore', 'bad-encore']);
 		mockStat.mockResolvedValue({ isDirectory: () => true });
 		mockReadFile.mockImplementation((filePath: string) => {
-			if (filePath.includes('good-plugin')) {
-				return Promise.resolve(JSON.stringify(validManifest({ id: 'good-plugin' })));
+			if (filePath.includes('good-encore')) {
+				return Promise.resolve(JSON.stringify(validManifest({ id: 'good-encore' })));
 			}
 			return Promise.resolve('not json');
 		});
 
-		const result = await discoverPlugins('/plugins');
+		const result = await discoverEncores('/encores');
 
 		expect(result).toHaveLength(2);
-		const good = result.find((p) => p.manifest.id === 'good-plugin');
-		const bad = result.find((p) => p.manifest.id !== 'good-plugin');
+		const good = result.find((p) => p.manifest.id === 'good-encore');
+		const bad = result.find((p) => p.manifest.id !== 'good-encore');
 		expect(good?.state).toBe('discovered');
 		expect(bad?.state).toBe('error');
 	});
 
 	it('skips non-directory entries', async () => {
-		mockReaddir.mockResolvedValue(['file.txt', 'plugin-dir']);
+		mockReaddir.mockResolvedValue(['file.txt', 'encore-dir']);
 		mockStat.mockImplementation((entryPath: string) => {
 			if (entryPath.includes('file.txt')) {
 				return Promise.resolve({ isDirectory: () => false });
 			}
 			return Promise.resolve({ isDirectory: () => true });
 		});
-		mockReadFile.mockResolvedValue(JSON.stringify(validManifest({ id: 'plugin-dir' })));
+		mockReadFile.mockResolvedValue(JSON.stringify(validManifest({ id: 'encore-dir' })));
 
-		const result = await discoverPlugins('/plugins');
+		const result = await discoverEncores('/encores');
 
 		expect(result).toHaveLength(1);
-		expect(result[0].manifest.id).toBe('plugin-dir');
+		expect(result[0].manifest.id).toBe('encore-dir');
 	});
 
-	it('creates the plugins directory if it does not exist', async () => {
+	it('creates the encores directory if it does not exist', async () => {
 		mockReaddir.mockResolvedValue([]);
 
-		await discoverPlugins('/plugins');
+		await discoverEncores('/encores');
 
-		expect(mockMkdir).toHaveBeenCalledWith('/plugins', { recursive: true });
+		expect(mockMkdir).toHaveBeenCalledWith('/encores', { recursive: true });
 	});
 });

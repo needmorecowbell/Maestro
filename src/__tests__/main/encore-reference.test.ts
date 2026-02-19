@@ -23,7 +23,7 @@ describe('Agent Status Exporter Plugin', () => {
 
 		// Fresh module for each test to reset module-level state
 		vi.resetModules();
-		dashboard = require('../../plugins/agent-status-exporter/index.js');
+		dashboard = require('../../encores/agent-status-exporter/index.js');
 
 		mockApi = {
 			process: {
@@ -298,7 +298,7 @@ describe('Notification Webhook Plugin', () => {
 
 	beforeEach(() => {
 		vi.resetModules();
-		webhook = require('../../plugins/notification-webhook/index.js');
+		webhook = require('../../encores/notification-webhook/index.js');
 
 		eventHandlers = {};
 		settingsData = {

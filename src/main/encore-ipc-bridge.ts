@@ -1,7 +1,7 @@
 /**
- * Plugin IPC Bridge
+ * Encore IPC Bridge
  *
- * Enables split-architecture plugins where a renderer component sends data
+ * Enables split-architecture encores where a renderer component sends data
  * to its main-process component via IPC. This is what makes patterns like
  * Notifications work: renderer subscribes to Zustand batch state, forwards
  * events via bridge, and the main-process component dispatches webhooks.
@@ -9,29 +9,29 @@
 
 import { logger } from './utils/logger';
 
-const LOG_CONTEXT = '[Plugins]';
+const LOG_CONTEXT = '[Encores]';
 
 /**
- * Routes IPC messages between renderer and main-process plugin components.
- * Channels are namespaced as `plugin:<pluginId>:<channel>`.
+ * Routes IPC messages between renderer and main-process encore components.
+ * Channels are namespaced as `encore:<encoreId>:<channel>`.
  */
-export class PluginIpcBridge {
-	/** Handlers keyed by `plugin:<pluginId>:<channel>` */
+export class EncoreIpcBridge {
+	/** Handlers keyed by `encore:<encoreId>:<channel>` */
 	private handlers: Map<string, (...args: unknown[]) => unknown> = new Map();
 
 	/**
 	 * Builds the internal channel key.
 	 */
-	private channelKey(pluginId: string, channel: string): string {
-		return `plugin:${pluginId}:${channel}`;
+	private channelKey(encoreId: string, channel: string): string {
+		return `encore:${encoreId}:${channel}`;
 	}
 
 	/**
-	 * Registers a handler for a specific plugin channel.
+	 * Registers a handler for a specific encore channel.
 	 * Returns an unsubscribe function.
 	 */
-	register(pluginId: string, channel: string, handler: (...args: unknown[]) => unknown): () => void {
-		const key = this.channelKey(pluginId, channel);
+	register(encoreId: string, channel: string, handler: (...args: unknown[]) => unknown): () => void {
+		const key = this.channelKey(encoreId, channel);
 		this.handlers.set(key, handler);
 		logger.debug(`IPC bridge handler registered: ${key}`, LOG_CONTEXT);
 
@@ -44,8 +44,8 @@ export class PluginIpcBridge {
 	 * Invokes a registered handler and returns its result.
 	 * Throws if no handler is registered for the channel.
 	 */
-	async invoke(pluginId: string, channel: string, ...args: unknown[]): Promise<unknown> {
-		const key = this.channelKey(pluginId, channel);
+	async invoke(encoreId: string, channel: string, ...args: unknown[]): Promise<unknown> {
+		const key = this.channelKey(encoreId, channel);
 		const handler = this.handlers.get(key);
 		if (!handler) {
 			throw new Error(`No handler registered for channel '${key}'`);
@@ -57,8 +57,8 @@ export class PluginIpcBridge {
 	 * Sends a one-way message to a registered handler (fire-and-forget).
 	 * Silently ignores if no handler is registered.
 	 */
-	send(pluginId: string, channel: string, ...args: unknown[]): void {
-		const key = this.channelKey(pluginId, channel);
+	send(encoreId: string, channel: string, ...args: unknown[]): void {
+		const key = this.channelKey(encoreId, channel);
 		const handler = this.handlers.get(key);
 		if (handler) {
 			try {
@@ -73,10 +73,10 @@ export class PluginIpcBridge {
 	}
 
 	/**
-	 * Removes all handlers for a given plugin.
+	 * Removes all handlers for a given encore.
 	 */
-	unregisterAll(pluginId: string): void {
-		const prefix = `plugin:${pluginId}:`;
+	unregisterAll(encoreId: string): void {
+		const prefix = `encore:${encoreId}:`;
 		const keysToDelete: string[] = [];
 
 		for (const key of this.handlers.keys()) {
@@ -90,14 +90,14 @@ export class PluginIpcBridge {
 		}
 
 		if (keysToDelete.length > 0) {
-			logger.debug(`IPC bridge: removed ${keysToDelete.length} handler(s) for plugin '${pluginId}'`, LOG_CONTEXT);
+			logger.debug(`IPC bridge: removed ${keysToDelete.length} handler(s) for encore '${encoreId}'`, LOG_CONTEXT);
 		}
 	}
 
 	/**
 	 * Returns whether a handler is registered for a channel.
 	 */
-	hasHandler(pluginId: string, channel: string): boolean {
-		return this.handlers.has(this.channelKey(pluginId, channel));
+	hasHandler(encoreId: string, channel: string): boolean {
+		return this.handlers.has(this.channelKey(encoreId, channel));
 	}
 }

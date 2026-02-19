@@ -1,39 +1,39 @@
 /**
- * PluginTabContent - Renders plugin UI within the Right Panel.
+ * EncoreTabContent - Renders encore UI within the Right Panel.
  *
- * Uses an iframe to load the plugin's renderer entry point, providing natural
+ * Uses an iframe to load the encore's renderer entry point, providing natural
  * sandboxing for untrusted UI code. The iframe uses sandbox="allow-scripts"
- * without allow-same-origin to prevent the plugin from accessing the parent
+ * without allow-same-origin to prevent the encore from accessing the parent
  * frame's DOM or IPC bridge.
  */
 
 import type { Theme } from '../types';
-import type { LoadedPlugin } from '../../shared/plugin-types';
+import type { LoadedEncore } from '../../shared/encore-types';
 import { Puzzle } from 'lucide-react';
 
-interface PluginTabContentProps {
-	pluginId: string;
+interface EncoreTabContentProps {
+	encoreId: string;
 	tabId: string;
 	theme: Theme;
-	plugins: LoadedPlugin[];
+	encores: LoadedEncore[];
 }
 
-export function PluginTabContent({ pluginId, tabId, theme, plugins }: PluginTabContentProps) {
-	const plugin = plugins.find((p) => p.manifest.id === pluginId);
+export function EncoreTabContent({ encoreId, tabId, theme, encores }: EncoreTabContentProps) {
+	const encore = encores.find((p) => p.manifest.id === encoreId);
 
-	if (!plugin) {
+	if (!encore) {
 		return (
 			<div
 				className="flex flex-col items-center justify-center h-full gap-2 text-center p-4"
 				style={{ color: theme.colors.textDim }}
 			>
 				<Puzzle className="w-8 h-8 opacity-50" />
-				<span className="text-sm">Plugin not found: {pluginId}</span>
+				<span className="text-sm">Encore not found: {encoreId}</span>
 			</div>
 		);
 	}
 
-	const rendererEntry = plugin.manifest.renderer;
+	const rendererEntry = encore.manifest.renderer;
 
 	if (!rendererEntry) {
 		return (
@@ -43,20 +43,20 @@ export function PluginTabContent({ pluginId, tabId, theme, plugins }: PluginTabC
 			>
 				<Puzzle className="w-8 h-8 opacity-50" />
 				<span className="text-sm font-medium" style={{ color: theme.colors.textMain }}>
-					{plugin.manifest.name}
+					{encore.manifest.name}
 				</span>
-				<span className="text-xs">This plugin has no UI</span>
+				<span className="text-xs">This encore has no UI</span>
 			</div>
 		);
 	}
 
-	const iframeSrc = `file://${plugin.path}/${rendererEntry}`;
+	const iframeSrc = `file://${encore.path}/${rendererEntry}`;
 
 	return (
-		<div className="h-full w-full" data-plugin-id={pluginId} data-tab-id={tabId}>
-			{/* iframe provides natural sandboxing for untrusted plugin UI code.
+		<div className="h-full w-full" data-encore-id={encoreId} data-tab-id={tabId}>
+			{/* iframe provides natural sandboxing for untrusted encore UI code.
 			    sandbox="allow-scripts" lets JS run but without allow-same-origin
-			    the plugin cannot access the parent frame's DOM or IPC bridge. */}
+			    the encore cannot access the parent frame's DOM or IPC bridge. */}
 			<iframe
 				src={iframeSrc}
 				sandbox="allow-scripts"
@@ -65,7 +65,7 @@ export function PluginTabContent({ pluginId, tabId, theme, plugins }: PluginTabC
 					backgroundColor: theme.colors.bgMain,
 					borderTop: `1px solid ${theme.colors.border}`,
 				}}
-				title={`Plugin: ${plugin.manifest.name} - ${tabId}`}
+				title={`Encore: ${encore.manifest.name} - ${tabId}`}
 			/>
 		</div>
 	);

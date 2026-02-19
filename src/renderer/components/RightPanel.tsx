@@ -22,12 +22,12 @@ import { HistoryPanel, HistoryPanelHandle } from './HistoryPanel';
 import { AutoRun, AutoRunHandle } from './AutoRun';
 import type { DocumentTaskCount } from './AutoRunDocumentSelector';
 import { AutoRunExpandedModal } from './AutoRunExpandedModal';
-import { PluginTabContent } from './PluginTabContent';
+import { EncoreTabContent } from './EncoreTabContent';
 import { formatShortcutKeys } from '../utils/shortcutFormatter';
 import { ConfirmModal } from './ConfirmModal';
 import { useResizablePanel } from '../hooks';
-import type { PluginTab } from '../hooks/usePluginRegistry';
-import type { LoadedPlugin } from '../../shared/plugin-types';
+import type { EncoreTab } from '../hooks/useEncoreRegistry';
+import type { LoadedEncore } from '../../shared/encore-types';
 
 export interface RightPanelHandle {
 	refreshHistoryPanel: () => void;
@@ -148,9 +148,9 @@ interface RightPanelProps {
 	onOpenLastDocumentGraph?: () => void;
 
 	// Plugin tabs for dynamic Right Panel extension
-	pluginTabs?: PluginTab[];
-	/** All loaded plugins (for PluginTabContent rendering) */
-	pluginList?: LoadedPlugin[];
+	encoreTabs?: EncoreTab[];
+	/** All loaded encores (for EncoreTabContent rendering) */
+	encoreList?: LoadedEncore[];
 }
 
 export const RightPanel = memo(
@@ -218,8 +218,8 @@ export const RightPanel = memo(
 			onFocusFileInGraph,
 			lastGraphFocusFile,
 			onOpenLastDocumentGraph,
-			pluginTabs,
-			pluginList,
+			encoreTabs,
+			encoreList,
 		} = props;
 
 		const historyPanelRef = useRef<HistoryPanelHandle>(null);
@@ -452,8 +452,8 @@ export const RightPanel = memo(
 							{tab === 'autorun' ? 'Auto Run' : tab.charAt(0).toUpperCase() + tab.slice(1)}
 						</button>
 					))}
-					{pluginTabs?.map((pt) => {
-						const tabKey = `plugin:${pt.pluginId}:${pt.tabId}`;
+					{encoreTabs?.map((pt) => {
+						const tabKey = `encore:${pt.encoreId}:${pt.tabId}`;
 						return (
 							<button
 								key={tabKey}
@@ -563,17 +563,17 @@ export const RightPanel = memo(
 						</div>
 					)}
 
-					{/* Plugin tab content */}
-					{activeRightTab.startsWith('plugin:') && pluginList && (() => {
+					{/* Encore tab content */}
+					{activeRightTab.startsWith('encore:') && encoreList && (() => {
 						const parts = activeRightTab.split(':');
 						const pId = parts[1];
 						const tId = parts.slice(2).join(':');
 						return (
-							<PluginTabContent
-								pluginId={pId}
+							<EncoreTabContent
+								encoreId={pId}
 								tabId={tId}
 								theme={theme}
-								plugins={pluginList}
+								encores={encoreList}
 							/>
 						);
 					})()}

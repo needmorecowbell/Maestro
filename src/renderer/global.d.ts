@@ -2705,21 +2705,21 @@ interface MaestroAPI {
 		validateApiKey: (key: string) => Promise<{ valid: boolean }>;
 	};
 
-	// Plugin system API
+	// Encore system API
 	// IPC handlers use createIpcHandler which wraps responses as { success: true, ...result }
-	plugins: {
-		getAll: () => Promise<{ success: boolean; plugins?: import('../shared/plugin-types').LoadedPlugin[]; error?: string }>;
+	encores: {
+		getAll: () => Promise<{ success: boolean; encores?: import('../shared/encore-types').LoadedEncore[]; error?: string }>;
 		enable: (id: string) => Promise<{ success: boolean; enabled?: boolean; error?: string }>;
 		disable: (id: string) => Promise<{ success: boolean; disabled?: boolean; error?: string }>;
 		getDir: () => Promise<{ success: boolean; dir?: string; error?: string }>;
-		refresh: () => Promise<{ success: boolean; plugins?: import('../shared/plugin-types').LoadedPlugin[]; error?: string }>;
+		refresh: () => Promise<{ success: boolean; encores?: import('../shared/encore-types').LoadedEncore[]; error?: string }>;
 		settings: {
-			get: (pluginId: string) => Promise<{ success: boolean; settings?: Record<string, unknown>; error?: string }>;
-			set: (pluginId: string, key: string, value: unknown) => Promise<{ success: boolean; set?: boolean; error?: string }>;
+			get: (encoreId: string) => Promise<{ success: boolean; settings?: Record<string, unknown>; error?: string }>;
+			set: (encoreId: string, key: string, value: unknown) => Promise<{ success: boolean; set?: boolean; error?: string }>;
 		};
 		bridge: {
-			invoke: (pluginId: string, channel: string, ...args: unknown[]) => Promise<unknown>;
-			send: (pluginId: string, channel: string, ...args: unknown[]) => void;
+			invoke: (encoreId: string, channel: string, ...args: unknown[]) => Promise<unknown>;
+			send: (encoreId: string, channel: string, ...args: unknown[]) => void;
 		};
 	};
 }

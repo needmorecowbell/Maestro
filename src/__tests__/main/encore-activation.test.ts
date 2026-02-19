@@ -2,19 +2,19 @@
  * Tests for Main-Process Plugin Activation, Storage, and IPC Bridge
  *
  * Covers:
- * - activatePlugin() calls module's activate(api)
- * - deactivatePlugin() calls deactivate() and cleans up
+ * - activateEncore() calls module's activate(api)
+ * - deactivateEncore() calls deactivate() and cleans up
  * - Plugin that throws during activation gets state 'error'
  * - Plugin that throws during deactivation is logged but doesn't propagate
- * - PluginStorage read/write/list/delete operations
- * - PluginStorage path traversal prevention
- * - IPC bridge routes messages to correct plugin
- * - unregisterAll() removes all channels for a plugin
+ * - EncoreStorage read/write/list/delete operations
+ * - EncoreStorage path traversal prevention
+ * - IPC bridge routes messages to correct encore
+ * - unregisterAll() removes all channels for an encore
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import path from 'path';
-import type { LoadedPlugin } from '../../shared/plugin-types';
+import type { LoadedEncore } from '../../shared/encore-types';
 
 // Mock electron
 vi.mock('electron', () => ({
@@ -73,35 +73,35 @@ vi.mock('../../main/stats/singleton', () => ({
 	})),
 }));
 
-// Track require calls for plugin modules
-const mockPluginModules: Record<string, any> = {};
-vi.mock('../../main/plugin-storage', async () => {
-	const actual = await vi.importActual<any>('../../main/plugin-storage');
+// Track require calls for encore modules
+const mockEncoreModules: Record<string, any> = {};
+vi.mock('../../main/encore-storage', async () => {
+	const actual = await vi.importActual<any>('../../main/encore-storage');
 	return actual;
 });
 
-import { PluginHost, type PluginHostDependencies } from '../../main/plugin-host';
-import { PluginStorage } from '../../main/plugin-storage';
-import { PluginIpcBridge } from '../../main/plugin-ipc-bridge';
+import { EncoreHost, type EncoreHostDependencies } from '../../main/encore-host';
+import { EncoreStorage } from '../../main/encore-storage';
+import { EncoreIpcBridge } from '../../main/encore-ipc-bridge';
 import { logger } from '../../main/utils/logger';
 
 /**
- * Helper to create a LoadedPlugin for testing.
+ * Helper to create a LoadedEncore for testing.
  */
-function makePlugin(overrides: Partial<LoadedPlugin> & { permissions?: string[] } = {}): LoadedPlugin {
+function makeEncore(overrides: Partial<LoadedEncore> & { permissions?: string[] } = {}): LoadedEncore {
 	const { permissions, ...rest } = overrides;
 	return {
 		manifest: {
-			id: 'test-plugin',
+			id: 'test-encore',
 			name: 'Test Plugin',
 			version: '1.0.0',
-			description: 'A test plugin',
+			description: 'A test encore',
 			author: 'Test Author',
 			main: 'index.js',
 			permissions: (permissions ?? ['storage']) as any,
 		},
 		state: 'discovered',
-		path: '/mock/plugins/test-plugin',
+		path: '/mock/encores/test-encore',
 		...rest,
 	};
 }
@@ -109,7 +109,7 @@ function makePlugin(overrides: Partial<LoadedPlugin> & { permissions?: string[] 
 /**
  * Helper to create mock dependencies.
  */
-function makeDeps(overrides: Partial<PluginHostDependencies> = {}): PluginHostDependencies {
+function makeDeps(overrides: Partial<EncoreHostDependencies> = {}): EncoreHostDependencies {
 	const mockProcessManager = {
 		getAll: vi.fn(() => []),
 		kill: vi.fn(() => true),
@@ -145,71 +145,71 @@ function makeDeps(overrides: Partial<PluginHostDependencies> = {}): PluginHostDe
 // Plugin Activation Tests
 // ============================================================================
 
-describe('PluginHost activation', () => {
-	let host: PluginHost;
-	let deps: PluginHostDependencies;
+describe('EncoreHost activation', () => {
+	let host: EncoreHost;
+	let deps: EncoreHostDependencies;
 
 	beforeEach(() => {
 		vi.clearAllMocks();
-		// Clear the require cache for mock plugin modules
-		for (const key of Object.keys(mockPluginModules)) {
-			delete mockPluginModules[key];
+		// Clear the require cache for mock encore modules
+		for (const key of Object.keys(mockEncoreModules)) {
+			delete mockEncoreModules[key];
 		}
 		deps = makeDeps();
-		host = new PluginHost(deps);
+		host = new EncoreHost(deps);
 	});
 
 	it('sets state to error when entry point does not exist', async () => {
-		const plugin = makePlugin();
+		const encore = makeEncore();
 		mockAccess.mockRejectedValueOnce(new Error('ENOENT'));
 
-		await host.activatePlugin(plugin);
+		await host.activateEncore(encore);
 
-		expect(plugin.state).toBe('error');
-		expect(plugin.error).toContain('Plugin entry point not found');
+		expect(encore.state).toBe('error');
+		expect(encore.error).toContain('Encore entry point not found');
 		expect(mockCaptureException).toHaveBeenCalledWith(
 			expect.any(Error),
-			{ pluginId: 'test-plugin' }
+			{ encoreId: 'test-encore' }
 		);
 	});
 
 	it('sets state to error and reports to Sentry when require() fails', async () => {
-		const plugin = makePlugin();
+		const encore = makeEncore();
 		// fs.access passes, but require() will fail since the file doesn't actually exist
 		mockAccess.mockResolvedValueOnce(undefined);
 
-		await host.activatePlugin(plugin);
+		await host.activateEncore(encore);
 
-		expect(plugin.state).toBe('error');
-		expect(plugin.error).toBeDefined();
+		expect(encore.state).toBe('error');
+		expect(encore.error).toBeDefined();
 		expect(mockCaptureException).toHaveBeenCalledWith(
 			expect.any(Error),
-			{ pluginId: 'test-plugin' }
+			{ encoreId: 'test-encore' }
 		);
 	});
 
-	it('deactivatePlugin calls deactivate() and cleans up', async () => {
-		const plugin = makePlugin({ permissions: ['process:read'] });
+	it('deactivateEncore calls deactivate() and cleans up', async () => {
+		const encore = makeEncore({ permissions: ['process:read'] });
 
-		// Create context manually (simulating a previously activated plugin)
-		host.createPluginContext(plugin);
-		expect(host.getPluginContext('test-plugin')).toBeDefined();
+		// Create context manually (simulating a previously activated encore)
+		host.createEncoreContext(encore);
+		expect(host.getEncoreContext('test-encore')).toBeDefined();
 
 		// Deactivate should clean up context
-		await host.deactivatePlugin('test-plugin');
-		expect(host.getPluginContext('test-plugin')).toBeUndefined();
+		await host.deactivateEncore('test-encore');
+		expect(host.getEncoreContext('test-encore')).toBeUndefined();
 	});
 
 	it('deactivation errors are logged but do not propagate', async () => {
-		const plugin = makePlugin();
+		const encore = makeEncore();
 
 		// Create a context
-		host.createPluginContext(plugin);
+		host.createEncoreContext(encore);
 
-		// Deactivate a plugin that was never actually module-loaded (no module to call deactivate on)
+		// Deactivate an encore that was never actually module-loaded (no module to call deactivate on)
 		// This should complete without throwing
-		await expect(host.deactivatePlugin('test-plugin')).resolves.not.toThrow();
-		expect(host.getPluginContext('test-plugin')).toBeUndefined();
+		await expect(host.deactivateEncore('test-encore')).resolves.not.toThrow();
+		expect(host.getEncoreContext('test-encore')).toBeUndefined();
 	});
 });
 
@@ -217,12 +217,12 @@ describe('PluginHost activation', () => {
 // Plugin Storage Tests
 // ============================================================================
 
-describe('PluginStorage', () => {
-	let storage: PluginStorage;
+describe('EncoreStorage', () => {
+	let storage: EncoreStorage;
 
 	beforeEach(() => {
 		vi.clearAllMocks();
-		storage = new PluginStorage('test-plugin', '/mock/userData/plugins/test-plugin/data');
+		storage = new EncoreStorage('test-encore', '/mock/userData/encores/test-encore/data');
 	});
 
 	describe('read', () => {
@@ -232,7 +232,7 @@ describe('PluginStorage', () => {
 			const result = await storage.read('config.json');
 			expect(result).toBe('{"key": "value"}');
 			expect(mockReadFile).toHaveBeenCalledWith(
-				path.join('/mock/userData/plugins/test-plugin/data', 'config.json'),
+				path.join('/mock/userData/encores/test-encore/data', 'config.json'),
 				'utf-8'
 			);
 		});
@@ -253,11 +253,11 @@ describe('PluginStorage', () => {
 			await storage.write('config.json', '{"key": "value"}');
 
 			expect(mockMkdir).toHaveBeenCalledWith(
-				'/mock/userData/plugins/test-plugin/data',
+				'/mock/userData/encores/test-encore/data',
 				{ recursive: true }
 			);
 			expect(mockWriteFile).toHaveBeenCalledWith(
-				path.join('/mock/userData/plugins/test-plugin/data', 'config.json'),
+				path.join('/mock/userData/encores/test-encore/data', 'config.json'),
 				'{"key": "value"}',
 				'utf-8'
 			);
@@ -286,7 +286,7 @@ describe('PluginStorage', () => {
 
 			await storage.delete('config.json');
 			expect(mockUnlink).toHaveBeenCalledWith(
-				path.join('/mock/userData/plugins/test-plugin/data', 'config.json')
+				path.join('/mock/userData/encores/test-encore/data', 'config.json')
 			);
 		});
 
@@ -346,18 +346,18 @@ describe('PluginStorage', () => {
 // Plugin IPC Bridge Tests
 // ============================================================================
 
-describe('PluginIpcBridge', () => {
-	let bridge: PluginIpcBridge;
+describe('EncoreIpcBridge', () => {
+	let bridge: EncoreIpcBridge;
 
 	beforeEach(() => {
-		bridge = new PluginIpcBridge();
+		bridge = new EncoreIpcBridge();
 	});
 
 	it('register and invoke routes to correct handler', async () => {
 		const handler = vi.fn().mockReturnValue('result');
 
-		bridge.register('my-plugin', 'getData', handler);
-		const result = await bridge.invoke('my-plugin', 'getData', 'arg1', 'arg2');
+		bridge.register('my-encore', 'getData', handler);
+		const result = await bridge.invoke('my-encore', 'getData', 'arg1', 'arg2');
 
 		expect(handler).toHaveBeenCalledWith('arg1', 'arg2');
 		expect(result).toBe('result');
@@ -365,15 +365,15 @@ describe('PluginIpcBridge', () => {
 
 	it('invoke throws when no handler registered', async () => {
 		await expect(bridge.invoke('unknown', 'channel')).rejects.toThrow(
-			"No handler registered for channel 'plugin:unknown:channel'"
+			"No handler registered for channel 'encore:unknown:channel'"
 		);
 	});
 
 	it('send fires handler without waiting for result', () => {
 		const handler = vi.fn();
-		bridge.register('my-plugin', 'notify', handler);
+		bridge.register('my-encore', 'notify', handler);
 
-		bridge.send('my-plugin', 'notify', 'event-data');
+		bridge.send('my-encore', 'notify', 'event-data');
 		expect(handler).toHaveBeenCalledWith('event-data');
 	});
 
@@ -386,8 +386,8 @@ describe('PluginIpcBridge', () => {
 			throw new Error('handler boom');
 		});
 
-		bridge.register('my-plugin', 'bad', handler);
-		expect(() => bridge.send('my-plugin', 'bad')).not.toThrow();
+		bridge.register('my-encore', 'bad', handler);
+		expect(() => bridge.send('my-encore', 'bad')).not.toThrow();
 		expect(logger.error).toHaveBeenCalledWith(
 			expect.stringContaining('handler boom'),
 			expect.any(String)
@@ -396,38 +396,38 @@ describe('PluginIpcBridge', () => {
 
 	it('register returns unsubscribe function', async () => {
 		const handler = vi.fn().mockReturnValue('ok');
-		const unsub = bridge.register('my-plugin', 'temp', handler);
+		const unsub = bridge.register('my-encore', 'temp', handler);
 
 		// Handler should be reachable
-		expect(bridge.hasHandler('my-plugin', 'temp')).toBe(true);
+		expect(bridge.hasHandler('my-encore', 'temp')).toBe(true);
 
 		// Unsubscribe
 		unsub();
-		expect(bridge.hasHandler('my-plugin', 'temp')).toBe(false);
+		expect(bridge.hasHandler('my-encore', 'temp')).toBe(false);
 
 		// Should throw now
-		await expect(bridge.invoke('my-plugin', 'temp')).rejects.toThrow();
+		await expect(bridge.invoke('my-encore', 'temp')).rejects.toThrow();
 	});
 
-	it('unregisterAll removes all channels for a specific plugin', () => {
-		bridge.register('plugin-a', 'ch1', vi.fn());
-		bridge.register('plugin-a', 'ch2', vi.fn());
-		bridge.register('plugin-b', 'ch1', vi.fn());
+	it('unregisterAll removes all channels for a specific encore', () => {
+		bridge.register('encore-a', 'ch1', vi.fn());
+		bridge.register('encore-a', 'ch2', vi.fn());
+		bridge.register('encore-b', 'ch1', vi.fn());
 
-		bridge.unregisterAll('plugin-a');
+		bridge.unregisterAll('encore-a');
 
-		expect(bridge.hasHandler('plugin-a', 'ch1')).toBe(false);
-		expect(bridge.hasHandler('plugin-a', 'ch2')).toBe(false);
-		expect(bridge.hasHandler('plugin-b', 'ch1')).toBe(true);
+		expect(bridge.hasHandler('encore-a', 'ch1')).toBe(false);
+		expect(bridge.hasHandler('encore-a', 'ch2')).toBe(false);
+		expect(bridge.hasHandler('encore-b', 'ch1')).toBe(true);
 	});
 
-	it('does not affect other plugins when unregistering', () => {
-		bridge.register('plugin-a', 'shared-name', vi.fn());
-		bridge.register('plugin-b', 'shared-name', vi.fn());
+	it('does not affect other encores when unregistering', () => {
+		bridge.register('encore-a', 'shared-name', vi.fn());
+		bridge.register('encore-b', 'shared-name', vi.fn());
 
-		bridge.unregisterAll('plugin-a');
+		bridge.unregisterAll('encore-a');
 
-		expect(bridge.hasHandler('plugin-a', 'shared-name')).toBe(false);
-		expect(bridge.hasHandler('plugin-b', 'shared-name')).toBe(true);
+		expect(bridge.hasHandler('encore-a', 'shared-name')).toBe(false);
+		expect(bridge.hasHandler('encore-b', 'shared-name')).toBe(true);
 	});
 });

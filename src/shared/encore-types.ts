@@ -1,8 +1,8 @@
 /**
  * Plugin System Types
  *
- * Type definitions for the Maestro plugin system.
- * Plugins are discovered from userData/plugins/ and registered at startup.
+ * Type definitions for the Maestro encore system.
+ * Encores are discovered from userData/encores/ and registered at startup.
  */
 
 // ============================================================================
@@ -10,11 +10,11 @@
 // ============================================================================
 
 /**
- * Permissions a plugin can request.
+ * Permissions an encore can request.
  * Each permission grants access to specific Maestro capabilities.
  * 'middleware' is included in the type system but deferred to v2 implementation.
  */
-export type PluginPermission =
+export type EncorePermission =
 	| 'process:read'
 	| 'process:write'
 	| 'stats:read'
@@ -26,9 +26,9 @@ export type PluginPermission =
 	| 'middleware';
 
 /**
- * All known plugin permissions for validation.
+ * All known encore permissions for validation.
  */
-export const KNOWN_PERMISSIONS: readonly PluginPermission[] = [
+export const KNOWN_PERMISSIONS: readonly EncorePermission[] = [
 	'process:read',
 	'process:write',
 	'stats:read',
@@ -41,27 +41,27 @@ export const KNOWN_PERMISSIONS: readonly PluginPermission[] = [
 ] as const;
 
 /**
- * Definition for a tab a plugin can register in the Right Bar.
+ * Definition for a tab an encore can register in the Right Bar.
  */
-export interface PluginTabDefinition {
+export interface EncoreTabDefinition {
 	id: string;
 	label: string;
 	icon?: string;
 }
 
 /**
- * UI surface registrations for a plugin.
+ * UI surface registrations for an encore.
  */
-export interface PluginUIConfig {
-	rightPanelTabs?: PluginTabDefinition[];
+export interface EncoreUIConfig {
+	rightPanelTabs?: EncoreTabDefinition[];
 	settingsSection?: boolean;
 	floatingPanel?: boolean;
 }
 
 /**
- * A configurable setting that a plugin exposes.
+ * A configurable setting that an encore exposes.
  */
-export interface PluginSettingDefinition {
+export interface EncoreSettingDefinition {
 	key: string;
 	type: 'boolean' | 'string' | 'number' | 'select';
 	label: string;
@@ -70,10 +70,10 @@ export interface PluginSettingDefinition {
 }
 
 /**
- * Plugin manifest describing a plugin's metadata, entry points, and capabilities.
+ * Encore manifest describing an encore's metadata, entry points, and capabilities.
  * Modeled after the marketplace manifest pattern from marketplace-types.ts.
  */
-export interface PluginManifest {
+export interface EncoreManifest {
 	/** Unique slug identifier (lowercase alphanumeric + hyphens, e.g., "agent-dashboard") */
 	id: string;
 	/** Display name */
@@ -88,19 +88,19 @@ export interface PluginManifest {
 	authorLink?: string;
 	/** Minimum Maestro version required for compatibility */
 	minMaestroVersion?: string;
-	/** Main process entry point file relative to plugin dir (e.g., "index.js") */
+	/** Main process entry point file relative to encore dir (e.g., "index.js") */
 	main: string;
 	/** Optional renderer process entry point (e.g., "renderer.js") */
 	renderer?: string;
-	/** Declared permissions the plugin needs */
-	permissions: PluginPermission[];
+	/** Declared permissions the encore needs */
+	permissions: EncorePermission[];
 	/** UI surface registrations */
-	ui?: PluginUIConfig;
+	ui?: EncoreUIConfig;
 	/** Configurable settings schema */
-	settings?: PluginSettingDefinition[];
+	settings?: EncoreSettingDefinition[];
 	/** Searchable keyword tags */
 	tags?: string[];
-	/** Whether this is a first-party Maestro plugin (auto-enabled on discovery) */
+	/** Whether this is a first-party Maestro encore (auto-enabled on discovery) */
 	firstParty?: boolean;
 }
 
@@ -109,28 +109,28 @@ export interface PluginManifest {
 // ============================================================================
 
 /**
- * Lifecycle state of a plugin.
+ * Lifecycle state of an encore.
  * - discovered: manifest read and validated, not yet activated
  * - loaded: code loaded into memory
  * - active: running and providing functionality
  * - error: failed to load or activate
  * - disabled: manually disabled by user
  */
-export type PluginState = 'discovered' | 'loaded' | 'active' | 'error' | 'disabled';
+export type EncoreState = 'discovered' | 'loaded' | 'active' | 'error' | 'disabled';
 
 /**
- * A plugin that has been discovered and loaded (or failed to load).
+ * An encore that has been discovered and loaded (or failed to load).
  */
-export interface LoadedPlugin {
-	/** The plugin's manifest */
-	manifest: PluginManifest;
+export interface LoadedEncore {
+	/** The encore's manifest */
+	manifest: EncoreManifest;
 	/** Current lifecycle state */
-	state: PluginState;
-	/** Absolute path to the plugin directory */
+	state: EncoreState;
+	/** Absolute path to the encore directory */
 	path: string;
 	/** Error message if state is 'error' */
 	error?: string;
-	/** README.md content loaded from the plugin directory, if present */
+	/** README.md content loaded from the encore directory, if present */
 	readme?: string;
 }
 
@@ -142,10 +142,10 @@ import type { UsageStats } from './types';
 import type { StatsAggregation } from './stats-types';
 
 /**
- * Simplified tool execution data exposed to plugins.
+ * Simplified tool execution data exposed to encores.
  * Mirrors the relevant fields from process-manager ToolExecution.
  */
-export interface PluginToolExecution {
+export interface EncoreToolExecution {
 	toolName: string;
 	state: unknown;
 	timestamp: number;
@@ -155,11 +155,11 @@ export interface PluginToolExecution {
  * Read-only access to process data and events.
  * Requires 'process:read' permission.
  */
-export interface PluginProcessAPI {
+export interface EncoreProcessAPI {
 	getActiveProcesses(): Promise<Array<{ sessionId: string; toolType: string; pid: number; startTime: number; name: string | null }>>;
 	onData(callback: (sessionId: string, data: string) => void): () => void;
 	onUsage(callback: (sessionId: string, stats: UsageStats) => void): () => void;
-	onToolExecution(callback: (sessionId: string, tool: PluginToolExecution) => void): () => void;
+	onToolExecution(callback: (sessionId: string, tool: EncoreToolExecution) => void): () => void;
 	onExit(callback: (sessionId: string, code: number) => void): () => void;
 	onThinkingChunk(callback: (sessionId: string, text: string) => void): () => void;
 }
@@ -168,7 +168,7 @@ export interface PluginProcessAPI {
  * Write access to control processes.
  * Requires 'process:write' permission.
  */
-export interface PluginProcessControlAPI {
+export interface EncoreProcessControlAPI {
 	kill(sessionId: string): boolean;
 	write(sessionId: string, data: string): boolean;
 }
@@ -177,7 +177,7 @@ export interface PluginProcessControlAPI {
  * Read-only access to usage statistics.
  * Requires 'stats:read' permission.
  */
-export interface PluginStatsAPI {
+export interface EncoreStatsAPI {
 	getAggregation(range: string): Promise<StatsAggregation>;
 	onStatsUpdate(callback: () => void): () => void;
 }
@@ -185,9 +185,9 @@ export interface PluginStatsAPI {
 /**
  * Plugin-scoped settings access.
  * Requires 'settings:read' or 'settings:write' permission.
- * Keys are namespaced to `plugin:<id>:<key>`.
+ * Keys are namespaced to `encore:<id>:<key>`.
  */
-export interface PluginSettingsAPI {
+export interface EncoreSettingsAPI {
 	get(key: string): Promise<unknown>;
 	set(key: string, value: unknown): Promise<void>;
 	getAll(): Promise<Record<string, unknown>>;
@@ -196,9 +196,9 @@ export interface PluginSettingsAPI {
 /**
  * Plugin-scoped file storage.
  * Requires 'storage' permission.
- * Files are stored under `userData/plugins/<id>/data/`.
+ * Files are stored under `userData/encores/<id>/data/`.
  */
-export interface PluginStorageAPI {
+export interface EncoreStorageAPI {
 	read(filename: string): Promise<string | null>;
 	write(filename: string, data: string): Promise<void>;
 	list(): Promise<string[]>;
@@ -209,16 +209,16 @@ export interface PluginStorageAPI {
  * Desktop notification capabilities.
  * Requires 'notifications' permission.
  */
-export interface PluginNotificationsAPI {
+export interface EncoreNotificationsAPI {
 	show(title: string, body: string): Promise<void>;
 	playSound(sound: string): Promise<void>;
 }
 
 /**
- * IPC bridge API for split-architecture plugins.
- * Allows main-process plugin components to communicate with renderer components.
+ * IPC bridge API for split-architecture encores.
+ * Allows main-process encore components to communicate with renderer components.
  */
-export interface PluginIpcBridgeAPI {
+export interface EncoreIpcBridgeAPI {
 	/** Register a handler for messages from the renderer component */
 	onMessage(channel: string, handler: (...args: unknown[]) => unknown): () => void;
 	/** Send a message to the renderer component */
@@ -228,45 +228,45 @@ export interface PluginIpcBridgeAPI {
 /**
  * Always-available Maestro metadata API. No permission required.
  */
-export interface PluginMaestroAPI {
+export interface EncoreMaestroAPI {
 	version: string;
 	platform: string;
-	pluginId: string;
-	pluginDir: string;
+	encoreId: string;
+	encoreDir: string;
 	dataDir: string;
 }
 
 /**
- * The scoped API object provided to plugins.
- * Optional namespaces are present only when the plugin has the required permission.
+ * The scoped API object provided to encores.
+ * Optional namespaces are present only when the encore has the required permission.
  */
-export interface PluginAPI {
-	process?: PluginProcessAPI;
-	processControl?: PluginProcessControlAPI;
-	stats?: PluginStatsAPI;
-	settings?: PluginSettingsAPI;
-	storage?: PluginStorageAPI;
-	notifications?: PluginNotificationsAPI;
-	maestro: PluginMaestroAPI;
-	ipcBridge?: PluginIpcBridgeAPI;
+export interface EncoreAPI {
+	process?: EncoreProcessAPI;
+	processControl?: EncoreProcessControlAPI;
+	stats?: EncoreStatsAPI;
+	settings?: EncoreSettingsAPI;
+	storage?: EncoreStorageAPI;
+	notifications?: EncoreNotificationsAPI;
+	maestro: EncoreMaestroAPI;
+	ipcBridge?: EncoreIpcBridgeAPI;
 }
 
 /**
- * Interface that plugin modules must conform to.
- * The activate() function is called when the plugin is enabled.
- * The deactivate() function is called when the plugin is disabled.
+ * Interface that encore modules must conform to.
+ * The activate() function is called when the encore is enabled.
+ * The deactivate() function is called when the encore is disabled.
  */
-export interface PluginModule {
-	activate(api: PluginAPI): void | Promise<void>;
+export interface EncoreModule {
+	activate(api: EncoreAPI): void | Promise<void>;
 	deactivate?(): void | Promise<void>;
 }
 
 /**
- * Per-plugin runtime context managed by PluginHost.
+ * Per-encore runtime context managed by EncoreHost.
  */
-export interface PluginContext {
-	pluginId: string;
-	api: PluginAPI;
+export interface EncoreContext {
+	encoreId: string;
+	api: EncoreAPI;
 	cleanup: () => void;
 	eventSubscriptions: Array<() => void>;
 }

@@ -1,12 +1,12 @@
 /**
- * Tests for PluginManager modal component
+ * Tests for EncoreManager modal component
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { PluginManager } from '../../../renderer/components/PluginManager';
+import { EncoreManager } from '../../../renderer/components/EncoreManager';
 import type { Theme } from '../../../renderer/types';
-import type { LoadedPlugin } from '../../../shared/plugin-types';
+import type { LoadedEncore } from '../../../shared/encore-types';
 
 // Mock the Modal component to simplify testing
 vi.mock('../../../renderer/components/ui/Modal', () => ({
@@ -46,57 +46,57 @@ const mockTheme: Theme = {
 	},
 };
 
-const mockPlugins: LoadedPlugin[] = [
+const mockEncores: LoadedEncore[] = [
 	{
 		manifest: {
-			id: 'active-plugin',
-			name: 'Active Plugin',
+			id: 'active-encore',
+			name: 'Active Encore',
 			version: '1.0.0',
-			description: 'An active plugin',
+			description: 'An active encore',
 			author: 'Test Author',
 			main: 'index.js',
 			permissions: ['stats:read', 'process:write'],
 		},
 		state: 'active',
-		path: '/plugins/active-plugin',
+		path: '/encores/active-encore',
 	},
 	{
 		manifest: {
-			id: 'disabled-plugin',
-			name: 'Disabled Plugin',
+			id: 'disabled-encore',
+			name: 'Disabled Encore',
 			version: '0.5.0',
-			description: 'A disabled plugin',
+			description: 'A disabled encore',
 			author: 'Other Author',
 			main: 'index.js',
 			permissions: ['settings:read'],
 		},
 		state: 'disabled',
-		path: '/plugins/disabled-plugin',
+		path: '/encores/disabled-encore',
 	},
 	{
 		manifest: {
-			id: 'error-plugin',
-			name: 'Error Plugin',
+			id: 'error-encore',
+			name: 'Error Encore',
 			version: '0.1.0',
-			description: 'A broken plugin',
+			description: 'A broken encore',
 			author: 'Bug Author',
 			main: 'index.js',
 			permissions: ['middleware'],
 		},
 		state: 'error',
-		path: '/plugins/error-plugin',
+		path: '/encores/error-encore',
 		error: 'Failed to load: missing dependency',
 	},
 ];
 
-describe('PluginManager', () => {
+describe('EncoreManager', () => {
 	const defaultProps = {
 		theme: mockTheme,
-		plugins: mockPlugins,
+		encores: mockEncores,
 		loading: false,
 		onClose: vi.fn(),
-		onEnablePlugin: vi.fn().mockResolvedValue(undefined),
-		onDisablePlugin: vi.fn().mockResolvedValue(undefined),
+		onEnableEncore: vi.fn().mockResolvedValue(undefined),
+		onDisableEncore: vi.fn().mockResolvedValue(undefined),
 		onRefresh: vi.fn().mockResolvedValue(undefined),
 	};
 
@@ -104,41 +104,41 @@ describe('PluginManager', () => {
 		vi.clearAllMocks();
 	});
 
-	it('renders plugin list with names and versions', () => {
-		render(<PluginManager {...defaultProps} />);
+	it('renders encore list with names and versions', () => {
+		render(<EncoreManager {...defaultProps} />);
 
-		expect(screen.getByText('Active Plugin')).toBeInTheDocument();
+		expect(screen.getByText('Active Encore')).toBeInTheDocument();
 		expect(screen.getByText('v1.0.0')).toBeInTheDocument();
-		expect(screen.getByText('Disabled Plugin')).toBeInTheDocument();
-		expect(screen.getByText('Error Plugin')).toBeInTheDocument();
+		expect(screen.getByText('Disabled Encore')).toBeInTheDocument();
+		expect(screen.getByText('Error Encore')).toBeInTheDocument();
 	});
 
-	it('shows plugin count', () => {
-		render(<PluginManager {...defaultProps} />);
+	it('shows encore count', () => {
+		render(<EncoreManager {...defaultProps} />);
 
-		expect(screen.getByText('3 plugins discovered')).toBeInTheDocument();
+		expect(screen.getByText('3 encores discovered')).toBeInTheDocument();
 	});
 
 	it('shows loading state', () => {
-		render(<PluginManager {...defaultProps} loading={true} />);
+		render(<EncoreManager {...defaultProps} loading={true} />);
 
-		expect(screen.getByText('Loading plugins...')).toBeInTheDocument();
+		expect(screen.getByText('Loading encores...')).toBeInTheDocument();
 	});
 
-	it('shows empty state when no plugins', () => {
-		render(<PluginManager {...defaultProps} plugins={[]} />);
+	it('shows empty state when no encores', () => {
+		render(<EncoreManager {...defaultProps} encores={[]} />);
 
-		expect(screen.getByText('No plugins installed')).toBeInTheDocument();
+		expect(screen.getByText('No encores installed')).toBeInTheDocument();
 	});
 
-	it('shows error message for error-state plugins', () => {
-		render(<PluginManager {...defaultProps} />);
+	it('shows error message for error-state encores', () => {
+		render(<EncoreManager {...defaultProps} />);
 
 		expect(screen.getByText('Failed to load: missing dependency')).toBeInTheDocument();
 	});
 
 	it('shows permission badges', () => {
-		render(<PluginManager {...defaultProps} />);
+		render(<EncoreManager {...defaultProps} />);
 
 		expect(screen.getByText('stats:read')).toBeInTheDocument();
 		expect(screen.getByText('process:write')).toBeInTheDocument();
@@ -147,36 +147,36 @@ describe('PluginManager', () => {
 	});
 
 	it('shows author names', () => {
-		render(<PluginManager {...defaultProps} />);
+		render(<EncoreManager {...defaultProps} />);
 
 		expect(screen.getByText('by Test Author')).toBeInTheDocument();
 		expect(screen.getByText('by Other Author')).toBeInTheDocument();
 	});
 
-	it('calls onDisablePlugin when toggling active plugin', async () => {
-		render(<PluginManager {...defaultProps} />);
+	it('calls onDisableEncore when toggling active encore', async () => {
+		render(<EncoreManager {...defaultProps} />);
 
-		const toggleButtons = screen.getAllByTitle('Disable plugin');
+		const toggleButtons = screen.getAllByTitle('Disable encore');
 		fireEvent.click(toggleButtons[0]);
 
 		await waitFor(() => {
-			expect(defaultProps.onDisablePlugin).toHaveBeenCalledWith('active-plugin');
+			expect(defaultProps.onDisableEncore).toHaveBeenCalledWith('active-encore');
 		});
 	});
 
-	it('calls onEnablePlugin when toggling disabled plugin', async () => {
-		render(<PluginManager {...defaultProps} />);
+	it('calls onEnableEncore when toggling disabled encore', async () => {
+		render(<EncoreManager {...defaultProps} />);
 
-		const toggleButtons = screen.getAllByTitle('Enable plugin');
+		const toggleButtons = screen.getAllByTitle('Enable encore');
 		fireEvent.click(toggleButtons[0]);
 
 		await waitFor(() => {
-			expect(defaultProps.onEnablePlugin).toHaveBeenCalledWith('disabled-plugin');
+			expect(defaultProps.onEnableEncore).toHaveBeenCalledWith('disabled-encore');
 		});
 	});
 
 	it('calls onRefresh when Refresh button is clicked', async () => {
-		render(<PluginManager {...defaultProps} />);
+		render(<EncoreManager {...defaultProps} />);
 
 		const refreshButton = screen.getByText('Refresh');
 		fireEvent.click(refreshButton);
@@ -187,20 +187,20 @@ describe('PluginManager', () => {
 	});
 
 	it('calls shell.showItemInFolder when Open Folder is clicked', async () => {
-		render(<PluginManager {...defaultProps} />);
+		render(<EncoreManager {...defaultProps} />);
 
 		const openFolderButton = screen.getByText('Open Folder');
 		fireEvent.click(openFolderButton);
 
 		await waitFor(() => {
-			expect(window.maestro.plugins.getDir).toHaveBeenCalled();
-			expect(window.maestro.shell.showItemInFolder).toHaveBeenCalledWith('/tmp/plugins');
+			expect(window.maestro.encores.getDir).toHaveBeenCalled();
+			expect(window.maestro.shell.showItemInFolder).toHaveBeenCalledWith('/tmp/encores');
 		});
 	});
 
-	it('singular plugin text when only one plugin', () => {
-		render(<PluginManager {...defaultProps} plugins={[mockPlugins[0]]} />);
+	it('singular encore text when only one encore', () => {
+		render(<EncoreManager {...defaultProps} encores={[mockEncores[0]]} />);
 
-		expect(screen.getByText('1 plugin discovered')).toBeInTheDocument();
+		expect(screen.getByText('1 encore discovered')).toBeInTheDocument();
 	});
 });

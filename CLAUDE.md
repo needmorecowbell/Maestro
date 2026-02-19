@@ -16,7 +16,7 @@ This guide has been split into focused sub-documents for progressive disclosure:
 | [[CLAUDE-AGENTS.md]] | Supported agents and capabilities |
 | [[CLAUDE-SESSION.md]] | Session interface (agent data model) and code conventions |
 | [[CLAUDE-PLATFORM.md]] | Cross-platform concerns (Windows, Linux, macOS, SSH remote) |
-| [[CLAUDE-PLUGINS.md]] | Plugin system architecture, API surface, and development guide |
+| [[CLAUDE-ENCORES.md]] | Plugin system architecture, API surface, and development guide |
 | [AGENT_SUPPORT.md](AGENT_SUPPORT.md) | Detailed agent integration guide |
 
 ---
@@ -196,11 +196,11 @@ src/
 | Spawn agent with SSH support | `src/main/utils/ssh-spawn-wrapper.ts` (required for SSH remote execution) |
 | Modify file preview tabs | `TabBar.tsx`, `FilePreview.tsx`, `MainPanel.tsx` (see ARCHITECTURE.md → File Preview Tab System) |
 | Add Director's Notes feature | `src/renderer/components/DirectorNotes/`, `src/main/ipc/handlers/director-notes.ts` |
-| Add Encore Feature | `src/renderer/types/index.ts` (flag), `useSettings.ts` (state), `SettingsModal.tsx` (toggle UI), gate in `App.tsx` + keyboard handler |
+| Add Encore Feature | `src/renderer/types/index.ts` (flag), `settingsStore.ts` (default), `Settings/EncoreFeatureCard.tsx` (card UI), `SettingsModal.tsx` (add card to list), gate in `App.tsx` + keyboard handler |
 | Modify history components | `src/renderer/components/History/` |
-| Add/modify plugin | `src/plugins/`, `src/main/plugin-*.ts` (see [[CLAUDE-PLUGINS.md]]) |
-| Add plugin IPC handler | `src/main/ipc/handlers/plugins.ts`, `src/main/preload/plugins.ts` |
-| Add plugin permission | `src/shared/plugin-types.ts`, `src/main/plugin-host.ts` |
+| Add/modify plugin | `src/encores/`, `src/main/plugin-*.ts` (see [[CLAUDE-ENCORES.md]]) |
+| Add plugin IPC handler | `src/main/ipc/handlers/encores.ts`, `src/main/preload/encores.ts` |
+| Add plugin permission | `src/shared/encore-types.ts`, `src/main/encore-host.ts` |
 
 ---
 

@@ -1,12 +1,12 @@
 /**
- * Tests for PluginTabContent component
+ * Tests for EncoreTabContent component
  */
 
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { PluginTabContent } from '../../../renderer/components/PluginTabContent';
+import { EncoreTabContent } from '../../../renderer/components/EncoreTabContent';
 import type { Theme } from '../../../renderer/types';
-import type { LoadedPlugin } from '../../../shared/plugin-types';
+import type { LoadedEncore } from '../../../shared/encore-types';
 
 const mockTheme: Theme = {
 	id: 'dark',
@@ -26,103 +26,103 @@ const mockTheme: Theme = {
 	},
 };
 
-const mockPlugins: LoadedPlugin[] = [
+const mockEncores: LoadedEncore[] = [
 	{
 		manifest: {
-			id: 'ui-plugin',
-			name: 'UI Plugin',
+			id: 'ui-encore',
+			name: 'UI Encore',
 			version: '1.0.0',
-			description: 'Plugin with UI',
+			description: 'Encore with UI',
 			author: 'Test',
 			main: 'index.js',
 			renderer: 'renderer.html',
 			permissions: [],
 		},
 		state: 'active',
-		path: '/plugins/ui-plugin',
+		path: '/encores/ui-encore',
 	},
 	{
 		manifest: {
-			id: 'no-ui-plugin',
-			name: 'No UI Plugin',
+			id: 'no-ui-encore',
+			name: 'No UI Encore',
 			version: '1.0.0',
-			description: 'Plugin without UI',
+			description: 'Encore without UI',
 			author: 'Test',
 			main: 'index.js',
 			permissions: [],
 		},
 		state: 'active',
-		path: '/plugins/no-ui-plugin',
+		path: '/encores/no-ui-encore',
 	},
 ];
 
-describe('PluginTabContent', () => {
-	it('renders iframe for plugin with renderer entry', () => {
+describe('EncoreTabContent', () => {
+	it('renders iframe for encore with renderer entry', () => {
 		const { container } = render(
-			<PluginTabContent
-				pluginId="ui-plugin"
+			<EncoreTabContent
+				encoreId="ui-encore"
 				tabId="main"
 				theme={mockTheme}
-				plugins={mockPlugins}
+				encores={mockEncores}
 			/>
 		);
 
 		const iframe = container.querySelector('iframe');
 		expect(iframe).toBeTruthy();
-		expect(iframe?.getAttribute('src')).toBe('file:///plugins/ui-plugin/renderer.html');
+		expect(iframe?.getAttribute('src')).toBe('file:///encores/ui-encore/renderer.html');
 		expect(iframe?.getAttribute('sandbox')).toBe('allow-scripts');
-		expect(iframe?.getAttribute('title')).toContain('UI Plugin');
+		expect(iframe?.getAttribute('title')).toContain('UI Encore');
 	});
 
-	it('shows "no UI" message for plugin without renderer', () => {
+	it('shows "no UI" message for encore without renderer', () => {
 		render(
-			<PluginTabContent
-				pluginId="no-ui-plugin"
+			<EncoreTabContent
+				encoreId="no-ui-encore"
 				tabId="main"
 				theme={mockTheme}
-				plugins={mockPlugins}
+				encores={mockEncores}
 			/>
 		);
 
-		expect(screen.getByText('No UI Plugin')).toBeInTheDocument();
-		expect(screen.getByText('This plugin has no UI')).toBeInTheDocument();
+		expect(screen.getByText('No UI Encore')).toBeInTheDocument();
+		expect(screen.getByText('This encore has no UI')).toBeInTheDocument();
 	});
 
-	it('shows "not found" message for unknown plugin', () => {
+	it('shows "not found" message for unknown encore', () => {
 		render(
-			<PluginTabContent
-				pluginId="unknown-plugin"
+			<EncoreTabContent
+				encoreId="unknown-encore"
 				tabId="main"
 				theme={mockTheme}
-				plugins={mockPlugins}
+				encores={mockEncores}
 			/>
 		);
 
-		expect(screen.getByText('Plugin not found: unknown-plugin')).toBeInTheDocument();
+		expect(screen.getByText('Encore not found: unknown-encore')).toBeInTheDocument();
 	});
 
 	it('sets data attributes on wrapper', () => {
 		const { container } = render(
-			<PluginTabContent
-				pluginId="ui-plugin"
+			<EncoreTabContent
+				encoreId="ui-encore"
 				tabId="dashboard"
 				theme={mockTheme}
-				plugins={mockPlugins}
+				encores={mockEncores}
 			/>
 		);
 
-		const wrapper = container.querySelector('[data-plugin-id="ui-plugin"]');
+		const wrapper = container.querySelector('[data-encore-id="ui-encore"]');
 		expect(wrapper).toBeTruthy();
 		expect(wrapper?.getAttribute('data-tab-id')).toBe('dashboard');
 	});
 
 	it('iframe does not have allow-same-origin in sandbox', () => {
 		const { container } = render(
-			<PluginTabContent
-				pluginId="ui-plugin"
+			<EncoreTabContent
+				encoreId="ui-encore"
 				tabId="main"
 				theme={mockTheme}
-				plugins={mockPlugins}
+				encores={mockEncores}
 			/>
 		);
 

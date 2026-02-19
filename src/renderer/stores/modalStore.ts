@@ -220,7 +220,7 @@ export type ModalId =
 	// Director's Notes
 	| 'directorNotes'
 	// Plugins
-	| 'pluginManager';
+	| 'encoreManager';
 
 /**
  * Type mapping from ModalId to its data type.
@@ -760,8 +760,8 @@ export function getModalActions() {
 			open ? openModal('directorNotes') : closeModal('directorNotes'),
 
 		// Plugin Manager Modal
-		setPluginManagerOpen: (open: boolean) =>
-			open ? openModal('pluginManager') : closeModal('pluginManager'),
+		setEncoreManagerOpen: (open: boolean) =>
+			open ? openModal('encoreManager') : closeModal('encoreManager'),
 
 		// Lightbox refs replacement - use updateModalData instead
 		setLightboxIsGroupChat: (isGroupChat: boolean) => updateModalData('lightbox', { isGroupChat }),
@@ -852,7 +852,7 @@ export function useModalActions() {
 	const symphonyModalOpen = useModalStore(selectModalOpen('symphony'));
 	const windowsWarningModalOpen = useModalStore(selectModalOpen('windowsWarning'));
 	const directorNotesOpen = useModalStore(selectModalOpen('directorNotes'));
-	const pluginManagerOpen = useModalStore(selectModalOpen('pluginManager'));
+	const encoreManagerOpen = useModalStore(selectModalOpen('encoreManager'));
 
 	// Get stable actions
 	const actions = getModalActions();
@@ -1022,7 +1022,7 @@ export function useModalActions() {
 		directorNotesOpen,
 
 		// Plugin Manager Modal
-		pluginManagerOpen,
+		encoreManagerOpen,
 
 		// Lightbox ref replacements (now stored as data)
 		lightboxIsGroupChat: lightboxData?.isGroupChat ?? false,
