@@ -44,7 +44,8 @@ export class EncoreManager {
 
 	/**
 	 * Discover and load all encores from the encores directory.
-	 * First-party encores are auto-enabled unless explicitly disabled by user.
+	 * All encores start disabled. Encores the user previously enabled are
+	 * re-activated automatically (persisted via `encore:<id>:enabled` flag).
 	 */
 	async initialize(): Promise<void> {
 		// Deactivate any currently active encores before re-scanning
@@ -73,34 +74,26 @@ export class EncoreManager {
 		const errorCount = discovered.filter((p) => p.state === 'error').length;
 		const okCount = discovered.length - errorCount;
 		logger.info(
-			`Plugin system initialized: ${okCount} valid, ${errorCount} with errors`,
+			`Encore system initialized: ${okCount} valid, ${errorCount} with errors`,
 			LOG_CONTEXT
 		);
 
-		// Auto-enable first-party encores that haven't been explicitly disabled
+		// Re-enable encores the user had previously toggled on
 		for (const encore of discovered) {
 			if (encore.state !== 'discovered') continue;
-			if (!this.isFirstParty(encore)) continue;
-			if (this.isUserDisabled(encore.manifest.id)) continue;
+			if (!this.isUserEnabled(encore.manifest.id)) continue;
 
-			logger.info(`Auto-enabling first-party encore '${encore.manifest.id}'`, LOG_CONTEXT);
+			logger.info(`Restoring enabled encore '${encore.manifest.id}'`, LOG_CONTEXT);
 			await this.enableEncore(encore.manifest.id);
 		}
 	}
 
 	/**
-	 * Checks if an encore is first-party (auto-enable candidate).
+	 * Checks if a user has previously enabled an encore (persisted across restarts).
 	 */
-	private isFirstParty(encore: LoadedEncore): boolean {
-		return encore.manifest.firstParty === true || encore.manifest.author === 'Maestro Core';
-	}
-
-	/**
-	 * Checks if a user has explicitly disabled an encore.
-	 */
-	private isUserDisabled(encoreId: string): boolean {
+	private isUserEnabled(encoreId: string): boolean {
 		if (!this.settingsStore) return false;
-		return this.settingsStore.get(`encore:${encoreId}:userDisabled` as any) === true;
+		return this.settingsStore.get(`encore:${encoreId}:enabled` as any) === true;
 	}
 
 	/**
@@ -150,6 +143,11 @@ export class EncoreManager {
 			encore.state = 'active';
 		}
 
+		// Persist enabled state so the encore restores on next startup
+		if (this.settingsStore && encore.state === 'active') {
+			this.settingsStore.set(`encore:${id}:enabled` as any, true as any);
+		}
+
 		logger.info(`Encore '${id}' enabled (state: ${encore.state})`, LOG_CONTEXT);
 		return encore.state === 'active';
 	}
@@ -179,12 +177,12 @@ export class EncoreManager {
 
 		encore.state = 'disabled';
 
-		// Track user-explicit disable
+		// Clear persisted enabled state
 		if (this.settingsStore) {
-			this.settingsStore.set(`encore:${id}:userDisabled` as any, true as any);
+			this.settingsStore.set(`encore:${id}:enabled` as any, false as any);
 		}
 
-		logger.info(`Plugin '${id}' disabled`, LOG_CONTEXT);
+		logger.info(`Encore '${id}' disabled`, LOG_CONTEXT);
 		return true;
 	}
 
@@ -222,7 +220,7 @@ export class EncoreManager {
 		const all = this.settingsStore.store;
 		const result: Record<string, unknown> = {};
 		for (const [k, v] of Object.entries(all)) {
-			if (k.startsWith(prefix) && !k.endsWith(':userDisabled')) {
+			if (k.startsWith(prefix) && !k.endsWith(':enabled')) {
 				result[k.slice(prefix.length)] = v;
 			}
 		}
