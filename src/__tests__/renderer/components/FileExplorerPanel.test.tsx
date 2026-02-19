@@ -1568,7 +1568,7 @@ describe('FileExplorerPanel', () => {
 			fireEvent.contextMenu(fileItem!, { clientX: 100, clientY: 200 });
 
 			expect(screen.getByText('Copy Path')).toBeInTheDocument();
-			expect(screen.getByText('Reveal in Finder')).toBeInTheDocument();
+			expect(screen.getByText(/Reveal in (Finder|Explorer|File Manager)/)).toBeInTheDocument();
 		});
 
 		it('updates selection to right-clicked item when opening context menu', () => {
@@ -1725,7 +1725,7 @@ describe('FileExplorerPanel', () => {
 			const mockFs = {
 				countItems: vi.fn().mockResolvedValue({ fileCount: 0, folderCount: 0 }),
 			};
-			(window as any).maestro = { fs: mockFs };
+			(window as any).maestro = { platform: 'darwin', fs: mockFs };
 
 			const { container } = render(<FileExplorerPanel {...defaultProps} />);
 			const fileItem = Array.from(container.querySelectorAll('[data-file-index]')).find((el) =>
@@ -1787,7 +1787,7 @@ describe('FileExplorerPanel', () => {
 
 		it('calls shell.openExternal with full file path when Open in Default App is clicked', () => {
 			const mockShell = { openExternal: vi.fn().mockResolvedValue(undefined) };
-			(window as any).maestro = { shell: mockShell };
+			(window as any).maestro = { platform: 'darwin', shell: mockShell };
 
 			const { container } = render(<FileExplorerPanel {...defaultProps} />);
 			const fileItem = Array.from(container.querySelectorAll('[data-file-index]')).find((el) =>
@@ -1834,7 +1834,7 @@ describe('FileExplorerPanel', () => {
 			const mockFs = {
 				countItems: vi.fn().mockResolvedValue({ fileCount: 5, folderCount: 2 }),
 			};
-			(window as any).maestro = { fs: mockFs };
+			(window as any).maestro = { platform: 'darwin', fs: mockFs };
 
 			const { container } = render(<FileExplorerPanel {...defaultProps} />);
 			const folderItem = Array.from(container.querySelectorAll('[data-file-index]')).find((el) =>
@@ -1857,7 +1857,7 @@ describe('FileExplorerPanel', () => {
 			const mockFs = {
 				countItems: vi.fn().mockResolvedValue({ fileCount: 0, folderCount: 0 }),
 			};
-			(window as any).maestro = { fs: mockFs };
+			(window as any).maestro = { platform: 'darwin', fs: mockFs };
 
 			const { container } = render(<FileExplorerPanel {...defaultProps} />);
 			const fileItem = Array.from(container.querySelectorAll('[data-file-index]')).find((el) =>

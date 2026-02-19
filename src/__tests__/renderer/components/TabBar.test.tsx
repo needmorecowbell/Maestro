@@ -2874,7 +2874,7 @@ describe('FileTab overlay menu', () => {
 		expect(screen.getByText('Copy File Path')).toBeInTheDocument();
 		expect(screen.getByText('Copy File Name')).toBeInTheDocument();
 		expect(screen.getByText('Open in Default App')).toBeInTheDocument();
-		expect(screen.getByText('Reveal in Finder')).toBeInTheDocument();
+		expect(screen.getByText(/Reveal in (Finder|Explorer|File Manager)/)).toBeInTheDocument();
 
 		vi.useRealTimers();
 	});
@@ -2907,7 +2907,7 @@ describe('FileTab overlay menu', () => {
 		// Should show file-specific actions (these are unique to file tabs)
 		expect(screen.getByText('Copy File Path')).toBeInTheDocument();
 		expect(screen.getByText('Open in Default App')).toBeInTheDocument();
-		expect(screen.getByText('Reveal in Finder')).toBeInTheDocument();
+		expect(screen.getByText(/Reveal in (Finder|Explorer|File Manager)/)).toBeInTheDocument();
 
 		vi.useRealTimers();
 	});
@@ -3036,7 +3036,7 @@ describe('FileTab overlay menu', () => {
 		vi.useRealTimers();
 	});
 
-	it('calls showItemInFolder when clicking Reveal in Finder', async () => {
+	it('calls showItemInFolder when clicking Reveal in Finder/Explorer', async () => {
 		vi.useFakeTimers();
 		const mockShowItemInFolder = vi.fn().mockResolvedValue(undefined);
 		window.maestro = {
@@ -3069,7 +3069,7 @@ describe('FileTab overlay menu', () => {
 			vi.advanceTimersByTime(450);
 		});
 
-		const revealButton = screen.getByText('Reveal in Finder');
+		const revealButton = screen.getByText(/Reveal in (Finder|Explorer|File Manager)/);
 		await act(async () => {
 			fireEvent.click(revealButton);
 		});

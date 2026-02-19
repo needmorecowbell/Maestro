@@ -589,6 +589,7 @@ export function registerSystemHandlers(deps: SystemHandlerDependencies): void {
 	ipcMain.handle('power:removeReason', async (_event, reason: string) => {
 		powerManager.removeBlockReason(reason);
 	});
+
 }
 
 /**

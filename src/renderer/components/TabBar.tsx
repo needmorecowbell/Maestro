@@ -25,6 +25,7 @@ import type { AITab, Theme, FilePreviewTab, UnifiedTab } from '../types';
 import { hasDraft } from '../utils/tabHelpers';
 import { formatShortcutKeys } from '../utils/shortcutFormatter';
 import { getColorBlindExtensionColor } from '../constants/colorblindPalettes';
+import { getRevealLabel } from '../utils/platformUtils';
 
 interface TabBarProps {
 	tabs: AITab[];
@@ -1452,14 +1453,14 @@ const FileTab = memo(function FileTab({
 									Open in Default App
 								</button>
 
-								{/* Reveal in Finder */}
+								{/* Reveal in Finder / Explorer */}
 								<button
 									onClick={handleRevealInFinder}
 									className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs hover:bg-white/10 transition-colors"
 									style={{ color: theme.colors.textMain }}
 								>
 									<FolderOpen className="w-3.5 h-3.5" style={{ color: theme.colors.textDim }} />
-									Reveal in Finder
+									{getRevealLabel(window.maestro.platform)}
 								</button>
 
 								{/* Tab Move Actions Section - divider and move options */}
