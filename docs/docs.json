@@ -91,6 +91,7 @@
           {
             "group": "Integrations",
             "pages": [
+              "encores",
               "mcp-server"
             ],
             "icon": "plug"
