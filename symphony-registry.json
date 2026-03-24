@@ -110,10 +110,10 @@
 		{
 			"slug": "needmorecowbell/drawfinity",
 			"name": "Drawfinity",
-			"description": "Infinite canvas drawing app with pressure-sensitive brushes, real-time collaboration via WebSocket/Yjs CRDT sync, and a WebGL2 rendering pipeline, built on Tauri",
+			"description": "Infinite canvas drawing app with pressure-sensitive brushes, real-time collaboration via WebSocket/Yjs CRDT sync, and a WebGL2 rendering pipeline, built on Tauri.",
 			"url": "https://github.com/needmorecowbell/drawfinity",
-			"category": "web",
-			"tags": ["drawing", "collaboration", "creative-tools", "generative-art"],
+			"category": "desktop",
+			"tags": ["drawing", "collaboration", "creative-tools", "tauri"],
 			"maintainer": {
 				"name": "needmorecowbell",
 				"url": "https://github.com/needmorecowbell"
